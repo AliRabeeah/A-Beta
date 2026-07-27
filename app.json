@@ -100,9 +100,9 @@
             {
               "name": "QuoteWidget",
               "label": "A — Quote",
-              "minWidth": "180dp",
+              "minWidth": "225dp",
               "minHeight": "80dp",
-              "targetCellWidth": 4,
+              "targetCellWidth": 5,
               "targetCellHeight": 2,
               "description": "A transparent, auto-changing motivational quote",
               "updatePeriodMillis": 14400000,
