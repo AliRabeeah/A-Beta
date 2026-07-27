@@ -1,0 +1,138 @@
+import React, { useMemo, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../theme/ThemeContext';
+import { useLanguage } from '../i18n/LanguageContext';
+import { useFavorites, FAVORITE_TYPES } from '../context/FavoriteContext';
+import FavoriteCard from '../components/FavoriteCard';
+import FilterBar from '../components/FilterBar';
+import SideDrawer from '../components/SideDrawer';
+
+// Responsive column count: one column on phones, more as the viewport
+// widens (tablets / web), matching the spec's "single column on mobile,
+// several columns on larger screens" requirement.
+function columnsForWidth(width) {
+  if (width >= 900) return 4;
+  if (width >= 650) return 3;
+  if (width >= 420) return 2;
+  return 1;
+}
+
+export default function FavoritesScreen({ navigation }) {
+  const { colors } = useTheme();
+  const { t, isRTL } = useLanguage();
+  const { favorites, loaded, deleteFavorite } = useFavorites();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const numColumns = columnsForWidth(width);
+
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [activeType, setActiveType] = useState(null); // null = "All"
+
+  const counts = useMemo(() => {
+    const c = {};
+    FAVORITE_TYPES.forEach((typeInfo) => {
+      c[typeInfo.id] = favorites.filter((f) => f.type === typeInfo.id).length;
+    });
+    return c;
+  }, [favorites]);
+
+  const filtered = useMemo(
+    () => (activeType ? favorites.filter((f) => f.type === activeType) : favorites),
+    [favorites, activeType]
+  );
+
+  const handleAdd = () => navigation.navigate('AddEditFavorite');
+  const handleOpen = (item) => navigation.navigate('AddEditFavorite', { favoriteId: item.id });
+
+  const handleDelete = (item) => {
+    Alert.alert(t('deleteConfirmTitle'), `${t('deleteConfirmBody')} "${item.title}"?`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: () => deleteFavorite(item.id) },
+    ]);
+  };
+
+  const renderEmptyState = () => {
+    const filteredEmpty = favorites.length > 0 && activeType !== null;
+    return (
+      <View style={styles.empty}>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>⭐</Text>
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+          {filteredEmpty ? t('favoritesNoResultsTitle') : t('favoritesEmptyTitle')}
+        </Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+          {filteredEmpty ? t('favoritesNoResultsSubtitle') : t('favoritesEmptySubtitle')}
+        </Text>
+        {!filteredEmpty && (
+          <TouchableOpacity onPress={handleAdd} style={[styles.emptyBtn, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.emptyBtnText, { color: colors.onPrimary }]}>{t('addFirstFavorite')}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  if (!loaded) return <View style={[styles.container, { backgroundColor: colors.background }]} />;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
+      <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        <View style={[styles.headerLeft, isRTL && { flexDirection: 'row-reverse' }]}>
+          <TouchableOpacity onPress={() => setDrawerVisible(true)} style={styles.menuBtn}>
+            <Ionicons name="menu" size={26} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.text }]}>{t('favoritesTitle')}</Text>
+        </View>
+        <TouchableOpacity onPress={handleAdd} style={[styles.addBtn, { backgroundColor: colors.primary }]}>
+          <Ionicons name="add" size={22} color={colors.onPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.filterWrap}>
+        <FilterBar counts={counts} activeType={activeType} onSelectType={setActiveType} />
+      </View>
+
+      <FlatList
+        data={filtered}
+        key={numColumns}
+        keyExtractor={(item) => item.id}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
+        contentContainerStyle={filtered.length === 0 ? styles.emptyListContent : styles.listContent}
+        ListEmptyComponent={renderEmptyState}
+        renderItem={({ item, index }) => (
+          <View style={numColumns > 1 ? styles.gridCell : undefined}>
+            <FavoriteCard
+              item={item}
+              index={index}
+              onPress={() => handleOpen(item)}
+              onLongPress={() => handleDelete(item)}
+            />
+          </View>
+        )}
+      />
+
+      <SideDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} navigation={navigation} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  menuBtn: { padding: 6, marginRight: 6 },
+  title: { fontSize: 24, fontWeight: '800' },
+  addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  filterWrap: { paddingHorizontal: 16 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  emptyListContent: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 100 },
+  gridRow: { gap: 12 },
+  gridCell: { flex: 1, marginBottom: 12 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 30 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
+  emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  emptyBtn: { marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
+  emptyBtnText: { fontWeight: '700', fontSize: 14 },
+});
