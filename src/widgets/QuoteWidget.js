@@ -62,6 +62,7 @@ export default function QuoteWidget({
       <TextWidget
         text={`"${quoteText}"`}
         style={{
+          width: 'match_parent',
           color: textColor,
           fontSize: preset.quote,
           fontWeight: '700',
@@ -74,6 +75,7 @@ export default function QuoteWidget({
         <TextWidget
           text={`— ${author}`}
           style={{
+            width: 'match_parent',
             color: textColor,
             fontSize: preset.author,
             fontFamily,
