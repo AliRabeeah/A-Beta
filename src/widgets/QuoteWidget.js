@@ -52,38 +52,47 @@ export default function QuoteWidget({
         alignItems,
       }}
     >
-      {emoji ? (
-        <TextWidget
-          text={emoji}
-          style={{ fontSize: preset.quote, marginBottom: 6, textAlign }}
-        />
-      ) : null}
-
-      <TextWidget
-        text={`"${quoteText}"`}
+      <FlexWidget
         style={{
           width: 'match_parent',
-          color: textColor,
-          fontSize: preset.quote,
-          fontWeight: '700',
-          fontFamily,
-          textAlign,
+          paddingHorizontal: 14,
+          flexDirection: 'column',
+          alignItems,
         }}
-      />
+      >
+        {emoji ? (
+          <TextWidget
+            text={emoji}
+            style={{ fontSize: preset.quote, marginBottom: 6, textAlign }}
+          />
+        ) : null}
 
-      {showAuthor && author ? (
         <TextWidget
-          text={`— ${author}`}
+          text={`"${quoteText}"`}
           style={{
             width: 'match_parent',
             color: textColor,
-            fontSize: preset.author,
+            fontSize: preset.quote,
+            fontWeight: '700',
             fontFamily,
-            marginTop: 8,
             textAlign,
           }}
         />
-      ) : null}
+
+        {showAuthor && author ? (
+          <TextWidget
+            text={`— ${author}`}
+            style={{
+              width: 'match_parent',
+              color: textColor,
+              fontSize: preset.author,
+              fontFamily,
+              marginTop: 8,
+              textAlign,
+            }}
+          />
+        ) : null}
+      </FlexWidget>
     </FlexWidget>
   );
 }
