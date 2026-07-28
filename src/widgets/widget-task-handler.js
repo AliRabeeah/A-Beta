@@ -307,6 +307,8 @@ async function handleQuoteWidget(props) {
       fontFamily={fontFamily}
       size={size}
       align={align}
+      widgetWidthDp={props.widgetInfo?.width ?? null}
+      widgetHeightDp={props.widgetInfo?.height ?? null}
     />
   );
 }

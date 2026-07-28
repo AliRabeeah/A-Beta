@@ -1,10 +1,15 @@
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
+import { estimateQuoteFontSize } from '../utils/quotePicker';
 
+// Ceiling/floor for each user-facing size preset. The *actual* font size
+// used is computed per-quote by estimateQuoteFontSize(), which shrinks the
+// text (down to `min`) whenever it's long enough that `max` would overflow
+// the widget's real on-screen size and get clipped by Android.
 const SIZE_PRESETS = {
-  small: { quote: 14, author: 11 },
-  medium: { quote: 18, author: 13 },
-  large: { quote: 24, author: 15 },
+  small: { max: 16, min: 10, author: 11 },
+  medium: { max: 20, min: 11, author: 13 },
+  large: { max: 26, min: 12, author: 15 },
 };
 
 const ALIGN_MAP = {
@@ -34,10 +39,25 @@ export default function QuoteWidget({
   fontFamily = 'serif',
   size = 'medium',
   align = 'center',
+  widgetWidthDp = null,
+  widgetHeightDp = null,
 }) {
   const preset = SIZE_PRESETS[size] || SIZE_PRESETS.medium;
   const alignItems = ALIGN_MAP[align] || 'center';
   const textAlign = ALIGN_TEXT_MAP[align] || 'center';
+
+  // Real, working "auto-size": shrink the quote's font size (never below
+  // preset.min) until it's estimated to fit the actual widget dimensions
+  // Android reported for this instance, so long quotes are never clipped.
+  const quoteFontSize = estimateQuoteFontSize({
+    text: quoteText,
+    widthDp: widgetWidthDp,
+    heightDp: widgetHeightDp,
+    hasAuthorLine: showAuthor && !!author,
+    hasEmoji: !!emoji,
+    maxFontSize: preset.max,
+    minFontSize: preset.min,
+  });
 
   return (
     <FlexWidget
@@ -63,16 +83,20 @@ export default function QuoteWidget({
         {emoji ? (
           <TextWidget
             text={emoji}
-            style={{ fontSize: preset.quote, marginBottom: 6, textAlign }}
+            style={{ fontSize: preset.max, marginBottom: 6, textAlign }}
           />
         ) : null}
 
         <TextWidget
           text={`"${quoteText}"`}
+          // maxLines/truncate are a last-resort safety net only — with
+          // quoteFontSize already sized to fit, this should rarely engage.
+          maxLines={10}
+          truncate="END"
           style={{
             width: 'match_parent',
             color: textColor,
-            fontSize: preset.quote,
+            fontSize: quoteFontSize,
             fontWeight: '700',
             fontFamily,
             textAlign,
