@@ -41,6 +41,7 @@ export default function QuoteWidget({
   align = 'center',
   widgetWidthDp = null,
   widgetHeightDp = null,
+  fitRatio = 0.8,
 }) {
   const preset = SIZE_PRESETS[size] || SIZE_PRESETS.medium;
   const alignItems = ALIGN_MAP[align] || 'center';
@@ -48,8 +49,10 @@ export default function QuoteWidget({
 
   // Real, working "auto-size": shrink the quote's font size (never below
   // preset.min) until it's estimated to fit the actual widget dimensions
-  // Android reported for this instance, so long quotes are never clipped.
-  const quoteFontSize = estimateQuoteFontSize({
+  // Android reported for this instance (with a safety margin — see
+  // estimateQuoteFontSize's comment on launchers misreporting widget
+  // size), so long quotes are never clipped.
+  const { fontSize: quoteFontSize, boxWidthDp } = estimateQuoteFontSize({
     text: quoteText,
     widthDp: widgetWidthDp,
     heightDp: widgetHeightDp,
@@ -57,6 +60,7 @@ export default function QuoteWidget({
     hasEmoji: !!emoji,
     maxFontSize: preset.max,
     minFontSize: preset.min,
+    safetyRatio: fitRatio,
   });
 
   return (
@@ -74,8 +78,7 @@ export default function QuoteWidget({
     >
       <FlexWidget
         style={{
-          width: 'match_parent',
-          paddingHorizontal: 14,
+          width: boxWidthDp,
           flexDirection: 'column',
           alignItems,
         }}
@@ -90,11 +93,12 @@ export default function QuoteWidget({
         <TextWidget
           text={`"${quoteText}"`}
           // maxLines/truncate are a last-resort safety net only — with
-          // quoteFontSize already sized to fit, this should rarely engage.
+          // quoteFontSize + boxWidthDp already sized to fit, this should
+          // rarely engage.
           maxLines={10}
           truncate="END"
           style={{
-            width: 'match_parent',
+            width: boxWidthDp,
             color: textColor,
             fontSize: quoteFontSize,
             fontWeight: '700',
@@ -107,7 +111,7 @@ export default function QuoteWidget({
           <TextWidget
             text={`— ${author}`}
             style={{
-              width: 'match_parent',
+              width: boxWidthDp,
               color: textColor,
               fontSize: preset.author,
               fontFamily,

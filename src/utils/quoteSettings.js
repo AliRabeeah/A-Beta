@@ -8,6 +8,7 @@ const EMOJI_KEY = 'a_quote_emoji_enabled';
 const WIDGET_COLOR_KEY = 'a_quote_widget_color';
 const WIDGET_FONT_KEY = 'a_quote_widget_font';
 const WIDGET_SIZE_KEY = 'a_quote_widget_size'; // 'small' | 'medium' | 'large'
+const WIDGET_FIT_KEY = 'a_quote_widget_fit'; // 'roomy' | 'balanced' | 'snug'
 const WIDGET_ALIGN_KEY = 'a_quote_widget_align'; // 'left' | 'center' | 'right'
 const SHOW_AUTHOR_KEY = 'a_quote_widget_show_author';
 const RECENT_IDS_KEY = 'a_quote_recent_ids';
@@ -36,6 +37,19 @@ export const WIDGET_FONT_OPTIONS = [
 
 export const WIDGET_COLOR_OPTIONS = [
   '#FFFFFF', '#FFD60A', '#0A84FF', '#FF9F0A', '#FF375F', '#BF5AF2', '#00E676', '#64D2FF',
+];
+
+// How much of the widget size Android/the launcher *reports* we actually
+// trust when sizing the quote text. Some launchers (heavily themed ones
+// especially) report a widget size larger than what they actually render,
+// which silently clips text with no reflow. Lower ratio = more safety
+// margin = smaller text but never clipped; higher ratio = larger text but
+// more likely to clip on launchers that over-report size.
+export const DEFAULT_WIDGET_FIT = 'balanced';
+export const WIDGET_FIT_OPTIONS = [
+  { id: 'roomy', ratio: 0.7 },
+  { id: 'balanced', ratio: 0.8 },
+  { id: 'snug', ratio: 0.9 },
 ];
 
 async function getBool(key, fallback) {
@@ -110,6 +124,19 @@ export async function getWidgetSize() {
 }
 export async function setWidgetSize(size) {
   await AsyncStorage.setItem(WIDGET_SIZE_KEY, size);
+}
+
+export async function getWidgetFitMode() {
+  const raw = await AsyncStorage.getItem(WIDGET_FIT_KEY);
+  return WIDGET_FIT_OPTIONS.some((o) => o.id === raw) ? raw : DEFAULT_WIDGET_FIT;
+}
+export async function setWidgetFitMode(fitId) {
+  await AsyncStorage.setItem(WIDGET_FIT_KEY, fitId);
+}
+/** Resolves the stored fit mode straight to the safety ratio used by estimateQuoteFontSize. */
+export async function getWidgetFitRatio() {
+  const fitId = await getWidgetFitMode();
+  return (WIDGET_FIT_OPTIONS.find((o) => o.id === fitId) || WIDGET_FIT_OPTIONS[1]).ratio;
 }
 
 export async function getWidgetAlign() {

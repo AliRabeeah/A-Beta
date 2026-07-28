@@ -27,6 +27,7 @@ import {
   getQuoteEmojiEnabled,
   getCurrentWidgetQuoteId,
   setCurrentWidgetQuoteId,
+  getWidgetFitRatio,
 } from '../utils/quoteSettings';
 
 const HABITS_KEY = 'a_habits_v1';
@@ -288,13 +289,14 @@ async function handleQuoteWidget(props) {
 
   if (quote) await setCurrentWidgetQuoteId(quote.id);
 
-  const [textColor, fontFamily, size, align, showAuthor, emojiEnabled] = await Promise.all([
+  const [textColor, fontFamily, size, align, showAuthor, emojiEnabled, fitRatio] = await Promise.all([
     getWidgetTextColor(),
     getWidgetFontFamily(),
     getWidgetSize(),
     getWidgetAlign(),
     getShowAuthor(),
     getQuoteEmojiEnabled(),
+    getWidgetFitRatio(),
   ]);
 
   props.renderWidget(
@@ -309,6 +311,7 @@ async function handleQuoteWidget(props) {
       align={align}
       widgetWidthDp={props.widgetInfo?.width ?? null}
       widgetHeightDp={props.widgetInfo?.height ?? null}
+      fitRatio={fitRatio}
     />
   );
 }

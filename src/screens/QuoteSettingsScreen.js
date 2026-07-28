@@ -17,7 +17,8 @@ import {
   getWidgetAlign, setWidgetAlign,
   getShowAuthor, setShowAuthor,
   getLikedQuoteIds, toggleLikedQuoteId,
-  WIDGET_COLOR_OPTIONS, WIDGET_FONT_OPTIONS,
+  getWidgetFitMode, setWidgetFitMode,
+  WIDGET_COLOR_OPTIONS, WIDGET_FONT_OPTIONS, WIDGET_FIT_OPTIONS,
 } from '../utils/quoteSettings';
 import { ensurePermission, scheduleQuoteNotifications, cancelQuoteNotifications } from '../utils/notifications';
 import { refreshQuoteWidget } from '../utils/widgetSync';
@@ -43,6 +44,7 @@ export default function QuoteSettingsScreen() {
   const [color, setColorState] = useState('#FFFFFF');
   const [fontFamily, setFontFamilyState] = useState('serif');
   const [size, setSizeState] = useState('medium');
+  const [fit, setFitState] = useState('balanced');
   const [align, setAlignState] = useState('center');
   const [showAuthor, setShowAuthorState] = useState(true);
 
@@ -62,6 +64,7 @@ export default function QuoteSettingsScreen() {
     getWidgetTextColor().then(setColorState);
     getWidgetFontFamily().then(setFontFamilyState);
     getWidgetSize().then(setSizeState);
+    getWidgetFitMode().then(setFitState);
     getWidgetAlign().then(setAlignState);
     getShowAuthor().then(setShowAuthorState);
     getLikedQuoteIds().then(setLikedIds);
@@ -144,6 +147,12 @@ export default function QuoteSettingsScreen() {
     refreshQuoteWidget();
   };
 
+  const handlePickFit = async (f) => {
+    setFitState(f);
+    await setWidgetFitMode(f);
+    refreshQuoteWidget();
+  };
+
   const handlePickAlign = async (a) => {
     setAlignState(a);
     await setWidgetAlign(a);
@@ -166,6 +175,7 @@ export default function QuoteSettingsScreen() {
   };
 
   const sizeLabel = { small: t('quoteSizeSmall'), medium: t('quoteSizeMedium'), large: t('quoteSizeLarge') };
+  const fitLabel = { roomy: t('quoteFitRoomy'), balanced: t('quoteFitBalanced'), snug: t('quoteFitSnug') };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}>
@@ -312,6 +322,21 @@ export default function QuoteSettingsScreen() {
               style={[styles.pill, { backgroundColor: size === s ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
             >
               <Text style={{ color: size === s ? colors.onPrimary : colors.text, fontSize: 13, fontWeight: '600' }}>{sizeLabel[s]}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
+
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('quoteFitHint')}</Text>
+        <View style={styles.chipRow}>
+          {WIDGET_FIT_OPTIONS.map((f) => (
+            <TouchableOpacity
+              key={f.id}
+              onPress={() => handlePickFit(f.id)}
+              style={[styles.pill, { backgroundColor: fit === f.id ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+            >
+              <Text style={{ color: fit === f.id ? colors.onPrimary : colors.text, fontSize: 13, fontWeight: '600' }}>{fitLabel[f.id]}</Text>
             </TouchableOpacity>
           ))}
         </View>

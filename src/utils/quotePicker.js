@@ -62,7 +62,8 @@ export function getDailyQuote(date = new Date()) {
 /**
  * Estimates the largest font size (in dp, between minFontSize and
  * maxFontSize) at which `text` is likely to fit inside a widget of
- * widthDp x heightDp without being clipped.
+ * widthDp x heightDp without being clipped, and returns the exact box
+ * width (dp) QuoteWidget should render the text at.
  *
  * Why this exists instead of a library: react-native-android-widget renders
  * FlexWidget/TextWidget to native Android RemoteViews, not real React
@@ -70,9 +71,18 @@ export function getDailyQuote(date = new Date()) {
  * rendered, so components that rely on runtime text measurement (like
  * react-native-auto-size-text's onTextLayout-based resizing) never get a
  * chance to run there — the size has to be decided up front, in JS, before
- * props.renderWidget() is called. This does that with a simple
- * characters-per-line estimate, which is what actually fixes long quotes
- * getting cut off.
+ * props.renderWidget() is called.
+ *
+ * Safety margin: some launchers (especially heavily-themed/custom ones)
+ * report a widget size to Android widgets that doesn't match the size
+ * they actually render at — the library's own changelog documents this
+ * ("crop widget when reported and actual size are different on some
+ * launchers"). If we size text to fill 100% of the *reported* width, a
+ * launcher that under-delivers on actual width will silently crop the
+ * text with no reflow, which is exactly the clipped/off-center look this
+ * fixes. We deliberately compute against ~80% of the reported dimensions,
+ * and render the text at a fixed (not match_parent) width matching that
+ * same math, so wrapping/centering can't drift away from what we assumed.
  */
 export function estimateQuoteFontSize({
   text = '',
@@ -82,32 +92,37 @@ export function estimateQuoteFontSize({
   hasEmoji = false,
   minFontSize = 10,
   maxFontSize = 24,
+  safetyRatio = 0.8,
 }) {
-  const safeWidth = Number.isFinite(widthDp) && widthDp > 0 ? widthDp : 250;
-  const safeHeight = Number.isFinite(heightDp) && heightDp > 0 ? heightDp : 180;
+  const SAFETY_RATIO = Number.isFinite(safetyRatio) ? safetyRatio : 0.8; // guard against launchers over-reporting size
+  const reportedWidth = Number.isFinite(widthDp) && widthDp > 0 ? widthDp : 250;
+  const reportedHeight = Number.isFinite(heightDp) && heightDp > 0 ? heightDp : 180;
 
   // Match QuoteWidget's own padding/margins so the estimate reflects the
-  // space actually left for the quote text.
-  const usableWidth = Math.max(60, safeWidth - 16 * 2 - 14 * 2);
-  let usableHeight = Math.max(40, safeHeight - 16 * 2);
+  // space actually left for the quote text, then apply the safety margin.
+  const usableWidth = Math.max(60, (reportedWidth - 16 * 2 - 14 * 2) * SAFETY_RATIO);
+  let usableHeight = Math.max(40, (reportedHeight - 16 * 2) * SAFETY_RATIO);
   if (hasAuthorLine) usableHeight -= 28;
   if (hasEmoji) usableHeight -= 24;
   usableHeight = Math.max(30, usableHeight);
 
   const length = Math.max(1, (text || '').length);
 
-  for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
-    // Average glyph width for typical serif/sans fonts is roughly half the
-    // font size in dp; this is an estimate, not a pixel-exact measurement.
-    const avgCharWidth = fontSize * 0.55;
+  let fontSize = minFontSize;
+  for (let candidate = maxFontSize; candidate >= minFontSize; candidate -= 1) {
+    // Average glyph width for a BOLD serif/sans font (QuoteWidget uses
+    // fontWeight: 700) is noticeably wider than regular weight — using a
+    // regular-weight estimate here was the cause of long quotes overflowing.
+    const avgCharWidth = candidate * 0.62;
     const charsPerLine = Math.max(1, Math.floor(usableWidth / avgCharWidth));
     const estimatedLines = Math.max(1, Math.ceil(length / charsPerLine));
-    const lineHeight = fontSize * 1.3;
+    const lineHeight = candidate * 1.35;
 
     if (estimatedLines * lineHeight <= usableHeight) {
-      return fontSize;
+      fontSize = candidate;
+      break;
     }
   }
 
-  return minFontSize;
+  return { fontSize, boxWidthDp: Math.round(usableWidth) };
 }
