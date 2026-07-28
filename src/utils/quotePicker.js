@@ -100,7 +100,10 @@ export function estimateQuoteFontSize({
 
   // Match QuoteWidget's own padding/margins so the estimate reflects the
   // space actually left for the quote text, then apply the safety margin.
-  const usableWidth = Math.max(60, (reportedWidth - 16 * 2 - 14 * 2) * SAFETY_RATIO);
+  // Only subtract the outer FlexWidget's real padding (16dp each side) —
+  // there's no extra inner padding anymore, the text box itself is now
+  // rendered at exactly this width, so this is the true available width.
+  const usableWidth = Math.max(60, (reportedWidth - 16 * 2) * SAFETY_RATIO);
   let usableHeight = Math.max(40, (reportedHeight - 16 * 2) * SAFETY_RATIO);
   if (hasAuthorLine) usableHeight -= 28;
   if (hasEmoji) usableHeight -= 24;
