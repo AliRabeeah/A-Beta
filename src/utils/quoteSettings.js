@@ -16,6 +16,7 @@ const LIKED_IDS_KEY = 'a_quote_liked_ids';
 const LAST_SCHEDULED_DATE_KEY = 'a_quote_last_scheduled_date';
 const SCHEDULED_NOTIF_IDS_KEY = 'a_quote_scheduled_notif_ids';
 const CURRENT_WIDGET_QUOTE_KEY = 'a_quote_widget_current_id';
+const WIDGET_OFFSETS_KEY = 'a_quote_widget_offsets'; // { emoji:{x,y}, quote:{x,y}, author:{x,y} }
 
 export const DEFAULT_WIDGET_COLOR = '#FFFFFF';
 export const DEFAULT_WIDGET_FONT = 'serif';
@@ -194,6 +195,32 @@ export async function getCurrentWidgetQuoteId() {
 }
 export async function setCurrentWidgetQuoteId(id) {
   await AsyncStorage.setItem(CURRENT_WIDGET_QUOTE_KEY, String(id));
+}
+
+export const DEFAULT_WIDGET_OFFSETS = {
+  emoji: { x: 0, y: 0 },
+  quote: { x: 0, y: 0 },
+  author: { x: 0, y: 0 },
+};
+
+/** Max nudge (dp) allowed per axis — keeps a small safety margin reserved in the width math too. */
+export const MAX_WIDGET_OFFSET_DP = 40;
+
+export async function getWidgetOffsets() {
+  const stored = await getJson(WIDGET_OFFSETS_KEY, null);
+  if (!stored) return DEFAULT_WIDGET_OFFSETS;
+  // Merge with defaults in case a future version adds a 4th element etc.
+  return {
+    emoji: { ...DEFAULT_WIDGET_OFFSETS.emoji, ...(stored.emoji || {}) },
+    quote: { ...DEFAULT_WIDGET_OFFSETS.quote, ...(stored.quote || {}) },
+    author: { ...DEFAULT_WIDGET_OFFSETS.author, ...(stored.author || {}) },
+  };
+}
+export async function setWidgetOffsets(offsets) {
+  await setJson(WIDGET_OFFSETS_KEY, offsets);
+}
+export async function resetWidgetOffsets() {
+  await setJson(WIDGET_OFFSETS_KEY, DEFAULT_WIDGET_OFFSETS);
 }
 
 export function categoryIsKnown(id) {

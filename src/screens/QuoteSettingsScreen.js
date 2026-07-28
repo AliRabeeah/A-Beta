@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, PanResponder, Animated } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -18,7 +18,9 @@ import {
   getShowAuthor, setShowAuthor,
   getLikedQuoteIds, toggleLikedQuoteId,
   getWidgetFitMode, setWidgetFitMode,
+  getWidgetOffsets, setWidgetOffsets, resetWidgetOffsets,
   WIDGET_COLOR_OPTIONS, WIDGET_FONT_OPTIONS, WIDGET_FIT_OPTIONS,
+  DEFAULT_WIDGET_OFFSETS, MAX_WIDGET_OFFSET_DP,
 } from '../utils/quoteSettings';
 import { ensurePermission, scheduleQuoteNotifications, cancelQuoteNotifications } from '../utils/notifications';
 import { refreshQuoteWidget } from '../utils/widgetSync';
@@ -29,6 +31,61 @@ const ALIGN_OPTIONS = [
   { id: 'center', icon: 'reorder-two-outline' },
   { id: 'right', icon: 'menu-outline' },
 ];
+
+/**
+ * A freely-draggable label used in the "element positions" calibration
+ * canvas. Its resting position comes from normal flexbox flow (so it
+ * starts centered, same as the real widget); dragging only applies a
+ * visual `transform: translate`, then reports the final, clamped
+ * {x, y} (dp) back via onRelease so it can be persisted and sent to the
+ * actual widget as marginLeft/marginTop.
+ */
+function DraggableTag({ label, offset, maxOffset, onRelease, textStyle }) {
+  const pan = useRef(new Animated.ValueXY({ x: offset.x, y: offset.y })).current;
+  const currentRef = useRef({ x: offset.x, y: offset.y });
+  const liveRef = useRef({ x: offset.x, y: offset.y });
+
+  useEffect(() => {
+    currentRef.current = { x: offset.x, y: offset.y };
+    liveRef.current = { x: offset.x, y: offset.y };
+    pan.setValue({ x: offset.x, y: offset.y });
+    // Only re-sync when the stored offset itself changes externally (e.g. reset button).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset.x, offset.y]);
+
+  useEffect(() => {
+    const id = pan.addListener((value) => {
+      liveRef.current = value;
+    });
+    return () => pan.removeListener(id);
+  }, [pan]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset(currentRef.current);
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+        const clampedX = Math.max(-maxOffset, Math.min(maxOffset, Math.round(liveRef.current.x)));
+        const clampedY = Math.max(-maxOffset, Math.min(maxOffset, Math.round(liveRef.current.y)));
+        currentRef.current = { x: clampedX, y: clampedY };
+        pan.setValue({ x: clampedX, y: clampedY });
+        onRelease({ x: clampedX, y: clampedY });
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View {...panResponder.panHandlers} style={{ transform: pan.getTranslateTransform() }}>
+      <Text style={textStyle}>{label}</Text>
+    </Animated.View>
+  );
+}
 
 export default function QuoteSettingsScreen() {
   const { colors } = useTheme();
@@ -47,6 +104,7 @@ export default function QuoteSettingsScreen() {
   const [fit, setFitState] = useState('balanced');
   const [align, setAlignState] = useState('center');
   const [showAuthor, setShowAuthorState] = useState(true);
+  const [offsets, setOffsetsState] = useState(DEFAULT_WIDGET_OFFSETS);
 
   const [previewQuote, setPreviewQuote] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
@@ -67,6 +125,7 @@ export default function QuoteSettingsScreen() {
     getWidgetFitMode().then(setFitState);
     getWidgetAlign().then(setAlignState);
     getShowAuthor().then(setShowAuthorState);
+    getWidgetOffsets().then(setOffsetsState);
     getLikedQuoteIds().then(setLikedIds);
     loadPreview();
   }, [loadPreview]);
@@ -150,6 +209,20 @@ export default function QuoteSettingsScreen() {
   const handlePickFit = async (f) => {
     setFitState(f);
     await setWidgetFitMode(f);
+    refreshQuoteWidget();
+  };
+
+  const handleOffsetChange = async (elementKey, next) => {
+    setOffsetsState((prev) => {
+      const updated = { ...prev, [elementKey]: next };
+      setWidgetOffsets(updated).then(refreshQuoteWidget);
+      return updated;
+    });
+  };
+
+  const handleResetOffsets = async () => {
+    await resetWidgetOffsets();
+    setOffsetsState(DEFAULT_WIDGET_OFFSETS);
     refreshQuoteWidget();
   };
 
@@ -364,6 +437,44 @@ export default function QuoteSettingsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Manual element positions — drag each label to nudge it on the real widget */}
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quotePositionSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16 }]}>
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('quotePositionHint')}</Text>
+
+        <View style={[styles.positionCanvas, { backgroundColor: '#111318', borderColor: colors.border }]}>
+          {emojiEnabled && (
+            <DraggableTag
+              label="⭐"
+              offset={offsets.emoji}
+              maxOffset={MAX_WIDGET_OFFSET_DP}
+              onRelease={(next) => handleOffsetChange('emoji', next)}
+              textStyle={{ fontSize: 20, marginBottom: 6 }}
+            />
+          )}
+          <DraggableTag
+            label={t('quotePositionQuoteLabel')}
+            offset={offsets.quote}
+            maxOffset={MAX_WIDGET_OFFSET_DP}
+            onRelease={(next) => handleOffsetChange('quote', next)}
+            textStyle={{ color, fontSize: 16, fontWeight: '700', fontFamily, textAlign: 'center' }}
+          />
+          {showAuthor && (
+            <DraggableTag
+              label={t('quotePositionAuthorLabel')}
+              offset={offsets.author}
+              maxOffset={MAX_WIDGET_OFFSET_DP}
+              onRelease={(next) => handleOffsetChange('author', next)}
+              textStyle={{ color, fontSize: 12, fontFamily, marginTop: 8 }}
+            />
+          )}
+        </View>
+
+        <TouchableOpacity onPress={handleResetOffsets} style={[styles.pill, { alignSelf: 'flex-start', marginTop: 14, backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>↺ {t('quotePositionReset')}</Text>
+        </TouchableOpacity>
+      </View>
+
       {likedIds.length > 0 && (
         <Text style={[styles.section, { color: colors.textSecondary }]}>
           {t('quoteLikedCount')} {likedIds.length}
@@ -384,4 +495,12 @@ const styles = StyleSheet.create({
   divider: { height: 1 },
   timeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   previewCard: { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 8 },
+  positionCanvas: {
+    borderWidth: 1,
+    borderRadius: 16,
+    minHeight: 220,
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

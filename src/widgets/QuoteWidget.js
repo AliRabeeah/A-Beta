@@ -1,6 +1,7 @@
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import { estimateQuoteFontSize } from '../utils/quotePicker';
+import { DEFAULT_WIDGET_OFFSETS } from '../utils/quoteSettings';
 
 // Ceiling/floor for each user-facing size preset. The *actual* font size
 // used is computed per-quote by estimateQuoteFontSize(), which shrinks the
@@ -42,10 +43,14 @@ export default function QuoteWidget({
   widgetWidthDp = null,
   widgetHeightDp = null,
   fitRatio = 0.8,
+  offsets = DEFAULT_WIDGET_OFFSETS,
 }) {
   const preset = SIZE_PRESETS[size] || SIZE_PRESETS.medium;
   const alignItems = ALIGN_MAP[align] || 'center';
   const textAlign = ALIGN_TEXT_MAP[align] || 'center';
+  const emojiOffset = offsets?.emoji || DEFAULT_WIDGET_OFFSETS.emoji;
+  const quoteOffset = offsets?.quote || DEFAULT_WIDGET_OFFSETS.quote;
+  const authorOffset = offsets?.author || DEFAULT_WIDGET_OFFSETS.author;
 
   // Real, working "auto-size": shrink the quote's font size (never below
   // preset.min) until it's estimated to fit the actual widget dimensions
@@ -61,6 +66,8 @@ export default function QuoteWidget({
     maxFontSize: preset.max,
     minFontSize: preset.min,
     safetyRatio: fitRatio,
+    offsetXDp: quoteOffset.x,
+    offsetYDp: quoteOffset.y,
   });
 
   return (
@@ -86,7 +93,13 @@ export default function QuoteWidget({
         {emoji ? (
           <TextWidget
             text={emoji}
-            style={{ fontSize: preset.max, marginBottom: 6, textAlign }}
+            style={{
+              fontSize: preset.max,
+              marginBottom: 6,
+              marginLeft: emojiOffset.x,
+              marginTop: emojiOffset.y,
+              textAlign,
+            }}
           />
         ) : null}
 
@@ -103,6 +116,8 @@ export default function QuoteWidget({
             fontSize: quoteFontSize,
             fontWeight: '700',
             fontFamily,
+            marginLeft: quoteOffset.x,
+            marginTop: quoteOffset.y,
             textAlign,
           }}
         />
@@ -115,7 +130,8 @@ export default function QuoteWidget({
               color: textColor,
               fontSize: preset.author,
               fontFamily,
-              marginTop: 8,
+              marginTop: 8 + authorOffset.y,
+              marginLeft: authorOffset.x,
               textAlign,
             }}
           />

@@ -93,6 +93,8 @@ export function estimateQuoteFontSize({
   minFontSize = 10,
   maxFontSize = 24,
   safetyRatio = 0.8,
+  offsetXDp = 0,
+  offsetYDp = 0,
 }) {
   const SAFETY_RATIO = Number.isFinite(safetyRatio) ? safetyRatio : 0.8; // guard against launchers over-reporting size
   const reportedWidth = Number.isFinite(widthDp) && widthDp > 0 ? widthDp : 250;
@@ -103,8 +105,12 @@ export function estimateQuoteFontSize({
   // Only subtract the outer FlexWidget's real padding (16dp each side) —
   // there's no extra inner padding anymore, the text box itself is now
   // rendered at exactly this width, so this is the true available width.
-  const usableWidth = Math.max(60, (reportedWidth - 16 * 2) * SAFETY_RATIO);
-  let usableHeight = Math.max(40, (reportedHeight - 16 * 2) * SAFETY_RATIO);
+  // Also reserve room for the manual horizontal nudge (offsetXDp, from the
+  // "element positions" setting) on both sides, so dragging the quote left
+  // or right can never push it past the safe boundary and get clipped.
+  const reserve = Math.abs(offsetXDp) * 2;
+  const usableWidth = Math.max(60, (reportedWidth - 16 * 2) * SAFETY_RATIO - reserve);
+  let usableHeight = Math.max(40, (reportedHeight - 16 * 2) * SAFETY_RATIO - Math.abs(offsetYDp) * 2);
   if (hasAuthorLine) usableHeight -= 28;
   if (hasEmoji) usableHeight -= 24;
   usableHeight = Math.max(30, usableHeight);
