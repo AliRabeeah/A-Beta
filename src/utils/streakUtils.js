@@ -109,3 +109,47 @@ export function getCompletionRate(habit, days = 30) {
   }
   return due === 0 ? 0 : Math.round((done / due) * 100);
 }
+
+/**
+ * 'avoid' habits don't use the daily completions map at all — every day is
+ * automatically a success unless a relapse was logged for it. Streak math
+ * is therefore derived purely from `habit.relapses` (and `createdAt` as the
+ * starting point), completely separate from the build-habit streak logic
+ * above so the two are never mixed together in stats.
+ */
+function relapseDatesSorted(habit) {
+  return (habit.relapses || [])
+    .map((r) => new Date(r.date))
+    .filter((d) => !Number.isNaN(d.getTime()))
+    .sort((a, b) => a - b);
+}
+
+/** Whole days elapsed since the most recent relapse (or since creation if none). */
+export function getAvoidStreak(habit, referenceDate = new Date()) {
+  const dates = relapseDatesSorted(habit);
+  const start = dates.length > 0 ? dates[dates.length - 1] : new Date(habit.createdAt || referenceDate);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const diff = Math.floor((toDayStart(referenceDate) - toDayStart(start)) / msPerDay);
+  return Math.max(0, diff);
+}
+
+/** The longest gap (in days) between relapses across the habit's whole history. */
+export function getLongestAvoidStreak(habit, referenceDate = new Date()) {
+  const dates = relapseDatesSorted(habit);
+  const start = new Date(habit.createdAt || referenceDate);
+  const msPerDay = 24 * 60 * 60 * 1000;
+
+  const checkpoints = [start, ...dates, referenceDate];
+  let longest = 0;
+  for (let i = 1; i < checkpoints.length; i++) {
+    const gapDays = Math.floor((toDayStart(checkpoints[i]) - toDayStart(checkpoints[i - 1])) / msPerDay);
+    longest = Math.max(longest, gapDays);
+  }
+  return Math.max(0, longest);
+}
+
+function toDayStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}

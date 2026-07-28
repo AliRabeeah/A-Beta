@@ -44,6 +44,8 @@ export function HabitProvider({ children }) {
       values: {},
       checklist: {},
       evaluationType: 'yesno',
+      kind: 'build', // 'build' | 'avoid' — old habits with no `kind` behave exactly as before
+      relapses: [],
       createdAt: new Date().toISOString(),
       reminderId,
       ...defaultHabitFieldsForType(habit.evaluationType),
@@ -185,6 +187,21 @@ export function HabitProvider({ children }) {
   }, [habits, persist]);
 
   /**
+   * Logs a relapse for an 'avoid' habit: resets the current avoidance
+   * streak (getAvoidStreak in streakUtils reads from this list, not from
+   * `completions`) and appends {date, note} to the habit's own history so
+   * it's never mixed with build-habit stats.
+   */
+  const logRelapse = useCallback(async (id, note = '', date = new Date()) => {
+    const next = habits.map((h) => {
+      if (h.id !== id) return h;
+      const relapse = { date: date.toISOString(), note: (note || '').trim() };
+      return { ...h, relapses: [...(h.relapses || []), relapse] };
+    });
+    await persist(next);
+  }, [habits, persist]);
+
+  /**
    * Replaces all local habits with an imported/restored set. Cancels
    * existing reminders first (their notification ids won't be valid
    * for the imported set), and re-schedules any reminders included
@@ -254,6 +271,7 @@ export function HabitProvider({ children }) {
         addToValue,
         logTimerSeconds,
         setChecklistItem,
+        logRelapse,
         replaceAllHabits,
         archiveHabit,
         unarchiveHabit,

@@ -5,8 +5,9 @@ import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useHabits } from '../context/HabitContext';
 import CalendarHeatmap from '../components/CalendarHeatmap';
-import { getCurrentStreak, getBestStreak, getCompletionRate, getWeekProgress } from '../utils/streakUtils';
+import { getCurrentStreak, getBestStreak, getCompletionRate, getWeekProgress, getAvoidStreak, getLongestAvoidStreak } from '../utils/streakUtils';
 import { toKey } from '../utils/dateUtils';
+import RelapseModal from '../components/RelapseModal';
 
 function formatMinutes(seconds) {
   return Math.round(seconds / 60);
@@ -20,8 +21,9 @@ function formatClock(totalSeconds) {
 export default function HabitDetailScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const { habits, setCompletionStatus, addToValue, logTimerSeconds, setChecklistItem, archiveHabit, unarchiveHabit } = useHabits();
+  const { habits, setCompletionStatus, addToValue, logTimerSeconds, setChecklistItem, archiveHabit, unarchiveHabit, logRelapse } = useHabits();
   const habit = habits.find((h) => h.id === route.params.habitId);
+  const [relapseModalVisible, setRelapseModalVisible] = useState(false);
 
   // --- Live stopwatch state for timer-type habits (counts up, logs on stop) ---
   const [running, setRunning] = useState(false);
@@ -31,6 +33,11 @@ export default function HabitDetailScreen({ navigation, route }) {
   useEffect(() => () => intervalRef.current && clearInterval(intervalRef.current), []);
 
   if (!habit) return null;
+
+  const isAvoid = habit.kind === 'avoid';
+  const avoidCurrent = isAvoid ? getAvoidStreak(habit) : 0;
+  const avoidLongest = isAvoid ? getLongestAvoidStreak(habit) : 0;
+  const relapseHistory = isAvoid ? [...(habit.relapses || [])].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
 
   const todayKey = toKey(new Date());
   const current = getCurrentStreak(habit);
@@ -86,14 +93,21 @@ export default function HabitDetailScreen({ navigation, route }) {
         </View>
       </View>
 
+      {isAvoid ? (
+        <View style={styles.statsRow}>
+          <Stat label={t('currentAvoidStreakLabel')} value={`${avoidCurrent}🛡️`} colors={colors} />
+          <Stat label={t('longestAvoidStreakLabel')} value={avoidLongest} colors={colors} />
+        </View>
+      ) : (
       <View style={styles.statsRow}>
         <Stat label={t('current')} value={`${current}🔥`} colors={colors} />
         <Stat label={t('best')} value={best} colors={colors} />
         <Stat label={t('thisWeek')} value={`${week.done}/${week.due}`} colors={colors} />
         <Stat label={t('rate30')} value={`${rate}%`} colors={colors} />
       </View>
+      )}
 
-      {habit.evaluationType === 'numeric' && (
+      {!isAvoid && habit.evaluationType === 'numeric' && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('todayLabel')}</Text>
           <View style={styles.stepperRow}>
@@ -113,7 +127,7 @@ export default function HabitDetailScreen({ navigation, route }) {
         </View>
       )}
 
-      {habit.evaluationType === 'timer' && (
+      {!isAvoid && habit.evaluationType === 'timer' && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('todayLabel')}</Text>
           <Text style={[styles.stopwatchClock, { color: colors.text }]}>
@@ -131,7 +145,7 @@ export default function HabitDetailScreen({ navigation, route }) {
         </View>
       )}
 
-      {habit.evaluationType === 'checklist' && (
+      {!isAvoid && habit.evaluationType === 'checklist' && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('todayLabel')}</Text>
           {(habit.checklistItems || []).map((item) => (
@@ -151,14 +165,47 @@ export default function HabitDetailScreen({ navigation, route }) {
         </View>
       )}
 
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <CalendarHeatmap
-          habit={habit}
-          onDayPress={(date) => setCompletionStatus(habit.id, 'done', date)}
-          onDayLongPress={(date) => setCompletionStatus(habit.id, 'skipped', date)}
-        />
-      </View>
-      <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('calendarHint')}</Text>
+      {isAvoid ? (
+        <>
+          <TouchableOpacity
+            onPress={() => setRelapseModalVisible(true)}
+            style={[styles.primaryBtn, { backgroundColor: colors.danger }]}
+          >
+            <Ionicons name="alert-circle-outline" size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700', marginLeft: 6 }}>{t('logRelapseButton')}</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 20 }]}>{t('relapseHistoryLabel')}</Text>
+          {relapseHistory.length === 0 ? (
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>—</Text>
+          ) : (
+            relapseHistory.map((r, i) => (
+              <View key={i} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 8 }]}>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 13 }}>
+                  {new Date(r.date).toLocaleDateString()}
+                </Text>
+                {!!r.note && <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 4 }}>{r.note}</Text>}
+              </View>
+            ))
+          )}
+          <RelapseModal
+            visible={relapseModalVisible}
+            onClose={() => setRelapseModalVisible(false)}
+            onConfirm={async (note) => { await logRelapse(habit.id, note); setRelapseModalVisible(false); }}
+          />
+        </>
+      ) : (
+        <>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <CalendarHeatmap
+              habit={habit}
+              onDayPress={(date) => setCompletionStatus(habit.id, 'done', date)}
+              onDayLongPress={(date) => setCompletionStatus(habit.id, 'skipped', date)}
+            />
+          </View>
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('calendarHint')}</Text>
+        </>
+      )}
     </ScrollView>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -20,6 +20,20 @@ export default function TaskDetailScreen({ navigation, route }) {
   const category = categories.find((c) => c.id === task.categoryId);
   const isRecurring = task.taskType === 'recurring';
   const priorityColor = PRIORITY_COLORS[task.priority];
+  const checklistTotal = (task.checklist || []).length;
+  const checklistDone = (task.checklist || []).filter((it) => it.done).length;
+
+  const handleToggleComplete = () => {
+    const hasIncompleteSubtasks = !task.completed && checklistTotal > 0 && checklistDone < checklistTotal;
+    if (hasIncompleteSubtasks) {
+      Alert.alert(t('incompleteSubtasksTitle'), t('incompleteSubtasksBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('completeAnyway'), onPress: () => toggleSingleTaskComplete(task.id) },
+      ]);
+      return;
+    }
+    toggleSingleTaskComplete(task.id);
+  };
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20 }}>
@@ -50,7 +64,7 @@ export default function TaskDetailScreen({ navigation, route }) {
 
       {!isRecurring && (
         <TouchableOpacity
-          onPress={() => toggleSingleTaskComplete(task.id)}
+          onPress={handleToggleComplete}
           style={[styles.completeBtn, { backgroundColor: task.completed ? colors.surfaceElevated : colors.primary }]}
         >
           <Ionicons name={task.completed ? 'refresh' : 'checkmark'} size={18} color={task.completed ? colors.text : colors.onPrimary} />
@@ -62,7 +76,18 @@ export default function TaskDetailScreen({ navigation, route }) {
 
       {task.checklist?.length > 0 && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('checklistItemsLabel')}</Text>
+          <View style={styles.progressHeaderRow}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 0 }]}>{t('checklistItemsLabel')}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>{checklistDone}/{checklistTotal}</Text>
+          </View>
+          <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.round((checklistDone / checklistTotal) * 100)}%`, backgroundColor: category?.color || colors.primary },
+              ]}
+            />
+          </View>
           {task.checklist.map((item) => (
             <TouchableOpacity key={item.id} onPress={() => toggleChecklistItem(task.id, item.id)} style={styles.checklistRow}>
               <Ionicons name={item.done ? 'checkbox' : 'square-outline'} size={22} color={item.done ? (category?.color || colors.primary) : colors.textSecondary} />
@@ -115,5 +140,8 @@ const styles = StyleSheet.create({
   completeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 14, marginBottom: 16 },
   card: { borderWidth: 1, borderRadius: 16, padding: 16 },
   sectionLabel: { fontSize: 12, fontWeight: '700', marginBottom: 10, letterSpacing: 0.5 },
+  progressHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 14 },
+  progressFill: { height: 6, borderRadius: 3 },
   checklistRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
 });

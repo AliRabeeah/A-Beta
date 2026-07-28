@@ -97,6 +97,16 @@ export default function TaskCard({ task, category, onToggleComplete, onSkip, onA
             <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
           )}
         </View>
+        {checklistTotal > 0 && (
+          <View style={[styles.miniTrack, { backgroundColor: withAlpha(colors.textSecondary, 0.18) }]}>
+            <View
+              style={[
+                styles.miniFill,
+                { width: `${Math.round((checklistDone / checklistTotal) * 100)}%`, backgroundColor: accent },
+              ]}
+            />
+          </View>
+        )}
       </View>
 
       <View
@@ -133,5 +143,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 },
   metaText: { fontSize: 12 },
   priorityDot: { width: 8, height: 8, borderRadius: 4 },
+  miniTrack: { height: 4, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
+  miniFill: { height: 4, borderRadius: 2 },
   checkbox: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

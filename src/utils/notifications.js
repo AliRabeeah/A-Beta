@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { toKey } from './dateUtils';
+import { getDayClosingNotifId, setDayClosingNotifId } from './dayClosingSettings';
 import { pickRandomQuote, randomQuoteEmoji } from './quotePicker';
 import {
   getQuoteNotifEnabled,
@@ -342,4 +343,54 @@ export async function rebuildQuoteNotificationsIfNeeded() {
 
   const times = await getQuoteNotifTimes();
   await scheduleQuoteNotifications(times);
+}
+
+/**
+ * Schedules (or reschedules) the daily "close your day" reminder at the
+ * given HH:mm local time. Tapping the notification carries a `data.screen`
+ * payload of 'DayClosing' so App.js's notification-response listener can
+ * open that screen directly — see navigationRef in navigation/index.js.
+ */
+export async function ensureDayClosingReminder(time) {
+  await cancelDayClosingReminder();
+  const [hour, minute] = (time || '21:00').split(':').map(Number);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('day-closing-v1', {
+      name: 'Day Closing Reminder',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+    });
+  }
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🌙 Close your day',
+      body: "Take a minute to reflect and plan tomorrow's priority.",
+      sound: 'default',
+      data: { screen: 'DayClosing' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour,
+      minute,
+      channelId: 'day-closing-v1',
+    },
+  });
+  await setDayClosingNotifId(id);
+  return id;
+}
+
+export async function cancelDayClosingReminder() {
+  const id = await getDayClosingNotifId();
+  if (!id) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id);
+  } catch (e) {
+    // already cancelled or invalid id
+  }
+  await setDayClosingNotifId(null);
 }

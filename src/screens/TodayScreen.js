@@ -14,6 +14,7 @@ import { useHabits } from '../context/HabitContext';
 import { useTasks } from '../context/TaskContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useChallenges } from '../context/ChallengeContext';
+import { useMood } from '../context/MoodContext';
 import ProgressRing from '../components/ProgressRing';
 import HabitCard from '../components/HabitCard';
 import TaskCard from '../components/TaskCard';
@@ -22,6 +23,7 @@ import ChallengeCard from '../components/ChallengeCard';
 import SideDrawer from '../components/SideDrawer';
 import AddOptionsSheet from '../components/AddOptionsSheet';
 import Confetti from '../components/Confetti';
+import MoodCard from '../components/MoodCard';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
 import { isDueOnDate as isPlanningDueOnDate, isDayCompleted as isPlanningDayCompleted } from '../utils/planningUtils';
 import { toKey, addDays } from '../utils/dateUtils';
@@ -87,6 +89,12 @@ export default function TodayScreen({ navigation }) {
     [planningItems, selectedDate]
   );
   const todayActualKey = toKey(new Date());
+  // "Most important thing tomorrow" (set via the Day Closing ritual) shows
+  // pinned at the top instead of mixed into the regular task list.
+  const priorityTask = useMemo(
+    () => (selectedKey === todayActualKey ? dueTasks.find((tk) => tk.isPriority && !tk.completed) : null),
+    [dueTasks, selectedKey, todayActualKey]
+  );
   const activeChallenges = useMemo(
     () => (selectedKey === todayActualKey ? challenges.filter((c) => !c.archived && c.status === 'active') : []),
     [challenges, selectedKey, todayActualKey]
@@ -96,10 +104,10 @@ export default function TodayScreen({ navigation }) {
     () => [
       ...activeChallenges.map((c) => ({ kind: 'challenge', id: `c_${c.id}`, data: c })),
       ...dueHabits.map((h) => ({ kind: 'habit', id: `h_${h.id}`, data: h })),
-      ...dueTasks.map((tk) => ({ kind: 'task', id: `t_${tk.id}`, data: tk })),
+      ...dueTasks.filter((tk) => !priorityTask || tk.id !== priorityTask.id).map((tk) => ({ kind: 'task', id: `t_${tk.id}`, data: tk })),
       ...duePlanningItems.map((p) => ({ kind: 'planning', id: `p_${p.id}`, data: p })),
     ],
-    [dueHabits, dueTasks, duePlanningItems, activeChallenges]
+    [dueHabits, dueTasks, duePlanningItems, activeChallenges, priorityTask]
   );
 
   // Permanent, user-controlled ordering across ALL item types (habits, tasks,
@@ -289,6 +297,18 @@ export default function TodayScreen({ navigation }) {
           </View>
         )}
       </View>
+
+      {selectedKey === todayActualKey && <MoodCard />}
+
+      {priorityTask && (
+        <TouchableOpacity
+          onPress={() => toggleSingleTaskComplete(priorityTask.id)}
+          style={[styles.priorityBanner, { backgroundColor: withAlpha('#FFD60A', 0.15), borderColor: withAlpha('#FFD60A', 0.4) }]}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>{t('priorityTaskPinnedLabel')}</Text>
+          <Text style={{ fontSize: 14, color: colors.text, marginTop: 2 }} numberOfLines={1}>{priorityTask.title}</Text>
+        </TouchableOpacity>
+      )}
 
       <FlatList
         ref={listRef}
@@ -500,6 +520,7 @@ export default function TodayScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  priorityBanner: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuBtn: { padding: 4 },
   title: { fontSize: 26, fontWeight: '800' },

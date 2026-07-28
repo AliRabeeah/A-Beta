@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -10,7 +11,21 @@ import { useChallenges } from '../context/ChallengeContext';
 import { useFavorites } from '../context/FavoriteContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
-import { ensurePermission, getPermissionStatus } from '../utils/notifications';
+import { useTabBar, MIN_TABS, MAX_TABS } from '../context/TabBarContext';
+import { useAppLock, AUTO_LOCK_OPTIONS } from '../context/AppLockContext';
+import { isBiometricAvailable } from '../utils/biometricAuth';
+import {
+  ensurePermission,
+  getPermissionStatus,
+  ensureDayClosingReminder,
+  cancelDayClosingReminder,
+} from '../utils/notifications';
+import {
+  getDayClosingReminderEnabled,
+  setDayClosingReminderEnabled,
+  getDayClosingReminderTime,
+  setDayClosingReminderTime,
+} from '../utils/dayClosingSettings';
 import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '../utils/backup';
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
@@ -25,9 +40,84 @@ export default function SettingsScreen({ navigation }) {
   const { favorites, replaceAllFavorites } = useFavorites();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
+  const { tabs: activeTabIds, toggleTab, moveTab, pool: tabPool } = useTabBar();
+  const {
+    enabled: lockEnabled,
+    method: lockMethod,
+    autoLockMinutes,
+    hasPin,
+    setEnabled: setLockEnabled,
+    setMethod: setLockMethod,
+    setAutoLockMinutes,
+    setPin,
+  } = useAppLock();
   const insets = useSafeAreaInsets();
 
   const [busy, setBusy] = useState(null); // 'export' | 'import' | null
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState(null); // null | 'set'
+  const [pinDraft, setPinDraft] = useState('');
+  const [pinConfirmDraft, setPinConfirmDraft] = useState('');
+
+  const [dayClosingReminderOn, setDayClosingReminderOn] = useState(false);
+  const [dayClosingTime, setDayClosingTimeState] = useState(() => {
+    const d = new Date();
+    d.setHours(21, 0, 0, 0);
+    return d;
+  });
+  const [showDayClosingPicker, setShowDayClosingPicker] = useState(false);
+
+  useEffect(() => {
+    isBiometricAvailable().then(setBiometricAvailable);
+    getDayClosingReminderEnabled().then(setDayClosingReminderOn);
+    getDayClosingReminderTime().then((time) => {
+      if (time) {
+        const [h, m] = time.split(':').map(Number);
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        setDayClosingTimeState(d);
+      }
+    });
+  }, []);
+
+  const handleToggleAppLock = async (value) => {
+    if (value && lockMethod === 'pin' && !hasPin) {
+      setPinModalMode('set');
+    }
+    await setLockEnabled(value);
+  };
+
+  const handleSavePin = async () => {
+    if (pinDraft.trim().length < 4) {
+      Alert.alert(t('errorLabel'), t('pinTooShortError'));
+      return;
+    }
+    if (pinDraft !== pinConfirmDraft) {
+      Alert.alert(t('errorLabel'), t('appLockPinMismatch'));
+      return;
+    }
+    await setPin(pinDraft.trim());
+    setPinModalMode(null);
+    setPinDraft('');
+    setPinConfirmDraft('');
+  };
+
+  const handleToggleDayClosingReminder = async (value) => {
+    setDayClosingReminderOn(value);
+    await setDayClosingReminderEnabled(value);
+    const timeStr = `${String(dayClosingTime.getHours()).padStart(2, '0')}:${String(dayClosingTime.getMinutes()).padStart(2, '0')}`;
+    if (value) await ensureDayClosingReminder(timeStr);
+    else await cancelDayClosingReminder();
+  };
+
+  const handleDayClosingTimeChange = async (event, selected) => {
+    setShowDayClosingPicker(false);
+    if (!selected) return;
+    setDayClosingTimeState(selected);
+    const timeStr = `${String(selected.getHours()).padStart(2, '0')}:${String(selected.getMinutes()).padStart(2, '0')}`;
+    await setDayClosingReminderTime(timeStr);
+    if (dayClosingReminderOn) await ensureDayClosingReminder(timeStr);
+  };
   const [widgetOpacity, setWidgetOpacityState] = useState(100);
   const [permissionStatus, setPermissionStatus] = useState('undetermined');
   const [focusHabitId, setFocusHabitIdState] = useState(null);
@@ -233,6 +323,142 @@ export default function SettingsScreen({ navigation }) {
         </View>
       </View>
 
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('tabBarCustomizeSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14 }]}>
+        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
+        {tabPool.map((screen) => {
+          const isActive = activeTabIds.includes(screen.id);
+          const activeIndex = activeTabIds.indexOf(screen.id);
+          return (
+            <View key={screen.id} style={styles.tabBarRow}>
+              <Ionicons name={screen.icon} size={18} color={isActive ? colors.primary : colors.textSecondary} />
+              <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>{t(`tabScreen_${screen.id}`)}</Text>
+              {isActive && (
+                <View style={{ flexDirection: 'row', marginRight: 6 }}>
+                  <TouchableOpacity
+                    disabled={activeIndex === 0}
+                    onPress={() => moveTab(screen.id, -1)}
+                    style={styles.tabBarArrowBtn}
+                  >
+                    <Ionicons name="chevron-up" size={16} color={activeIndex === 0 ? colors.border : colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    disabled={activeIndex === activeTabIds.length - 1}
+                    onPress={() => moveTab(screen.id, 1)}
+                    style={styles.tabBarArrowBtn}
+                  >
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={activeIndex === activeTabIds.length - 1 ? colors.border : colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <Switch
+                value={isActive}
+                onValueChange={async () => {
+                  const result = await toggleTab(screen.id);
+                  if (!result.ok) {
+                    Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                  }
+                }}
+                trackColor={{ true: colors.primary, false: colors.border }}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('appLockSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.row}>
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('appLockEnable')}</Text>
+          <Switch value={lockEnabled} onValueChange={handleToggleAppLock} trackColor={{ true: colors.primary, false: colors.border }} />
+        </View>
+
+        {lockEnabled && (
+          <View style={{ padding: 14, paddingTop: 0 }}>
+            <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 6 }]}>{t('appLockMethodLabel')}</Text>
+            <View style={styles.rowWrapSettings}>
+              {biometricAvailable && (
+                <TouchableOpacity
+                  onPress={() => setLockMethod('biometric')}
+                  style={[styles.pill, { backgroundColor: lockMethod === 'biometric' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                >
+                  <Text style={{ color: lockMethod === 'biometric' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                    {t('appLockMethodBiometric')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setLockMethod('pin')}
+                style={[styles.pill, { backgroundColor: lockMethod === 'pin' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+              >
+                <Text style={{ color: lockMethod === 'pin' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                  {t('appLockMethodPin')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {lockMethod === 'pin' && (
+              <TouchableOpacity onPress={() => setPinModalMode('set')} style={{ marginTop: 12 }}>
+                <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 13 }}>
+                  {hasPin ? t('appLockChangePin') : t('appLockSetPin')}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 16 }]}>{t('appLockAutoLockLabel')}</Text>
+            <View style={styles.rowWrapSettings}>
+              {AUTO_LOCK_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => setAutoLockMinutes(opt.id)}
+                  style={[styles.pill, { backgroundColor: autoLockMinutes === opt.id ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                >
+                  <Text style={{ color: autoLockMinutes === opt.id ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 12 }}>
+                    {t(opt.labelKey)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+
+      {pinModalMode === 'set' && (
+        <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 10 }]}>
+          <Text style={[styles.sublabel, { color: colors.text }]}>{t('appLockSetPin')}</Text>
+          <TextInput
+            value={pinDraft}
+            onChangeText={setPinDraft}
+            placeholder={t('pinInputPlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            secureTextEntry
+            keyboardType="number-pad"
+            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, marginTop: 8 }]}
+          />
+          <TextInput
+            value={pinConfirmDraft}
+            onChangeText={setPinConfirmDraft}
+            placeholder={t('appLockConfirmPin')}
+            placeholderTextColor={colors.textSecondary}
+            secureTextEntry
+            keyboardType="number-pad"
+            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, marginTop: 8 }]}
+          />
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity onPress={() => { setPinModalMode(null); setPinDraft(''); setPinConfirmDraft(''); }} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSavePin} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+              <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('save')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('notifications')}</Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={handleEnableReminders} style={styles.row}>
@@ -317,6 +543,14 @@ export default function SettingsScreen({ navigation }) {
         <TouchableOpacity onPress={handleImport} style={styles.row} disabled={!!busy}>
           <Text style={{ color: colors.text, fontSize: 15 }}>{t('importBackup')}</Text>
           {busy === 'import' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="folder-open-outline" size={18} color={colors.textSecondary} />}
+        </TouchableOpacity>
+      </View>
+
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('trashSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.navigate('Trash')} style={styles.row}>
+          <Text style={{ color: colors.text, fontSize: 15 }}>{t('trashEntry')}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -421,6 +655,37 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('moodHistoryTitle')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.navigate('MoodHistory')} style={styles.row}>
+          <Text style={{ color: colors.text, fontSize: 15 }}>{t('viewMoodHistory')}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('dayClosingReminderSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.row}>
+          <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderToggle')}</Text>
+          <Switch value={dayClosingReminderOn} onValueChange={handleToggleDayClosingReminder} trackColor={{ true: colors.primary, false: colors.border }} />
+        </View>
+        {dayClosingReminderOn && (
+          <TouchableOpacity onPress={() => setShowDayClosingPicker(true)} style={[styles.row, { paddingTop: 0 }]}>
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderTimeLabel')}</Text>
+            <Text style={{ color: colors.primary, fontWeight: '700' }}>
+              {dayClosingTime.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {showDayClosingPicker && (
+          <DateTimePicker value={dayClosingTime} mode="time" is24Hour={false} onChange={handleDayClosingTimeChange} />
+        )}
+        <TouchableOpacity onPress={() => navigation.navigate('DayClosing')} style={[styles.row, { paddingTop: dayClosingReminderOn ? 0 : undefined }]}>
+          <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('dayClosingEntry')}</Text>
+          <Ionicons name="moon-outline" size={18} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quoteSection')}</Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.navigate('QuoteSettings')} style={styles.row}>
@@ -454,4 +719,7 @@ const styles = StyleSheet.create({
   divider: { height: 1 },
   pickerList: { maxHeight: 220 },
   pickerRow: { paddingVertical: 10 },
+  tabBarRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  tabBarArrowBtn: { padding: 4 },
+  rowWrapSettings: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
