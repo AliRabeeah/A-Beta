@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, PanResponder, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, PanResponder, Animated, LayoutAnimation, Platform, UIManager } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Smooth expand/collapse used by every foldable section on this screen.
+const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +44,20 @@ const ALIGN_OPTIONS = [
 // margins on both sides) once within this many dp of it, with a haptic tick
 // and a highlighted guide line so it's obvious you've hit true center.
 const SNAP_THRESHOLD_DP = 6;
+
+// Tappable header row for a foldable card section — matches the
+// "customize bottom bar" pattern used on the Settings screen.
+function CollapsibleHeader({ icon, title, isOpen, onToggle, colors }) {
+  return (
+    <TouchableOpacity onPress={onToggle} style={styles.row} activeOpacity={0.7}>
+      <View style={styles.rowLeft}>
+        <Ionicons name={icon} size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+        <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{title}</Text>
+      </View>
+      <Ionicons name={isOpen ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+    </TouchableOpacity>
+  );
+}
 
 /**
  * A freely-draggable label used in the "element positions" calibration
@@ -181,6 +202,14 @@ export default function QuoteSettingsScreen() {
 
   const [previewQuote, setPreviewQuote] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
+
+  // Accordion: only one of the big foldable sections
+  // ('categories' | 'widget' | 'position') is expanded at a time.
+  const [openSection, setOpenSectionState] = useState(null);
+  const setOpenSection = (id) => {
+    animateLayout();
+    setOpenSectionState((prev) => (prev === id ? null : id));
+  };
 
   const loadPreview = useCallback(async () => {
     const q = await pickRandomQuote({ markShown: false });
@@ -410,24 +439,35 @@ export default function QuoteSettingsScreen() {
 
       {/* Categories */}
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quoteCategoriesSection')}</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14 }]}>
-        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('quoteCategoriesHint')}</Text>
-        <View style={styles.chipRow}>
-          {QUOTE_CATEGORIES.map((c) => {
-            const active = categories.length === 0 || categories.includes(c.id);
-            return (
-              <TouchableOpacity
-                key={c.id}
-                onPress={() => handleToggleCategory(c.id)}
-                style={[styles.pill, { backgroundColor: active ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
-              >
-                <Text style={{ color: active ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
-                  {c.label[language] || c.label.en}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <CollapsibleHeader
+          icon="pricetags-outline"
+          title={t('quoteCategoriesHint')}
+          isOpen={openSection === 'categories'}
+          onToggle={() => setOpenSection('categories')}
+          colors={colors}
+        />
+        {openSection === 'categories' && (
+          <View style={{ padding: 14, paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
+            <View style={styles.chipRow}>
+              {QUOTE_CATEGORIES.map((c) => {
+                const active = categories.length === 0 || categories.includes(c.id);
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    onPress={() => handleToggleCategory(c.id)}
+                    style={[styles.pill, { backgroundColor: active ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                  >
+                    <Text style={{ color: active ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                      {c.label[language] || c.label.en}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Emoji toggle */}
@@ -441,7 +481,17 @@ export default function QuoteSettingsScreen() {
 
       {/* Widget appearance */}
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quoteWidgetSection')}</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14 }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <CollapsibleHeader
+          icon="color-palette-outline"
+          title={t('quoteWidgetSection')}
+          isOpen={openSection === 'widget'}
+          onToggle={() => setOpenSection('widget')}
+          colors={colors}
+        />
+        {openSection === 'widget' && (
+      <View style={{ padding: 14, paddingTop: 0 }}>
+        <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('quoteColorHint')}</Text>
         <View style={styles.chipRow}>
           {WIDGET_COLOR_OPTIONS.map((hex) => (
@@ -520,10 +570,22 @@ export default function QuoteSettingsScreen() {
           <Ionicons name={showAuthor ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={showAuthor ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
       </View>
+        )}
+      </View>
 
       {/* Manual element positions — drag each label to nudge it on the real widget */}
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quotePositionSection')}</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16 }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <CollapsibleHeader
+          icon="move-outline"
+          title={t('quotePositionSection')}
+          isOpen={openSection === 'position'}
+          onToggle={() => setOpenSection('position')}
+          colors={colors}
+        />
+        {openSection === 'position' && (
+      <View style={{ padding: 16, paddingTop: 0 }}>
+        <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('quotePositionHint')}</Text>
 
         <View style={[styles.chipRow, { marginBottom: 12 }]}>
@@ -597,6 +659,8 @@ export default function QuoteSettingsScreen() {
           <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>↺ {t('quotePositionReset')}</Text>
         </TouchableOpacity>
       </View>
+        )}
+      </View>
 
       {likedIds.length > 0 && (
         <Text style={[styles.section, { color: colors.textSecondary }]}>
@@ -612,6 +676,7 @@ const styles = StyleSheet.create({
   section: { fontSize: 12, fontWeight: '700', marginTop: 20, marginBottom: 8, letterSpacing: 0.5 },
   card: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center' },
   pill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   swatch: { width: 34, height: 34, borderRadius: 17 },

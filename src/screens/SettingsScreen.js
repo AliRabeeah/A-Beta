@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Smooth expand/collapse used by every foldable settings section.
+const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -144,8 +151,13 @@ export default function SettingsScreen({ navigation }) {
   const [ghSaving, setGhSaving] = useState(false);
   const [ghTesting, setGhTesting] = useState(false);
   const [ghLastStatus, setGhLastStatus] = useState(null);
-  const [ghSectionOpen, setGhSectionOpen] = useState(false);
-  const [tabBarSectionOpen, setTabBarSectionOpen] = useState(false);
+  // Accordion: only one of the big foldable sections ('tabBar' | 'widget' | 'github')
+  // is expanded at a time, so the page doesn't turn into a long wall of open panels.
+  const [openSection, setOpenSectionState] = useState(null);
+  const setOpenSection = (id) => {
+    animateLayout();
+    setOpenSectionState((prev) => (prev === id ? null : id));
+  };
 
   useEffect(() => {
     getWidgetOpacity().then(setWidgetOpacityState);
@@ -338,7 +350,7 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="grid-outline" label={t('tabBarCustomizeSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={() => setTabBarSectionOpen((v) => !v)} style={styles.row} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => setOpenSection('tabBar')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
             <Ionicons name="grid-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
             <View>
@@ -348,10 +360,10 @@ export default function SettingsScreen({ navigation }) {
               </Text>
             </View>
           </View>
-          <Ionicons name={tabBarSectionOpen ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+          <Ionicons name={openSection === 'tabBar' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {tabBarSectionOpen && (
+        {openSection === 'tabBar' && (
           <View style={{ padding: 14, paddingTop: 0 }}>
             <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 12 }]} />
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
@@ -517,56 +529,68 @@ export default function SettingsScreen({ navigation }) {
       </View>
 
       <SectionHeader icon="apps-outline" label={t('widgetSection')} color={colors.textSecondary} />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14 }]}>
-        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('widgetOpacityHint')}</Text>
-        <View style={styles.swatchRow}>
-          {OPACITY_OPTIONS.map((val) => (
-            <TouchableOpacity
-              key={val}
-              onPress={() => handleOpacityChange(val)}
-              style={[
-                styles.pill,
-                { backgroundColor: widgetOpacity === val ? colors.primary : colors.surfaceElevated, borderColor: colors.border },
-              ]}
-            >
-              <Text style={{ color: widgetOpacity === val ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
-                {val}%
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => setOpenSection('widget')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="options-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('widgetOpacityHint')}</Text>
+          </View>
+          <Ionicons name={openSection === 'widget' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {openSection === 'widget' && (
+          <View style={{ padding: 14, paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
+            <View style={styles.swatchRow}>
+              {OPACITY_OPTIONS.map((val) => (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => handleOpacityChange(val)}
+                  style={[
+                    styles.pill,
+                    { backgroundColor: widgetOpacity === val ? colors.primary : colors.surfaceElevated, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={{ color: widgetOpacity === val ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                    {val}%
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
+
+            <TouchableOpacity onPress={() => setPickerOpen(pickerOpen === 'focus' ? null : 'focus')} style={styles.row}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('focusHabitWidget')}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                {activeHabits.find((h) => h.id === focusHabitId)?.name || t('none')}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+            {pickerOpen === 'focus' && (
+              <View style={styles.pickerList}>
+                {activeHabits.map((h) => (
+                  <TouchableOpacity key={h.id} onPress={() => handlePickFocusHabit(h.id)} style={styles.pickerRow}>
+                    <Text style={{ color: focusHabitId === h.id ? colors.primary : colors.text, fontSize: 14 }}>{h.icon} {h.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
-        <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
-
-        <TouchableOpacity onPress={() => setPickerOpen(pickerOpen === 'focus' ? null : 'focus')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('focusHabitWidget')}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-            {activeHabits.find((h) => h.id === focusHabitId)?.name || t('none')}
-          </Text>
-        </TouchableOpacity>
-        {pickerOpen === 'focus' && (
-          <View style={styles.pickerList}>
-            {activeHabits.map((h) => (
-              <TouchableOpacity key={h.id} onPress={() => handlePickFocusHabit(h.id)} style={styles.pickerRow}>
-                <Text style={{ color: focusHabitId === h.id ? colors.primary : colors.text, fontSize: 14 }}>{h.icon} {h.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity onPress={() => setPickerOpen(pickerOpen === 'heatmap' ? null : 'heatmap')} style={[styles.row, { marginTop: 8 }]}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('heatmapWidgetHabit')}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-            {activeHabits.find((h) => h.id === heatmapHabitId)?.name || t('none')}
-          </Text>
-        </TouchableOpacity>
-        {pickerOpen === 'heatmap' && (
-          <View style={styles.pickerList}>
-            {activeHabits.map((h) => (
-              <TouchableOpacity key={h.id} onPress={() => handlePickHeatmapHabit(h.id)} style={styles.pickerRow}>
-                <Text style={{ color: heatmapHabitId === h.id ? colors.primary : colors.text, fontSize: 14 }}>{h.icon} {h.name}</Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity onPress={() => setPickerOpen(pickerOpen === 'heatmap' ? null : 'heatmap')} style={[styles.row, { marginTop: 8 }]}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('heatmapWidgetHabit')}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                {activeHabits.find((h) => h.id === heatmapHabitId)?.name || t('none')}
+              </Text>
+            </TouchableOpacity>
+            {pickerOpen === 'heatmap' && (
+              <View style={styles.pickerList}>
+                {activeHabits.map((h) => (
+                  <TouchableOpacity key={h.id} onPress={() => handlePickHeatmapHabit(h.id)} style={styles.pickerRow}>
+                    <Text style={{ color: heatmapHabitId === h.id ? colors.primary : colors.text, fontSize: 14 }}>{h.icon} {h.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -593,12 +617,12 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="logo-github" label={t('githubBackupSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={() => setGhSectionOpen((v) => !v)} style={styles.row}>
+        <TouchableOpacity onPress={() => setOpenSection('github')} style={styles.row}>
           <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
-          <Ionicons name={ghSectionOpen ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+          <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        {ghSectionOpen && (
+        {openSection === 'github' && (
           <View style={{ padding: 14, paddingTop: 0 }}>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
               {t('githubBackupHint')}

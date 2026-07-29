@@ -287,7 +287,7 @@ export const translations = {
     // About
     version: 'Version',
     aboutBody: '"Mindset is the key. Discipline is the way."',
-    madeBy: 'Developed by Ali Halim',
+    madeBy: 'Ali Halim ©',
 
     // Timer
     timerTitle: 'Timer',
@@ -864,7 +864,7 @@ export const translations = {
 
     version: 'الإصدار',
     aboutBody: '"العقلية هي المفتاح. والانضباط هو الطريق."',
-    madeBy: 'Developed by Ali Halim',
+    madeBy: 'Ali Halim ©',
 
     // Timer
     timerTitle: 'المؤقت',
