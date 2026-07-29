@@ -151,8 +151,8 @@ export default function SettingsScreen({ navigation }) {
   const [ghSaving, setGhSaving] = useState(false);
   const [ghTesting, setGhTesting] = useState(false);
   const [ghLastStatus, setGhLastStatus] = useState(null);
-  // Accordion: only one of the big foldable sections ('tabBar' | 'widget' | 'github')
-  // is expanded at a time, so the page doesn't turn into a long wall of open panels.
+  // Accordion: only one foldable section is expanded at a time, so the
+  // page doesn't turn into a long wall of open panels.
   const [openSection, setOpenSectionState] = useState(null);
   const setOpenSection = (id) => {
     animateLayout();
@@ -312,40 +312,79 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="language-outline" label={t('languageSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {LANGS.map((l) => (
-          <TouchableOpacity key={l.v} onPress={() => setLanguage(l.v)} style={styles.row}>
-            <Text style={{ color: colors.text, fontSize: 15 }}>{l.l}</Text>
-            {language === l.v && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity onPress={() => setOpenSection('language')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="language-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('languageSection')}</Text>
+          </View>
+          <Ionicons name={openSection === 'language' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {openSection === 'language' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            {LANGS.map((l) => (
+              <TouchableOpacity key={l.v} onPress={() => setLanguage(l.v)} style={styles.row}>
+                <Text style={{ color: colors.text, fontSize: 15 }}>{l.l}</Text>
+                {language === l.v && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="contrast-outline" label={t('appearance')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {MODES.map((m) => (
-          <TouchableOpacity key={m.v} onPress={() => setMode(m.v)} style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Ionicons name={m.icon} size={20} color={colors.text} />
-              <Text style={{ color: colors.text, marginLeft: 12, fontSize: 15 }}>{m.l}</Text>
-            </View>
-            {preference === m.v && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity onPress={() => setOpenSection('appearance')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="contrast-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('appearance')}</Text>
+          </View>
+          <Ionicons name={openSection === 'appearance' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {openSection === 'appearance' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            {MODES.map((m) => (
+              <TouchableOpacity key={m.v} onPress={() => setMode(m.v)} style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <Ionicons name={m.icon} size={20} color={colors.text} />
+                  <Text style={{ color: colors.text, marginLeft: 12, fontSize: 15 }}>{m.l}</Text>
+                </View>
+                {preference === m.v && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="color-palette-outline" label={t('accentColorSection')} color={colors.textSecondary} />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14 }]}>
-        <View style={styles.swatchRow}>
-          {presets.map((p) => (
-            <TouchableOpacity
-              key={p.id}
-              onPress={() => setAccent(p.value)}
-              style={[styles.swatch, { backgroundColor: p.value, borderWidth: accent === p.value ? 3 : 0, borderColor: colors.text }]}
-            >
-              {accent === p.value && <Ionicons name="checkmark" size={18} color={colors.onPrimary} />}
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => setOpenSection('accent')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="color-palette-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('accentColorSection')}</Text>
+          </View>
+          <Ionicons name={openSection === 'accent' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {openSection === 'accent' && (
+          <View style={{ padding: 14, paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
+            <View style={styles.swatchRow}>
+              {presets.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => setAccent(p.value)}
+                  style={[styles.swatch, { backgroundColor: p.value, borderWidth: accent === p.value ? 3 : 0, borderColor: colors.text }]}
+                >
+                  {accent === p.value && <Ionicons name="checkmark" size={18} color={colors.onPrimary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="grid-outline" label={t('tabBarCustomizeSection')} color={colors.textSecondary} />
@@ -510,22 +549,35 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="notifications-outline" label={t('notifications')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={handleEnableReminders} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('enableReminders')}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ color: permissionStatus === 'granted' ? colors.primary : colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
-              {permissionStatus === 'granted' ? t('statusEnabled') : t('statusDisabled')}
-            </Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        <TouchableOpacity onPress={() => setOpenSection('notifications')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="notifications-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('notifications')}</Text>
           </View>
+          <Ionicons name={openSection === 'notifications' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
-        <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-          <TouchableOpacity onPress={() => Linking.openSettings()} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-            <Text style={{ color: colors.text, fontSize: 15 }}>{t('batterySettings')}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17 }}>{t('batterySettingsHint')}</Text>
-        </View>
+
+        {openSection === 'notifications' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <TouchableOpacity onPress={handleEnableReminders} style={styles.row}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('enableReminders')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: permissionStatus === 'granted' ? colors.primary : colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                  {permissionStatus === 'granted' ? t('statusEnabled') : t('statusDisabled')}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </View>
+            </TouchableOpacity>
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+              <TouchableOpacity onPress={() => Linking.openSettings()} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <Text style={{ color: colors.text, fontSize: 15 }}>{t('batterySettings')}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17 }}>{t('batterySettingsHint')}</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="apps-outline" label={t('widgetSection')} color={colors.textSecondary} />
@@ -533,7 +585,7 @@ export default function SettingsScreen({ navigation }) {
         <TouchableOpacity onPress={() => setOpenSection('widget')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
             <Ionicons name="options-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('widgetOpacityHint')}</Text>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('widgetSection')}</Text>
           </View>
           <Ionicons name={openSection === 'widget' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -541,6 +593,7 @@ export default function SettingsScreen({ navigation }) {
         {openSection === 'widget' && (
           <View style={{ padding: 14, paddingTop: 0 }}>
             <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 14 }]} />
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10, lineHeight: 17 }}>{t('widgetOpacityHint')}</Text>
             <View style={styles.swatchRow}>
               {OPACITY_OPTIONS.map((val) => (
                 <TouchableOpacity
@@ -597,14 +650,27 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="cloud-upload-outline" label={t('backupSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={handleExport} style={styles.row} disabled={!!busy}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('exportBackup')}</Text>
-          {busy === 'export' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="download-outline" size={18} color={colors.textSecondary} />}
+        <TouchableOpacity onPress={() => setOpenSection('backup')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="cloud-upload-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('backupSection')}</Text>
+          </View>
+          <Ionicons name={openSection === 'backup' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleImport} style={styles.row} disabled={!!busy}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('importBackup')}</Text>
-          {busy === 'import' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="folder-open-outline" size={18} color={colors.textSecondary} />}
-        </TouchableOpacity>
+
+        {openSection === 'backup' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <TouchableOpacity onPress={handleExport} style={styles.row} disabled={!!busy}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('exportBackup')}</Text>
+              {busy === 'export' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="download-outline" size={18} color={colors.textSecondary} />}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleImport} style={styles.row} disabled={!!busy}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('importBackup')}</Text>
+              {busy === 'import' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="folder-open-outline" size={18} color={colors.textSecondary} />}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="trash-outline" label={t('trashSection')} color={colors.textSecondary} />
@@ -726,30 +792,43 @@ export default function SettingsScreen({ navigation }) {
 
       <SectionHeader icon="moon-outline" label={t('dayClosingReminderSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderToggle')}</Text>
-          <Switch
-            value={dayClosingReminderOn}
-            onValueChange={handleToggleDayClosingReminder}
-            trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor={dayClosingReminderOn ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
-          />
-        </View>
-        {dayClosingReminderOn && (
-          <TouchableOpacity onPress={() => setShowDayClosingPicker(true)} style={[styles.row, { paddingTop: 0 }]}>
-            <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderTimeLabel')}</Text>
-            <Text style={{ color: colors.primary, fontWeight: '700' }}>
-              {dayClosingTime.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {showDayClosingPicker && (
-          <DateTimePicker value={dayClosingTime} mode="time" is24Hour={false} onChange={handleDayClosingTimeChange} />
-        )}
-        <TouchableOpacity onPress={() => navigation.navigate('DayClosing')} style={[styles.row, { paddingTop: dayClosingReminderOn ? 0 : undefined }]}>
-          <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('dayClosingEntry')}</Text>
-          <Ionicons name="moon-outline" size={18} color={colors.primary} />
+        <TouchableOpacity onPress={() => setOpenSection('dayClosing')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="moon-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('dayClosingReminderSection')}</Text>
+          </View>
+          <Ionicons name={openSection === 'dayClosing' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
+
+        {openSection === 'dayClosing' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.row}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderToggle')}</Text>
+              <Switch
+                value={dayClosingReminderOn}
+                onValueChange={handleToggleDayClosingReminder}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor={dayClosingReminderOn ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
+              />
+            </View>
+            {dayClosingReminderOn && (
+              <TouchableOpacity onPress={() => setShowDayClosingPicker(true)} style={[styles.row, { paddingTop: 0 }]}>
+                <Text style={{ color: colors.text, fontSize: 15 }}>{t('dayClosingReminderTimeLabel')}</Text>
+                <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                  {dayClosingTime.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {showDayClosingPicker && (
+              <DateTimePicker value={dayClosingTime} mode="time" is24Hour={false} onChange={handleDayClosingTimeChange} />
+            )}
+            <TouchableOpacity onPress={() => navigation.navigate('DayClosing')} style={[styles.row, { paddingTop: dayClosingReminderOn ? 0 : undefined }]}>
+              <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('dayClosingEntry')}</Text>
+              <Ionicons name="moon-outline" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <SectionHeader icon="chatbox-ellipses-outline" label={t('quoteSection')} color={colors.textSecondary} />
