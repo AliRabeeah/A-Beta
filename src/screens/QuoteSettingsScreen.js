@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, PanResponder, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -32,56 +33,80 @@ const ALIGN_OPTIONS = [
   { id: 'right', icon: 'menu-outline' },
 ];
 
+// "Magnet": while dragging, snap to perfectly centered (offset 0, i.e. equal
+// margins on both sides) once within this many dp of it, with a haptic tick
+// and a highlighted guide line so it's obvious you've hit true center.
+const SNAP_THRESHOLD_DP = 6;
+
 /**
  * A freely-draggable label used in the "element positions" calibration
  * canvas. Its resting position comes from normal flexbox flow (so it
- * starts centered, same as the real widget); dragging only applies a
- * visual `transform: translate`, then reports the final, clamped
- * {x, y} (dp) back via onRelease so it can be persisted and sent to the
- * actual widget as marginLeft/marginTop.
+ * starts centered, same as the real widget); dragging applies a visual
+ * `transform: translate` computed manually (not Animated.event) so we can
+ * inject "magnet" snap-to-center behavior, then reports the final,
+ * clamped {x, y} (dp) back via onRelease so it can be persisted and sent
+ * to the actual widget as marginLeft/marginTop.
  */
-function DraggableTag({ label, offset, maxOffset, onRelease, textStyle }) {
+function DraggableTag({ label, offset, maxOffset, onRelease, textStyle, interactive = true, groupPan = null, onSnapChange, snapTargetX = 0 }) {
   const pan = useRef(new Animated.ValueXY({ x: offset.x, y: offset.y })).current;
   const currentRef = useRef({ x: offset.x, y: offset.y });
-  const liveRef = useRef({ x: offset.x, y: offset.y });
+  const grantRef = useRef({ x: offset.x, y: offset.y });
+  const wasSnappedRef = useRef(false);
+  const snapTargetXRef = useRef(snapTargetX);
+  useEffect(() => { snapTargetXRef.current = snapTargetX; }, [snapTargetX]);
 
   useEffect(() => {
     currentRef.current = { x: offset.x, y: offset.y };
-    liveRef.current = { x: offset.x, y: offset.y };
     pan.setValue({ x: offset.x, y: offset.y });
     // Only re-sync when the stored offset itself changes externally (e.g. reset button).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offset.x, offset.y]);
 
-  useEffect(() => {
-    const id = pan.addListener((value) => {
-      liveRef.current = value;
-    });
-    return () => pan.removeListener(id);
-  }, [pan]);
-
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => interactive,
+      onMoveShouldSetPanResponder: () => interactive,
       onPanResponderGrant: () => {
-        pan.setOffset(currentRef.current);
-        pan.setValue({ x: 0, y: 0 });
+        grantRef.current = { ...currentRef.current };
+        wasSnappedRef.current = false;
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderMove: (evt, gestureState) => {
+        let x = grantRef.current.x + gestureState.dx;
+        const y = grantRef.current.y + gestureState.dy;
+        const snapTarget = snapTargetXRef.current;
+        let snapped = false;
+        if (Math.abs(x - snapTarget) <= SNAP_THRESHOLD_DP) {
+          x = snapTarget; // magnet: locks into alignment with the snap target (screen center for the quote, or the quote's own x for author/emoji)
+          snapped = true;
+        }
+        if (snapped && !wasSnappedRef.current) {
+          Haptics.selectionAsync();
+        }
+        wasSnappedRef.current = snapped;
+        currentRef.current = { x, y };
+        pan.setValue({ x, y });
+        onSnapChange && onSnapChange(snapped);
+      },
       onPanResponderRelease: () => {
-        pan.flattenOffset();
-        const clampedX = Math.max(-maxOffset, Math.min(maxOffset, Math.round(liveRef.current.x)));
-        const clampedY = Math.max(-maxOffset, Math.min(maxOffset, Math.round(liveRef.current.y)));
+        const clampedX = Math.max(-maxOffset, Math.min(maxOffset, Math.round(currentRef.current.x)));
+        const clampedY = Math.max(-maxOffset, Math.min(maxOffset, Math.round(currentRef.current.y)));
         currentRef.current = { x: clampedX, y: clampedY };
         pan.setValue({ x: clampedX, y: clampedY });
+        onSnapChange && onSnapChange(false);
         onRelease({ x: clampedX, y: clampedY });
       },
     })
   ).current;
 
+  // Linked/group mode: no own gesture handling, just display base offset
+  // plus the shared live group-drag delta on top (applied by the parent's
+  // single PanResponder covering the whole canvas).
+  const transform = interactive
+    ? pan.getTranslateTransform()
+    : [{ translateX: offset.x }, { translateY: offset.y }, ...(groupPan ? groupPan.getTranslateTransform() : [])];
+
   return (
-    <Animated.View {...panResponder.panHandlers} style={{ transform: pan.getTranslateTransform() }}>
+    <Animated.View {...(interactive ? panResponder.panHandlers : {})} style={{ transform }}>
       <Text style={textStyle}>{label}</Text>
     </Animated.View>
   );
@@ -105,6 +130,54 @@ export default function QuoteSettingsScreen() {
   const [align, setAlignState] = useState('center');
   const [showAuthor, setShowAuthorState] = useState(true);
   const [offsets, setOffsetsState] = useState(DEFAULT_WIDGET_OFFSETS);
+  const offsetsRef = useRef(offsets);
+  useEffect(() => { offsetsRef.current = offsets; }, [offsets]);
+  const [linkedMode, setLinkedMode] = useState(true);
+  const linkedModeRef = useRef(linkedMode);
+  useEffect(() => { linkedModeRef.current = linkedMode; }, [linkedMode]);
+  const [snapActive, setSnapActive] = useState(false);
+
+  // Linked-mode drag: one shared gesture region: dragging anywhere on the
+  // canvas moves emoji + quote + author together, preserving their
+  // individual positions relative to each other. Magnet: snaps when the
+  // quote text (the main anchor) would land back at true center (x = 0).
+  const groupPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const groupLiveRef = useRef({ x: 0, y: 0 });
+  const groupWasSnappedRef = useRef(false);
+  const groupPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => linkedModeRef.current,
+      onMoveShouldSetPanResponder: () => linkedModeRef.current,
+      onPanResponderGrant: () => {
+        groupLiveRef.current = { x: 0, y: 0 };
+        groupWasSnappedRef.current = false;
+        groupPan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        let dx = gestureState.dx;
+        const dy = gestureState.dy;
+        const prospectiveQuoteX = offsetsRef.current.quote.x + dx;
+        let snapped = false;
+        if (Math.abs(prospectiveQuoteX) <= SNAP_THRESHOLD_DP) {
+          dx = -offsetsRef.current.quote.x; // land the quote exactly at true center
+          snapped = true;
+        }
+        if (snapped && !groupWasSnappedRef.current) {
+          Haptics.selectionAsync();
+        }
+        groupWasSnappedRef.current = snapped;
+        setSnapActive(snapped);
+        groupLiveRef.current = { x: dx, y: dy };
+        groupPan.setValue({ x: dx, y: dy });
+      },
+      onPanResponderRelease: () => {
+        const delta = { x: Math.round(groupLiveRef.current.x), y: Math.round(groupLiveRef.current.y) };
+        groupPan.setValue({ x: 0, y: 0 });
+        setSnapActive(false);
+        handleGroupOffsetChange(delta);
+      },
+    })
+  ).current;
 
   const [previewQuote, setPreviewQuote] = useState(null);
   const [likedIds, setLikedIds] = useState([]);
@@ -215,6 +288,17 @@ export default function QuoteSettingsScreen() {
   const handleOffsetChange = async (elementKey, next) => {
     setOffsetsState((prev) => {
       const updated = { ...prev, [elementKey]: next };
+      setWidgetOffsets(updated).then(refreshQuoteWidget);
+      return updated;
+    });
+  };
+
+  /** Linked-mode: dragging anywhere moves emoji + quote + author together by the same delta, each clamped independently. */
+  const handleGroupOffsetChange = async (delta) => {
+    setOffsetsState((prev) => {
+      const clamp = (v) => Math.max(-MAX_WIDGET_OFFSET_DP, Math.min(MAX_WIDGET_OFFSET_DP, v));
+      const shift = (o) => ({ x: clamp(o.x + delta.x), y: clamp(o.y + delta.y) });
+      const updated = { emoji: shift(prev.emoji), quote: shift(prev.quote), author: shift(prev.author) };
       setWidgetOffsets(updated).then(refreshQuoteWidget);
       return updated;
     });
@@ -442,7 +526,34 @@ export default function QuoteSettingsScreen() {
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16 }]}>
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('quotePositionHint')}</Text>
 
-        <View style={[styles.positionCanvas, { backgroundColor: '#111318', borderColor: colors.border }]}>
+        <View style={[styles.chipRow, { marginBottom: 12 }]}>
+          <TouchableOpacity
+            onPress={() => setLinkedMode(true)}
+            style={[styles.pill, { backgroundColor: linkedMode ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+          >
+            <Text style={{ color: linkedMode ? colors.onPrimary : colors.text, fontSize: 13, fontWeight: '600' }}>{t('quotePositionLinked')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setLinkedMode(false)}
+            style={[styles.pill, { backgroundColor: !linkedMode ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+          >
+            <Text style={{ color: !linkedMode ? colors.onPrimary : colors.text, fontSize: 13, fontWeight: '600' }}>{t('quotePositionIndividual')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[styles.positionCanvas, { backgroundColor: '#111318', borderColor: colors.border }]}
+          {...(linkedMode ? groupPanResponder.panHandlers : {})}
+        >
+          {/* Magnet guide: a center line that lights up once you're perfectly centered */}
+          <View
+            pointerEvents="none"
+            style={[
+              styles.centerGuideLine,
+              { backgroundColor: snapActive ? colors.primary : colors.border, opacity: snapActive ? 1 : 0.35 },
+            ]}
+          />
+
           {emojiEnabled && (
             <DraggableTag
               label="⭐"
@@ -450,6 +561,10 @@ export default function QuoteSettingsScreen() {
               maxOffset={MAX_WIDGET_OFFSET_DP}
               onRelease={(next) => handleOffsetChange('emoji', next)}
               textStyle={{ fontSize: 20, marginBottom: 6 }}
+              interactive={!linkedMode}
+              groupPan={linkedMode ? groupPan : null}
+              snapTargetX={offsets.quote.x}
+              onSnapChange={setSnapActive}
             />
           )}
           <DraggableTag
@@ -458,6 +573,10 @@ export default function QuoteSettingsScreen() {
             maxOffset={MAX_WIDGET_OFFSET_DP}
             onRelease={(next) => handleOffsetChange('quote', next)}
             textStyle={{ color, fontSize: 16, fontWeight: '700', fontFamily, textAlign: 'center' }}
+            interactive={!linkedMode}
+            groupPan={linkedMode ? groupPan : null}
+            snapTargetX={0}
+            onSnapChange={setSnapActive}
           />
           {showAuthor && (
             <DraggableTag
@@ -466,6 +585,10 @@ export default function QuoteSettingsScreen() {
               maxOffset={MAX_WIDGET_OFFSET_DP}
               onRelease={(next) => handleOffsetChange('author', next)}
               textStyle={{ color, fontSize: 12, fontFamily, marginTop: 8 }}
+              interactive={!linkedMode}
+              groupPan={linkedMode ? groupPan : null}
+              snapTargetX={offsets.quote.x}
+              onSnapChange={setSnapActive}
             />
           )}
         </View>
@@ -502,5 +625,14 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  centerGuideLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 1,
   },
 });

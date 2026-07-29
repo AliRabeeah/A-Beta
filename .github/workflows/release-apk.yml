@@ -30,6 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Set unique build version
+        id: version
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: node scripts/set-build-version.js
+
       - name: Align Expo native dependency versions
         run: npx expo install --fix
 
@@ -43,19 +49,16 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Get current date and version
+      - name: Get current date
         id: info
-        run: |
-          echo "date=$(date +'%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.info.outputs.version }}-${{ steps.info.outputs.date }}
-          name: Release v${{ steps.info.outputs.version }} (${{ steps.info.outputs.date }})
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }} (${{ steps.info.outputs.date }})
           draft: false
           prerelease: false
           files: android/app/build/outputs/apk/release/app-release.apk
@@ -66,5 +69,5 @@ jobs:
       - name: Upload Artifact (Optional)
         uses: actions/upload-artifact@v4
         with:
-          name: ahabit-apk-${{ steps.info.outputs.date }}
+          name: ahabit-apk-v${{ steps.version.outputs.version }}
           path: android/app/build/outputs/apk/release/app-release.apk

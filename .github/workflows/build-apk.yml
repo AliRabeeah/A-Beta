@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Set unique build version
+        id: version
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: node scripts/set-build-version.js
+
       - name: Align Expo native dependency versions
         run: npx expo install --fix
 
@@ -41,5 +47,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ahabit-apk
+          name: ahabit-apk-v${{ steps.version.outputs.version }}
           path: android/app/build/outputs/apk/release/app-release.apk

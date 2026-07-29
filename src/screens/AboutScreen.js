@@ -1,16 +1,26 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import Constants from 'expo-constants';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function AboutScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+
+  // Read the live app version + native build number. These are stamped
+  // automatically by scripts/set-build-version.js on every CI build (see
+  // .github/workflows/build-apk.yml and release-apk.yml), so this label
+  // changes on its own with every new APK — no manual editing needed.
+  const appVersion = Constants.expoConfig?.version || '1.0.0';
+  const buildNumber = Constants.expoConfig?.android?.versionCode ?? Constants.nativeBuildVersion;
+  const versionLabel = buildNumber ? `${t('version')} ${appVersion} (${buildNumber})` : `${t('version')} ${appVersion}`;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image source={require('../../assets/icon.png')} style={styles.icon} />
       <Text style={[styles.appName, { color: colors.text }]}>A</Text>
-      <Text style={[styles.version, { color: colors.textSecondary }]}>{t('version')}</Text>
+      <Text style={[styles.version, { color: colors.textSecondary }]}>{versionLabel}</Text>
       <Text style={[styles.body, { color: colors.textSecondary }]}>{t('aboutBody')}</Text>
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
       <Text style={[styles.madeBy, { color: colors.text }]}>{t('madeBy')}</Text>

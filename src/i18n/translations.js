@@ -237,10 +237,12 @@ export const translations = {
     quoteFitBalanced: 'Balanced',
     quoteFitSnug: 'Largest',
     quotePositionSection: 'ELEMENT POSITIONS',
-    quotePositionHint: 'Drag each label to nudge it on the real widget — useful if text looks off-center on your launcher. Saved automatically.',
+    quotePositionHint: 'Drag each label to nudge it on the real widget — useful if text looks off-center on your launcher. It snaps (with a tick) once perfectly centered, or aligned with the quote text. Saved automatically.',
     quotePositionQuoteLabel: 'Quote text',
     quotePositionAuthorLabel: '— Author',
     quotePositionReset: 'Reset positions',
+    quotePositionLinked: 'Move together',
+    quotePositionIndividual: 'Move individually',
     quoteAlignHint: 'Alignment',
     quoteShowAuthor: 'Show author name',
     quoteShuffle: 'Shuffle',
@@ -283,7 +285,7 @@ export const translations = {
     githubLastBackupFailed: 'Last backup failed:',
 
     // About
-    version: 'Version 1.0.0',
+    version: 'Version',
     aboutBody: '"Mindset is the key. Discipline is the way."',
     madeBy: 'Developed by Ali Halim',
 
@@ -815,10 +817,12 @@ export const translations = {
     quoteFitBalanced: 'متوازن',
     quoteFitSnug: 'الأكبر',
     quotePositionSection: 'مواضع العناصر',
-    quotePositionHint: 'اسحب أي عنصر لتحريكه على الويدجت الحقيقي — مفيد إذا كان النص يبدو غير متمركز على شاشتك. يُحفظ تلقائيًا.',
+    quotePositionHint: 'اسحب أي عنصر لتحريكه على الويدجت الحقيقي — مفيد إذا كان النص يبدو غير متمركز على شاشتك. يلتصق (مع اهتزاز خفيف) عند الوصول للمنتصف تمامًا أو عند محاذاته مع نص الاقتباس. يُحفظ تلقائيًا.',
     quotePositionQuoteLabel: 'نص الاقتباس',
     quotePositionAuthorLabel: '— الكاتب',
     quotePositionReset: 'إعادة ضبط المواضع',
+    quotePositionLinked: 'تحريك الكل معًا',
+    quotePositionIndividual: 'تحريك كل عنصر لحاله',
     quoteAlignHint: 'المحاذاة',
     quoteShowAuthor: 'إظهار اسم القائل',
     quoteShuffle: 'اقتباس آخر',
@@ -858,7 +862,7 @@ export const translations = {
     githubLastBackupOk: 'آخر نسخة احتياطية ناجحة:',
     githubLastBackupFailed: 'فشلت آخر عملية نسخ:',
 
-    version: 'الإصدار 1.0.0',
+    version: 'الإصدار',
     aboutBody: '"العقلية هي المفتاح. والانضباط هو الطريق."',
     madeBy: 'Developed by Ali Halim',
 
