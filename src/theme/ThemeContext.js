@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -63,23 +63,31 @@ export function ThemeProvider({ children }) {
     })();
   }, []);
 
-  const setMode = async (newMode) => {
+  const setMode = useCallback(async (newMode) => {
     setModeState(newMode);
     await AsyncStorage.setItem(MODE_KEY, newMode);
-  };
+  }, []);
 
-  const setAccent = async (newAccent) => {
+  const setAccent = useCallback(async (newAccent) => {
     setAccentState(newAccent);
     await AsyncStorage.setItem(ACCENT_KEY, newAccent);
-  };
+  }, []);
 
   const resolvedMode = mode === 'system' ? (systemScheme || 'dark') : mode;
-  const colors = buildColors(resolvedMode, accent);
+  // buildColors returns a brand new object every call; memoizing it (and the
+  // context value below) matters a lot here because useTheme() is consumed
+  // by almost every screen and card in the app — without memoization, any
+  // unrelated re-render of ThemeProvider (e.g. the async load resolving on
+  // cold start) forces the entire app to re-render at once.
+  const colors = useMemo(() => buildColors(resolvedMode, accent), [resolvedMode, accent]);
+
+  const value = useMemo(
+    () => ({ mode: resolvedMode, preference: mode, setMode, colors, accent, setAccent, presets: ACCENT_PRESETS }),
+    [resolvedMode, mode, setMode, colors, accent, setAccent]
+  );
 
   return (
-    <ThemeContext.Provider
-      value={{ mode: resolvedMode, preference: mode, setMode, colors, accent, setAccent, presets: ACCENT_PRESETS }}
-    >
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

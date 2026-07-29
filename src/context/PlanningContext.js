@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 import { schedulePlanningReminder, cancelPlanningReminder } from '../utils/notifications';
@@ -136,20 +136,33 @@ export function PlanningProvider({ children }) {
     await persist(next);
   }, [planningItems, persist]);
 
+  const value = useMemo(
+    () => ({
+      planningItems,
+      loaded,
+      addPlanningItem,
+      updatePlanningItem,
+      deletePlanningItem,
+      restorePlanningItem,
+      replaceAllPlanningItems,
+      deleteTodayOnly,
+      setDayCompleted,
+    }),
+    [
+      planningItems,
+      loaded,
+      addPlanningItem,
+      updatePlanningItem,
+      deletePlanningItem,
+      restorePlanningItem,
+      replaceAllPlanningItems,
+      deleteTodayOnly,
+      setDayCompleted,
+    ]
+  );
+
   return (
-    <PlanningContext.Provider
-      value={{
-        planningItems,
-        loaded,
-        addPlanningItem,
-        updatePlanningItem,
-        deletePlanningItem,
-        restorePlanningItem,
-        replaceAllPlanningItems,
-        deleteTodayOnly,
-        setDayCompleted,
-      }}
-    >
+    <PlanningContext.Provider value={value}>
       {children}
     </PlanningContext.Provider>
   );

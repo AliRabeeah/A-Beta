@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'a_trash_v1';
@@ -88,8 +88,13 @@ export function TrashProvider({ children }) {
     setItems([]);
   }, []);
 
+  const value = useMemo(
+    () => ({ items, loaded, refresh, removeItem, clearAll }),
+    [items, loaded, refresh, removeItem, clearAll]
+  );
+
   return (
-    <TrashContext.Provider value={{ items, loaded, refresh, removeItem, clearAll }}>
+    <TrashContext.Provider value={value}>
       {children}
     </TrashContext.Provider>
   );

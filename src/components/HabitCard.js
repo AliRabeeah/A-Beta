@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,13 +15,20 @@ import ActionSheet from './ActionSheet';
 import ChecklistQuickView from './ChecklistQuickView';
 import RelapseModal from './RelapseModal';
 
-export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, onPress, onToggleChecklistItem, onReorderRequest, date = new Date(), index = 0 }) {
+function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, onPress, onToggleChecklistItem, onReorderRequest, date = new Date(), index = 0 }) {
   const { colors } = useTheme();
   const tokens = useTokens();
   const { t } = useLanguage();
   const todayKey = toKey(date);
   const status = statusOf(habit, todayKey); // 'done' | 'skipped' | null
-  const streak = getCurrentStreak(habit);
+  // getCurrentStreak walks up to 3650 days of history per call — expensive
+  // enough that recomputing it on *every* re-render of every visible card
+  // (which happened previously, since this ran directly in the render body)
+  // is a major source of jank when several cards re-render together, e.g.
+  // right after app start while the various data contexts finish loading.
+  // Memoizing it so it only re-runs when the habit's own completion data
+  // (or the displayed date) actually changes fixes that.
+  const streak = useMemo(() => getCurrentStreak(habit), [habit.completions, habit.frequency, habit.specificDays, date]);
   const evaluationType = habit.evaluationType || 'yesno';
 
   let progressText = null;
@@ -49,7 +56,7 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
 
   const { logRelapse } = useHabits();
   const isAvoid = habit.kind === 'avoid';
-  const avoidStreak = isAvoid ? getAvoidStreak(habit, date) : 0;
+  const avoidStreak = useMemo(() => (isAvoid ? getAvoidStreak(habit, date) : 0), [isAvoid, habit.relapses, habit.createdAt, date]);
   const [relapseModalVisible, setRelapseModalVisible] = useState(false);
 
   const handleConfirmRelapse = async (note) => {
@@ -189,6 +196,8 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
     </>
   );
 }
+
+export default React.memo(HabitCard);
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, overflow: 'hidden' },

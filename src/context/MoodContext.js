@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 
@@ -40,8 +40,13 @@ export function MoodProvider({ children }) {
 
   const getMoodForDate = useCallback((date = new Date()) => moods[toKey(date)] || null, [moods]);
 
+  const value = useMemo(
+    () => ({ moods, loaded, setMoodForDate, getMoodForDate }),
+    [moods, loaded, setMoodForDate, getMoodForDate]
+  );
+
   return (
-    <MoodContext.Provider value={{ moods, loaded, setMoodForDate, getMoodForDate }}>
+    <MoodContext.Provider value={value}>
       {children}
     </MoodContext.Provider>
   );

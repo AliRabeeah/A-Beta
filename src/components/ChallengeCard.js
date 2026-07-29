@@ -11,7 +11,7 @@ import { toKey, calendarDaysBetween } from '../utils/dateUtils';
 import AnimatedPressable from './AnimatedPressable';
 import ActionSheet from './ActionSheet';
 
-export default function ChallengeCard({
+export default React.memo(function ChallengeCard({
   challenge,
   onCheckIn,
   onPress,
@@ -28,16 +28,17 @@ export default function ChallengeCard({
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Calculate current day and progress
-  const startDate = new Date(challenge.startDate);
+  const startDate = useMemo(() => new Date(challenge.startDate), [challenge.startDate]);
   const today = new Date();
   const daysElapsed = calendarDaysBetween(startDate, today);
   const currentDay = Math.max(1, Math.min(daysElapsed + 1, challenge.durationDays));
   const progressPercent = (currentDay / challenge.durationDays) * 100;
 
-  // Count consecutive days (streak)
-  const calculateStreak = () => {
+  // Count consecutive days (streak) — memoized so it only re-runs when the
+  // challenge's own completion data changes, not on every unrelated re-render.
+  const streak = useMemo(() => {
     let streak = 0;
-    const date = new Date(today);
+    const date = new Date();
     for (let i = 0; i < challenge.durationDays; i++) {
       const key = toKey(date);
       if (challenge.completions?.[key]) {
@@ -48,9 +49,7 @@ export default function ChallengeCard({
       }
     }
     return streak;
-  };
-
-  const streak = calculateStreak();
+  }, [challenge.completions, challenge.durationDays]);
   const todayKey = toKey(today);
   const checkedInToday = challenge.completions?.[todayKey];
 
@@ -172,9 +171,7 @@ export default function ChallengeCard({
       />
     </>
   );
-}
-
-// Badge definitions (imported from ChallengeContext)
+});
 const BADGES = {
   badge_3d: { icon: '🌱' },
   badge_7d: { icon: '⚔️' },

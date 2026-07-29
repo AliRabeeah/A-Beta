@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hashPin } from '../utils/simpleHash';
 
@@ -84,21 +84,28 @@ export function AppLockProvider({ children }) {
     [state.pinHash]
   );
 
+  // Memoize the context value: without this, every consumer (which, several
+  // levels down, includes the whole Today screen and its list of cards) was
+  // re-rendered on ANY unrelated re-render of this provider, since a brand
+  // new object was handed to the context on every pass.
+  const value = useMemo(
+    () => ({
+      loaded,
+      enabled: state.enabled,
+      method: state.method,
+      autoLockMinutes: state.autoLockMinutes,
+      hasPin: !!state.pinHash,
+      setEnabled,
+      setMethod,
+      setAutoLockMinutes,
+      setPin,
+      verifyPin,
+    }),
+    [loaded, state, setEnabled, setMethod, setAutoLockMinutes, setPin, verifyPin]
+  );
+
   return (
-    <AppLockContext.Provider
-      value={{
-        loaded,
-        enabled: state.enabled,
-        method: state.method,
-        autoLockMinutes: state.autoLockMinutes,
-        hasPin: !!state.pinHash,
-        setEnabled,
-        setMethod,
-        setAutoLockMinutes,
-        setPin,
-        verifyPin,
-      }}
-    >
+    <AppLockContext.Provider value={value}>
       {children}
     </AppLockContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { I18nManager, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
@@ -25,7 +25,7 @@ export function LanguageProvider({ children }) {
     })();
   }, []);
 
-  const setLanguage = async (lang) => {
+  const setLanguage = useCallback(async (lang) => {
     await AsyncStorage.setItem(STORAGE_KEY, lang);
     setLanguageState(lang);
 
@@ -42,18 +42,29 @@ export function LanguageProvider({ children }) {
         );
       }
     }
-  };
+  }, []);
 
-  const t = (key, ...args) => {
-    const dict = translations[language] || translations.en;
-    const value = dict[key] ?? translations.en[key] ?? key;
-    return typeof value === 'function' ? value(...args) : value;
-  };
+  // Like colors/`t` in ThemeContext, this is read by virtually every screen
+  // via useLanguage() — memoizing it keeps an unrelated re-render of this
+  // provider from cascading into a full-app re-render.
+  const t = useCallback(
+    (key, ...args) => {
+      const dict = translations[language] || translations.en;
+      const value = dict[key] ?? translations.en[key] ?? key;
+      return typeof value === 'function' ? value(...args) : value;
+    },
+    [language]
+  );
+
+  const value = useMemo(
+    () => ({ language, setLanguage, t, isRTL: language === 'ar' }),
+    [language, setLanguage, t]
+  );
 
   if (!ready) return null;
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, isRTL: language === 'ar' }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

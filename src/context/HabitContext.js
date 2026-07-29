@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 import { scheduleReminder, cancelReminder } from '../utils/notifications';
@@ -257,28 +257,48 @@ export function HabitProvider({ children }) {
     await persist(next);
   }, [habits, persist]);
 
+  const value = useMemo(
+    () => ({
+      habits,
+      loaded,
+      addHabit,
+      updateHabit,
+      deleteHabit,
+      deleteHabitPermanently,
+      setCompletionStatus,
+      setNumericValue,
+      addToValue,
+      logTimerSeconds,
+      setChecklistItem,
+      logRelapse,
+      replaceAllHabits,
+      archiveHabit,
+      unarchiveHabit,
+      archiveAllCompletedToday,
+      categories: CATEGORIES,
+    }),
+    [
+      habits,
+      loaded,
+      addHabit,
+      updateHabit,
+      deleteHabit,
+      deleteHabitPermanently,
+      setCompletionStatus,
+      setNumericValue,
+      addToValue,
+      logTimerSeconds,
+      setChecklistItem,
+      logRelapse,
+      replaceAllHabits,
+      archiveHabit,
+      unarchiveHabit,
+      archiveAllCompletedToday,
+    ]
+  );
+
   return (
-    <HabitContext.Provider
-      value={{
-        habits,
-        loaded,
-        addHabit,
-        updateHabit,
-        deleteHabit,
-        deleteHabitPermanently,
-        setCompletionStatus,
-        setNumericValue,
-        addToValue,
-        logTimerSeconds,
-        setChecklistItem,
-        logRelapse,
-        replaceAllHabits,
-        archiveHabit,
-        unarchiveHabit,
-        archiveAllCompletedToday,
-        categories: CATEGORIES,
-      }}
-    >
+    <HabitContext.Provider value={value}>
       {children}
     </HabitContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey, calendarDaysBetween } from '../utils/dateUtils';
 import { scheduleReminder, cancelReminder } from '../utils/notifications';
@@ -451,27 +451,45 @@ export function ChallengeProvider({ children }) {
     [challenges, persist]
   );
 
+  const value = useMemo(
+    () => ({
+      challenges,
+      badges,
+      loaded,
+      addChallenge,
+      updateChallenge,
+      deleteChallenge,
+      replaceAllChallenges,
+      replaceAllBadges,
+      checkInChallenge,
+      recordSlip,
+      archiveChallenge,
+      unarchiveChallenge,
+      completeChallenge,
+      failChallenge,
+      presets: PRESET_CHALLENGES,
+      badgeDefinitions: BADGES,
+    }),
+    [
+      challenges,
+      badges,
+      loaded,
+      addChallenge,
+      updateChallenge,
+      deleteChallenge,
+      replaceAllChallenges,
+      replaceAllBadges,
+      checkInChallenge,
+      recordSlip,
+      archiveChallenge,
+      unarchiveChallenge,
+      completeChallenge,
+      failChallenge,
+    ]
+  );
+
   return (
-    <ChallengeContext.Provider
-      value={{
-        challenges,
-        badges,
-        loaded,
-        addChallenge,
-        updateChallenge,
-        deleteChallenge,
-        replaceAllChallenges,
-        replaceAllBadges,
-        checkInChallenge,
-        recordSlip,
-        archiveChallenge,
-        unarchiveChallenge,
-        completeChallenge,
-        failChallenge,
-        presets: PRESET_CHALLENGES,
-        badgeDefinitions: BADGES,
-      }}
-    >
+    <ChallengeContext.Provider value={value}>
       {children}
     </ChallengeContext.Provider>
   );

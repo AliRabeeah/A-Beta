@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addToTrash, removeFromTrash } from './TrashContext';
 import { emitUndo } from '../utils/undoBus';
@@ -108,10 +108,13 @@ export function FavoriteProvider({ children }) {
     [persist]
   );
 
+  const value = useMemo(
+    () => ({ favorites, loaded, addFavorite, updateFavorite, deleteFavorite, restoreFavorite, replaceAllFavorites }),
+    [favorites, loaded, addFavorite, updateFavorite, deleteFavorite, restoreFavorite, replaceAllFavorites]
+  );
+
   return (
-    <FavoriteContext.Provider
-      value={{ favorites, loaded, addFavorite, updateFavorite, deleteFavorite, restoreFavorite, replaceAllFavorites }}
-    >
+    <FavoriteContext.Provider value={value}>
       {children}
     </FavoriteContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,14 +20,21 @@ const PRIORITY_COLORS = {
   default: null,
 };
 
-export default function TaskCard({ task, category, onToggleComplete, onSkip, onArchive, onDelete, onPress, onToggleChecklistItem, onReorderRequest, index = 0 }) {
+function TaskCard({ task, category, onToggleComplete, onSkip, onArchive, onDelete, onPress, onToggleChecklistItem, onReorderRequest, index = 0 }) {
   const { colors } = useTheme();
   const tokens = useTokens();
   const { t } = useLanguage();
   const isRecurring = task.taskType === 'recurring';
   const todayKey = toKey(new Date());
   const status = isRecurring ? statusOf(task, todayKey) : (task.completed ? 'done' : null);
-  const streak = isRecurring ? getCurrentStreak(task) : 0;
+  // Memoized for the same reason as HabitCard: getCurrentStreak walks up
+  // to 3650 days of history, and re-running that for every visible task
+  // card on every re-render (e.g. during the burst of context updates
+  // right after app start) is a real source of stutter.
+  const streak = useMemo(
+    () => (isRecurring ? getCurrentStreak(task) : 0),
+    [isRecurring, task.completions, task.frequency, task.specificDays]
+  );
   const checklistTotal = (task.checklist || []).length;
   const checklistDone = (task.checklist || []).filter((it) => it.done).length;
   const priorityColor = PRIORITY_COLORS[task.priority] || null;
@@ -134,6 +141,8 @@ export default function TaskCard({ task, category, onToggleComplete, onSkip, onA
     </>
   );
 }
+
+export default React.memo(TaskCard);
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, overflow: 'hidden' },

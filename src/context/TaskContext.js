@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 import { scheduleTaskReminders, cancelTaskReminders } from '../utils/notifications';
@@ -177,24 +177,40 @@ export function TaskProvider({ children }) {
     await persist(next);
   }, [tasks, persist]);
 
+  const value = useMemo(
+    () => ({
+      tasks,
+      loaded,
+      addTask,
+      updateTask,
+      deleteTask,
+      restoreTask,
+      toggleSingleTaskComplete,
+      setRecurringTaskStatus,
+      toggleChecklistItem,
+      replaceAllTasks,
+      archiveTask,
+      unarchiveTask,
+      categories: TASK_CATEGORIES,
+    }),
+    [
+      tasks,
+      loaded,
+      addTask,
+      updateTask,
+      deleteTask,
+      restoreTask,
+      toggleSingleTaskComplete,
+      setRecurringTaskStatus,
+      toggleChecklistItem,
+      replaceAllTasks,
+      archiveTask,
+      unarchiveTask,
+    ]
+  );
+
   return (
-    <TaskContext.Provider
-      value={{
-        tasks,
-        loaded,
-        addTask,
-        updateTask,
-        deleteTask,
-        restoreTask,
-        toggleSingleTaskComplete,
-        setRecurringTaskStatus,
-        toggleChecklistItem,
-        replaceAllTasks,
-        archiveTask,
-        unarchiveTask,
-        categories: TASK_CATEGORIES,
-      }}
-    >
+    <TaskContext.Provider value={value}>
       {children}
     </TaskContext.Provider>
   );

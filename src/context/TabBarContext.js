@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'a_tabbar_config_v1';
@@ -88,10 +88,13 @@ export function TabBarProvider({ children }) {
     await persist(DEFAULT_TAB_CONFIG);
   }, [persist]);
 
+  const value = useMemo(
+    () => ({ tabs, loaded, toggleTab, moveTab, resetToDefault, pool: TAB_BAR_POOL }),
+    [tabs, loaded, toggleTab, moveTab, resetToDefault]
+  );
+
   return (
-    <TabBarContext.Provider
-      value={{ tabs, loaded, toggleTab, moveTab, resetToDefault, pool: TAB_BAR_POOL }}
-    >
+    <TabBarContext.Provider value={value}>
       {children}
     </TabBarContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scheduleNoteReminder, cancelNoteReminder } from '../utils/notifications';
 import { addToTrash, removeFromTrash } from './TrashContext';
@@ -183,23 +183,39 @@ export function NoteProvider({ children }) {
     [notes, persist]
   );
 
+  const value = useMemo(
+    () => ({
+      notes,
+      loaded,
+      addNote,
+      updateNote,
+      deleteNote,
+      restoreNote,
+      replaceAllNotes,
+      toggleNoteFavorite,
+      toggleChecklistItem,
+      addChecklistItem,
+      updateChecklistItemText,
+      removeChecklistItem,
+    }),
+    [
+      notes,
+      loaded,
+      addNote,
+      updateNote,
+      deleteNote,
+      restoreNote,
+      replaceAllNotes,
+      toggleNoteFavorite,
+      toggleChecklistItem,
+      addChecklistItem,
+      updateChecklistItemText,
+      removeChecklistItem,
+    ]
+  );
+
   return (
-    <NoteContext.Provider
-      value={{
-        notes,
-        loaded,
-        addNote,
-        updateNote,
-        deleteNote,
-        restoreNote,
-        replaceAllNotes,
-        toggleNoteFavorite,
-        toggleChecklistItem,
-        addChecklistItem,
-        updateChecklistItemText,
-        removeChecklistItem,
-      }}
-    >
+    <NoteContext.Provider value={value}>
       {children}
     </NoteContext.Provider>
   );
