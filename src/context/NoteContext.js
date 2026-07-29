@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scheduleNoteReminder, cancelNoteReminder } from '../utils/notifications';
+import { addToTrash, removeFromTrash } from './TrashContext';
+import { emitUndo } from '../utils/undoBus';
 
 const STORAGE_KEY = 'a_notes_v1';
 
@@ -73,14 +75,32 @@ export function NoteProvider({ children }) {
     [notes, persist]
   );
 
-  /** Deletes a note. */
+  /** Re-adds a previously trashed note (used by Undo and by the Trash screen). */
+  const restoreNote = useCallback(async (noteData) => {
+    setNotes((prev) => {
+      if (prev.some((n) => n.id === noteData.id)) return prev;
+      const next = [...prev, noteData];
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  /** Soft-delete: moves the note to Trash (recoverable for 30 days) instead of erasing it. */
   const deleteNote = useCallback(
     async (id) => {
       const existing = notes.find((n) => n.id === id);
-      if (existing?.reminderId) await cancelNoteReminder(existing.reminderId);
+      if (!existing) return;
+      if (existing.reminderId) await cancelNoteReminder(existing.reminderId);
       await persist(notes.filter((n) => n.id !== id));
+      const trashId = await addToTrash('note', existing);
+      emitUndo({
+        onUndo: async () => {
+          await removeFromTrash(trashId);
+          await restoreNote(existing);
+        },
+      });
     },
-    [notes, persist]
+    [notes, persist, restoreNote]
   );
 
   /**
@@ -171,6 +191,7 @@ export function NoteProvider({ children }) {
         addNote,
         updateNote,
         deleteNote,
+        restoreNote,
         replaceAllNotes,
         toggleNoteFavorite,
         toggleChecklistItem,

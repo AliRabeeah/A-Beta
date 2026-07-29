@@ -7,8 +7,8 @@ const CATEGORIES_KEY = 'a_quote_categories'; // JSON array of category ids, empt
 const EMOJI_KEY = 'a_quote_emoji_enabled';
 const WIDGET_COLOR_KEY = 'a_quote_widget_color';
 const WIDGET_FONT_KEY = 'a_quote_widget_font';
-const WIDGET_SIZE_KEY = 'a_quote_widget_size'; // 'small' | 'medium' | 'large'
 const WIDGET_FIT_KEY = 'a_quote_widget_fit'; // 'roomy' | 'balanced' | 'snug'
+const WIDGET_SIZE_KEY = 'a_quote_widget_size'; // 'small' | 'medium' | 'large'
 const WIDGET_ALIGN_KEY = 'a_quote_widget_align'; // 'left' | 'center' | 'right'
 const SHOW_AUTHOR_KEY = 'a_quote_widget_show_author';
 const RECENT_IDS_KEY = 'a_quote_recent_ids';
@@ -51,7 +51,6 @@ export const WIDGET_FIT_OPTIONS = [
   { id: 'roomy', ratio: 0.7 },
   { id: 'balanced', ratio: 0.8 },
   { id: 'snug', ratio: 0.9 },
-  { id: 'max', ratio: 0.95 },
 ];
 
 async function getBool(key, fallback) {

@@ -7,7 +7,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useTokens, withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useHabits } from '../context/HabitContext';
-import { getCurrentStreak, getBestStreak, statusOf } from '../utils/streakUtils';
+import { getCurrentStreak, getBestStreak, statusOf, getAvoidStreak, getLongestAvoidStreak } from '../utils/streakUtils';
 import { toKey, addDays } from '../utils/dateUtils';
 
 export default function StatsScreen({ navigation }) {
@@ -15,7 +15,12 @@ export default function StatsScreen({ navigation }) {
   const tokens = useTokens();
   const { t, language } = useLanguage();
   const { habits: allHabits } = useHabits();
-  const habits = allHabits.filter((h) => !h.archived);
+  const activeHabits = allHabits.filter((h) => !h.archived);
+  // Avoidance habits don't use the daily completions map, so they're kept
+  // out of the day-completion chart / leaderboard (both build-habit stats)
+  // and get their own "Longest Avoidance Streaks" section below instead.
+  const habits = activeHabits.filter((h) => h.kind !== 'avoid');
+  const avoidHabits = activeHabits.filter((h) => h.kind === 'avoid');
   const insets = useSafeAreaInsets();
   const locale = language === 'ar' ? 'ar-EG' : 'en-US';
 
@@ -115,6 +120,31 @@ export default function StatsScreen({ navigation }) {
             </View>
           ))}
         </View>
+      )}
+
+      {avoidHabits.length > 0 && (
+        <>
+          <Text style={[styles.section, { color: colors.textSecondary }]}>{t('longestAvoidanceStreaks')}</Text>
+          <View style={[styles.leaderCard, tokens.glass.card]}>
+            {[...avoidHabits]
+              .sort((a, b) => getLongestAvoidStreak(b) - getLongestAvoidStreak(a))
+              .map((h, idx, arr) => (
+                <View
+                  key={h.id}
+                  style={[
+                    styles.leaderRow,
+                    idx < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tokens.hairline },
+                  ]}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15 }}>{h.icon} {h.name}</Text>
+                  <View style={{ flexDirection: 'row', gap: 14 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{t('longestAvoidStreakLabel')} {getLongestAvoidStreak(h)}</Text>
+                    <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '700' }}>{getAvoidStreak(h)} 🛡️</Text>
+                  </View>
+                </View>
+              ))}
+          </View>
+        </>
       )}
     </ScrollView>
   );

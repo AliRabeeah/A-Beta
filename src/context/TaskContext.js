@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 import { scheduleTaskReminders, cancelTaskReminders } from '../utils/notifications';
 import { refreshTodayWidget } from '../utils/widgetSync';
+import { addToTrash, removeFromTrash } from './TrashContext';
+import { emitUndo } from '../utils/undoBus';
 
 const STORAGE_KEY = 'a_tasks_v1';
 
@@ -74,11 +76,31 @@ export function TaskProvider({ children }) {
     await persist(next);
   }, [tasks, persist]);
 
+  /** Re-adds a previously trashed task exactly as it was (used by Undo and by the Trash screen). */
+  const restoreTask = useCallback(async (taskData) => {
+    setTasks((prev) => {
+      if (prev.some((t) => t.id === taskData.id)) return prev;
+      const next = [...prev, taskData];
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      refreshTodayWidget();
+      return next;
+    });
+  }, []);
+
+  /** Soft-delete: moves the task to Trash (recoverable for 30 days) instead of erasing it. */
   const deleteTask = useCallback(async (id) => {
     const existing = tasks.find((t) => t.id === id);
-    if (existing?.reminderIds) await cancelTaskReminders(existing.reminderIds);
+    if (!existing) return;
+    if (existing.reminderIds) await cancelTaskReminders(existing.reminderIds);
     await persist(tasks.filter((t) => t.id !== id));
-  }, [tasks, persist]);
+    const trashId = await addToTrash('task', existing);
+    emitUndo({
+      onUndo: async () => {
+        await removeFromTrash(trashId);
+        await restoreTask(existing);
+      },
+    });
+  }, [tasks, persist, restoreTask]);
 
   /** Toggles completion for a single (one-off) task. */
   const toggleSingleTaskComplete = useCallback(async (id) => {
@@ -163,6 +185,7 @@ export function TaskProvider({ children }) {
         addTask,
         updateTask,
         deleteTask,
+        restoreTask,
         toggleSingleTaskComplete,
         setRecurringTaskStatus,
         toggleChecklistItem,

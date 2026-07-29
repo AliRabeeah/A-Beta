@@ -1,9 +1,21 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNavigationContainerRef } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useTabBar, TAB_BAR_POOL } from '../context/TabBarContext';
+
+// Lets code outside of any screen component (e.g. the notification-tap
+// handler in App.js, for the Day Closing reminder) trigger navigation.
+export const navigationRef = createNavigationContainerRef();
+
+export function navigate(name, params) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name, params);
+  }
+}
 
 import TodayScreen from '../screens/TodayScreen';
 import HabitsScreen from '../screens/HabitsScreen';
@@ -28,12 +40,40 @@ import FavoritesScreen from '../screens/FavoritesScreen';
 import AddEditFavoriteScreen from '../screens/AddEditFavoriteScreen';
 import PlanningScreen from '../screens/PlanningScreen';
 import AddEditPlanningScreen from '../screens/AddEditPlanningScreen';
+import TrashScreen from '../screens/TrashScreen';
+import DayClosingScreen from '../screens/DayClosingScreen';
+import MoodHistoryScreen from '../screens/MoodHistoryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+// Every screen in the customizable tab-bar pool, mapped to its component.
+// Kept separate from the Stack.Screen registrations below (some of these,
+// like Stats/Challenges/Favorites/Planning/Timer, are ALSO reachable by
+// pushing onto the stack from the drawer/settings when they're not
+// currently chosen as a tab).
+const TAB_SCREEN_COMPONENTS = {
+  Today: TodayScreen,
+  Habits: HabitsScreen,
+  Tasks: TasksScreen,
+  Notes: NotesScreen,
+  Settings: SettingsScreen,
+  Stats: StatsScreen,
+  Challenges: ChallengesScreen,
+  Favorites: FavoritesScreen,
+  Planning: PlanningScreen,
+  Timer: TimerScreen,
+};
+
 function Tabs() {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const { tabs, loaded } = useTabBar();
+
+  // Before the stored config loads, fall back to the classic 5-tab layout
+  // so there's never a flash of an empty tab bar.
+  const activeTabs = loaded && tabs.length > 0 ? tabs : ['Today', 'Habits', 'Tasks', 'Notes', 'Settings'];
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -42,24 +82,15 @@ function Tabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarIcon: ({ color, size }) => {
-          const icons = {
-            Today: 'checkmark-circle',
-            Habits: 'list',
-            Tasks: 'clipboard-outline',
-            Stats: 'bar-chart',
-            Challenges: 'target',
-            Notes: 'document-text-outline',
-            Settings: 'settings-sharp',
-          };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          const poolEntry = TAB_BAR_POOL.find((s) => s.id === route.name);
+          return <Ionicons name={poolEntry?.icon || 'ellipse-outline'} size={size} color={color} />;
         },
+        tabBarLabel: t(`tabScreen_${route.name}`),
       })}
     >
-      <Tab.Screen name="Today" component={TodayScreen} />
-      <Tab.Screen name="Habits" component={HabitsScreen} />
-      <Tab.Screen name="Tasks" component={TasksScreen} />
-      <Tab.Screen name="Notes" component={NotesScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      {activeTabs.map((screenId) => (
+        <Tab.Screen key={screenId} name={screenId} component={TAB_SCREEN_COMPONENTS[screenId]} />
+      ))}
     </Tab.Navigator>
   );
 }
@@ -115,6 +146,13 @@ export default function RootNavigator() {
         component={AddEditPlanningScreen}
         options={({ route }) => ({ title: route.params?.planningId ? 'Edit Plan' : 'New Plan', presentation: 'modal' })}
       />
+      <Stack.Screen name="Trash" component={TrashScreen} options={({ route }) => ({ title: '' })} />
+      <Stack.Screen
+        name="DayClosing"
+        component={DayClosingScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
+      />
+      <Stack.Screen name="MoodHistory" component={MoodHistoryScreen} options={{ title: '' }} />
     </Stack.Navigator>
   );
 }
