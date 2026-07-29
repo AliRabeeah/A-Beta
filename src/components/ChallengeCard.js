@@ -60,10 +60,10 @@ export default React.memo(function ChallengeCard({
 
   const menuActions = [
     { icon: checkedInToday ? 'checkmark-circle' : 'checkmark-circle-outline', label: checkedInToday ? 'Checked in today' : 'Check in today', onPress: handleCheckIn },
-    { icon: 'create-outline', label: 'Edit', onPress: onEdit },
+    { icon: 'create-outline', label: 'Edit', onPress: () => onEdit && onEdit(challenge.id) },
     ...(onReorderRequest ? [{ icon: 'swap-vertical-outline', label: t('reorderItems'), onPress: onReorderRequest }] : []),
-    { icon: 'trash-outline', label: t('delete'), onPress: onDelete, destructive: true },
-    { icon: 'ellipsis-horizontal-circle-outline', label: 'More', onPress: onMore || onPress },
+    { icon: 'trash-outline', label: t('delete'), onPress: () => onDelete && onDelete(challenge.id), destructive: true },
+    { icon: 'ellipsis-horizontal-circle-outline', label: 'More', onPress: () => (onMore || onPress)?.(challenge.id) },
   ];
 
   const progressWidth = useSharedValue(0);
@@ -74,7 +74,7 @@ export default React.memo(function ChallengeCard({
 
   function handleCheckIn() {
     Haptics.impactAsync(checkedInToday ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
-    onCheckIn && onCheckIn();
+    onCheckIn && onCheckIn(challenge.id);
   }
 
   return (

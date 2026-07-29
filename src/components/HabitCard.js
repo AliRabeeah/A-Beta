@@ -72,14 +72,14 @@ function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, on
     if (evaluationType === 'checklist') setChecklistViewVisible(true);
     else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      onDone && onDone();
+      onDone && onDone(habit.id);
     }
   };
 
   const handleDoubleTap = () => {
     if (isAvoid) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSkip && onSkip();
+    onSkip && onSkip(habit.id);
   };
 
   const handlePress = useTapGesture({ onSingleTap: handleSingleTap, onDoubleTap: handleDoubleTap });
@@ -88,12 +88,16 @@ function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, on
     setMenuVisible(true);
   };
 
+  // Actions are given as fresh no-arg closures here — cheap, since this
+  // array is local to this card and doesn't affect whether the card itself
+  // gets re-rendered (that's governed by the *props* below, which are now
+  // stable id-keyed callbacks from the parent).
   const menuActions = [
-    ...(isAvoid ? [] : [{ icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: onSkip }]),
-    { icon: 'archive-outline', label: t('archive'), onPress: onArchive },
-    { icon: 'eye-outline', label: t('viewDetails'), onPress: onPress },
+    ...(isAvoid ? [] : [{ icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: () => onSkip && onSkip(habit.id) }]),
+    { icon: 'archive-outline', label: t('archive'), onPress: () => onArchive && onArchive(habit.id) },
+    { icon: 'eye-outline', label: t('viewDetails'), onPress: () => onPress && onPress(habit.id) },
     ...(onReorderRequest ? [{ icon: 'swap-vertical-outline', label: t('reorderItems'), onPress: onReorderRequest }] : []),
-    { icon: 'trash-outline', label: t('delete'), onPress: onDelete, destructive: true },
+    { icon: 'trash-outline', label: t('delete'), onPress: () => onDelete && onDelete(habit.id), destructive: true },
   ];
 
   const accent = habit.color || colors.primary;
@@ -155,7 +159,7 @@ function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, on
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onIncrement && onIncrement(incrementStep);
+              onIncrement && onIncrement(habit.id, evaluationType, incrementStep);
             }}
             style={[styles.iconBtn, { borderColor: tokens.hairline, backgroundColor: withAlpha(colors.text, 0.04) }]}
           >
@@ -191,7 +195,7 @@ function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, on
       onClose={() => setChecklistViewVisible(false)}
       habit={habit}
       date={date}
-      onToggleItem={(itemId, checked) => onToggleChecklistItem && onToggleChecklistItem(itemId, checked)}
+      onToggleItem={(itemId, checked) => onToggleChecklistItem && onToggleChecklistItem(habit.id, itemId, checked)}
     />
     </>
   );

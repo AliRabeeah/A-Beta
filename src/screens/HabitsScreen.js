@@ -68,10 +68,10 @@ export default function HabitsScreen({ navigation }) {
               index={index}
               onDone={() => setCompletionStatus(item.id, 'done')}
               onSkip={() => setCompletionStatus(item.id, 'skipped')}
-              onIncrement={(step) => handleIncrement(item, step)}
+              onIncrement={(id, evaluationType, step) => handleIncrement(item, step)}
               onArchive={() => archiveHabit(item.id)}
               onDelete={() => handleDelete(item)}
-              onToggleChecklistItem={(itemId, checked) => setChecklistItem(item.id, itemId, checked)}
+              onToggleChecklistItem={(id, itemId, checked) => setChecklistItem(item.id, itemId, checked)}
               onPress={() => navigation.navigate('HabitDetail', { habitId: item.id })}
             />
           )}

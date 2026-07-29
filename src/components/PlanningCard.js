@@ -17,7 +17,7 @@ import {
 } from '../utils/planningUtils';
 import { toKey, addDays } from '../utils/dateUtils';
 
-export default function PlanningCard({
+function PlanningCard({
   item,
   date = new Date(),
   index = 0,
@@ -51,7 +51,7 @@ export default function PlanningCard({
 
   const handleTap = () => {
     Haptics.selectionAsync();
-    onPress && onPress();
+    onPress && onPress(item.id);
   };
 
   const handleLongPress = () => {
@@ -60,15 +60,15 @@ export default function PlanningCard({
   };
 
   const menuActions = [
-    { icon: 'create-outline', label: t('editPlan'), onPress },
+    { icon: 'create-outline', label: t('editPlan'), onPress: () => onPress && onPress(item.id) },
     {
       icon: done ? 'checkmark-circle' : 'checkmark-circle-outline',
       label: done ? t('markTodayNotCompleted') : t('markTodayCompleted'),
-      onPress: onToggleCompleted,
+      onPress: () => onToggleCompleted && onToggleCompleted(item.id),
     },
     ...(onReorderRequest ? [{ icon: 'swap-vertical-outline', label: t('reorderItems'), onPress: onReorderRequest }] : []),
-    { icon: 'close-circle-outline', label: t('deleteTodayOnly'), onPress: onDeleteToday },
-    { icon: 'trash-outline', label: t('deleteEntirePlan'), onPress: onDeletePlan, destructive: true },
+    { icon: 'close-circle-outline', label: t('deleteTodayOnly'), onPress: () => onDeleteToday && onDeleteToday(item.id) },
+    { icon: 'trash-outline', label: t('deleteEntirePlan'), onPress: () => onDeletePlan && onDeletePlan(item.id), destructive: true },
   ];
 
   // Day-by-day progress strip: one dot per day, filled for completed days,
@@ -165,7 +165,7 @@ export default function PlanningCard({
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            onToggleCompleted && onToggleCompleted();
+            onToggleCompleted && onToggleCompleted(item.id);
           }}
           style={[
             styles.checkbox,
@@ -182,6 +182,8 @@ export default function PlanningCard({
     </>
   );
 }
+
+export default React.memo(PlanningCard);
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, overflow: 'hidden' },

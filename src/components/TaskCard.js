@@ -48,13 +48,13 @@ function TaskCard({ task, category, onToggleComplete, onSkip, onArchive, onDelet
     if (hasChecklist) setChecklistViewVisible(true);
     else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      onToggleComplete && onToggleComplete();
+      onToggleComplete && onToggleComplete(task.id);
     }
   };
 
   const handleDoubleTap = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    isRecurring ? onSkip && onSkip() : onToggleComplete && onToggleComplete();
+    isRecurring ? onSkip && onSkip(task.id) : onToggleComplete && onToggleComplete(task.id);
   };
 
   const handlePress = useTapGesture({ onSingleTap: handleSingleTap, onDoubleTap: handleDoubleTap });
@@ -64,11 +64,11 @@ function TaskCard({ task, category, onToggleComplete, onSkip, onArchive, onDelet
   };
 
   const menuActions = [
-    ...(isRecurring ? [{ icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: onSkip }] : []),
-    { icon: 'archive-outline', label: t('archive'), onPress: onArchive },
-    { icon: 'eye-outline', label: t('viewDetails'), onPress: onPress },
+    ...(isRecurring ? [{ icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: () => onSkip && onSkip(task.id) }] : []),
+    { icon: 'archive-outline', label: t('archive'), onPress: () => onArchive && onArchive(task.id) },
+    { icon: 'eye-outline', label: t('viewDetails'), onPress: () => onPress && onPress(task.id) },
     ...(onReorderRequest ? [{ icon: 'swap-vertical-outline', label: t('reorderItems'), onPress: onReorderRequest }] : []),
-    { icon: 'trash-outline', label: t('delete'), onPress: onDelete, destructive: true },
+    { icon: 'trash-outline', label: t('delete'), onPress: () => onDelete && onDelete(task.id), destructive: true },
   ];
 
   return (
@@ -136,7 +136,7 @@ function TaskCard({ task, category, onToggleComplete, onSkip, onArchive, onDelet
       onClose={() => setChecklistViewVisible(false)}
       task={task}
       category={category}
-      onToggleItem={(itemId) => onToggleChecklistItem && onToggleChecklistItem(itemId)}
+      onToggleItem={(itemId) => onToggleChecklistItem && onToggleChecklistItem(task.id, itemId)}
     />
     </>
   );

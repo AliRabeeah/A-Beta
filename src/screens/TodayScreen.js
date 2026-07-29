@@ -185,38 +185,142 @@ export default function TodayScreen({ navigation }) {
     prevAllDoneRef.current = allDoneToday;
   }, [allDoneToday]);
 
-  const handleDeleteHabit = (habit) => {
-    Alert.alert(t('deleteConfirmTitle'), t('deleteConfirmBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => deleteHabit(habit.id) },
-    ]);
-  };
+  // --- Stable, id-keyed handlers -------------------------------------
+  // Previously every card in the list got a brand-new closure for each of
+  // these on every single render of TodayScreen (e.g. `onDone={() =>
+  // setCompletionStatus(item.data.id, 'done', selectedDate)}` built fresh
+  // inside renderItem). That meant React.memo on the card components could
+  // never actually skip a re-render, since their props always looked
+  // "changed" even when nothing relevant to that specific card did.
+  //
+  // Wrapping each handler in useCallback (and having the cards call them
+  // with the item's id, see HabitCard/TaskCard/PlanningCard/ChallengeCard)
+  // means the function passed down stays the same reference across
+  // re-renders unless its own dependencies actually change — so a card
+  // whose own data/date/index didn't change now genuinely skips re-render.
+  const handleHabitDone = useCallback(
+    (id) => setCompletionStatus(id, 'done', selectedDate),
+    [setCompletionStatus, selectedDate]
+  );
+  const handleHabitSkip = useCallback(
+    (id) => setCompletionStatus(id, 'skipped', selectedDate),
+    [setCompletionStatus, selectedDate]
+  );
+  const handleHabitIncrement = useCallback(
+    (id, evaluationType, step) => {
+      if (evaluationType === 'timer') logTimerSeconds(id, step, selectedDate);
+      else addToValue(id, step, selectedDate);
+    },
+    [logTimerSeconds, addToValue, selectedDate]
+  );
+  const handleHabitArchive = useCallback((id) => archiveHabit(id), [archiveHabit]);
+  const handleHabitChecklistToggle = useCallback(
+    (id, itemId, checked) => setChecklistItem(id, itemId, checked, selectedDate),
+    [setChecklistItem, selectedDate]
+  );
+  const handleHabitViewDetails = useCallback(
+    (id) => navigation.navigate('HabitDetail', { habitId: id }),
+    [navigation]
+  );
+  const handleHabitDeleteRequest = useCallback(
+    (id) => {
+      const habit = habits.find((h) => h.id === id);
+      if (!habit) return;
+      Alert.alert(t('deleteConfirmTitle'), t('deleteConfirmBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: () => deleteHabit(habit.id) },
+      ]);
+    },
+    [habits, deleteHabit, t]
+  );
 
-  const handleDeleteTask = (task) => {
-    Alert.alert(t('deleteTaskTitle'), t('deleteTaskBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => deleteTask(task.id) },
-    ]);
-  };
+  const handleTaskToggleComplete = useCallback(
+    (id) => {
+      const task = tasks.find((tk) => tk.id === id);
+      if (!task) return;
+      if (task.taskType === 'single') toggleSingleTaskComplete(id);
+      else setRecurringTaskStatus(id, 'done', selectedDate);
+    },
+    [tasks, toggleSingleTaskComplete, setRecurringTaskStatus, selectedDate]
+  );
+  const handleTaskSkip = useCallback(
+    (id) => setRecurringTaskStatus(id, 'skipped', selectedDate),
+    [setRecurringTaskStatus, selectedDate]
+  );
+  const handleTaskArchive = useCallback((id) => archiveTask(id), [archiveTask]);
+  const handleTaskChecklistToggle = useCallback(
+    (id, itemId) => toggleChecklistItem(id, itemId),
+    [toggleChecklistItem]
+  );
+  const handleTaskViewDetails = useCallback(
+    (id) => navigation.navigate('TaskDetail', { taskId: id }),
+    [navigation]
+  );
+  const handleTaskDeleteRequest = useCallback(
+    (id) => {
+      const task = tasks.find((tk) => tk.id === id);
+      if (!task) return;
+      Alert.alert(t('deleteTaskTitle'), t('deleteTaskBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: () => deleteTask(task.id) },
+      ]);
+    },
+    [tasks, deleteTask, t]
+  );
 
-  const handleDeletePlanningItem = (item) => {
-    Alert.alert(t('deletePlanConfirmTitle'), t('deletePlanConfirmBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => deletePlanningItem(item.id) },
-    ]);
-  };
+  const handlePlanningPress = useCallback(
+    (id) => navigation.navigate('AddEditPlanning', { planningId: id }),
+    [navigation]
+  );
+  const handlePlanningToggleCompleted = useCallback(
+    (id) => {
+      const item = planningItems.find((p) => p.id === id);
+      if (!item) return;
+      setDayCompleted(id, !isPlanningDayCompleted(item, selectedDate), selectedDate);
+    },
+    [planningItems, setDayCompleted, selectedDate]
+  );
+  const handlePlanningDeleteToday = useCallback(
+    (id) => deleteTodayOnly(id, selectedDate),
+    [deleteTodayOnly, selectedDate]
+  );
+  const handlePlanningDeletePlanRequest = useCallback(
+    (id) => {
+      const item = planningItems.find((p) => p.id === id);
+      if (!item) return;
+      Alert.alert(t('deletePlanConfirmTitle'), t('deletePlanConfirmBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: () => deletePlanningItem(item.id) },
+      ]);
+    },
+    [planningItems, deletePlanningItem, t]
+  );
 
-  const handleDeleteChallenge = (challenge) => {
-    Alert.alert(t('deleteConfirmTitle'), t('deleteConfirmBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => deleteChallenge(challenge.id) },
-    ]);
-  };
+  const handleChallengeCheckIn = useCallback((id) => checkInChallenge(id), [checkInChallenge]);
+  const handleChallengeViewDetails = useCallback(
+    (id) => navigation.navigate('ChallengeDetail', { challengeId: id }),
+    [navigation]
+  );
+  const handleChallengeEdit = useCallback(
+    (id) => navigation.navigate('StartChallenge', { challengeId: id }),
+    [navigation]
+  );
+  const handleChallengeArchive = useCallback((id) => archiveChallenge(id), [archiveChallenge]);
+  const handleChallengeDeleteRequest = useCallback(
+    (id) => {
+      const challenge = challenges.find((c) => c.id === id);
+      if (!challenge) return;
+      Alert.alert(t('deleteConfirmTitle'), t('deleteConfirmBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: () => deleteChallenge(challenge.id) },
+      ]);
+    },
+    [challenges, deleteChallenge, t]
+  );
 
-  const handleIncrement = (habit, step) => {
-    if (habit.evaluationType === 'timer') logTimerSeconds(habit.id, step, selectedDate);
-    else addToValue(habit.id, step, selectedDate);
-  };
+  // Stable across renders (no deps), reused by every card instead of a
+  // fresh `() => setReorderMode(true)` closure built per item.
+  const handleReorderRequest = useCallback(() => setReorderMode(true), []);
 
   const handleArchiveCompleted = () => {
     Alert.alert(t('archiveCompletedTitle'), t('archiveCompletedBody'), [
@@ -380,20 +484,19 @@ export default function TodayScreen({ navigation }) {
           onScrollOffsetChange={handleListScroll}
           activationDistance={12}
           renderItem={({ item, index, drag, isActive }) => {
-            const onReorderRequest = () => setReorderMode(true);
             let card;
             if (item.kind === 'challenge') {
               card = (
                 <ChallengeCard
                   challenge={item.data}
                   index={index}
-                  onCheckIn={() => checkInChallenge(item.data.id)}
-                  onPress={() => navigation.navigate('ChallengeDetail', { challengeId: item.data.id })}
-                  onArchive={() => archiveChallenge(item.data.id)}
-                  onDelete={() => handleDeleteChallenge(item.data)}
-                  onEdit={() => navigation.navigate('StartChallenge', { challengeId: item.data.id })}
-                  onMore={() => navigation.navigate('ChallengeDetail', { challengeId: item.data.id })}
-                  onReorderRequest={onReorderRequest}
+                  onCheckIn={handleChallengeCheckIn}
+                  onPress={handleChallengeViewDetails}
+                  onArchive={handleChallengeArchive}
+                  onDelete={handleChallengeDeleteRequest}
+                  onEdit={handleChallengeEdit}
+                  onMore={handleChallengeViewDetails}
+                  onReorderRequest={handleReorderRequest}
                 />
               );
             } else if (item.kind === 'habit') {
@@ -402,14 +505,14 @@ export default function TodayScreen({ navigation }) {
                   habit={item.data}
                   date={selectedDate}
                   index={index}
-                  onDone={() => setCompletionStatus(item.data.id, 'done', selectedDate)}
-                  onSkip={() => setCompletionStatus(item.data.id, 'skipped', selectedDate)}
-                  onIncrement={(step) => handleIncrement(item.data, step)}
-                  onArchive={() => archiveHabit(item.data.id)}
-                  onDelete={() => handleDeleteHabit(item.data)}
-                  onToggleChecklistItem={(itemId, checked) => setChecklistItem(item.data.id, itemId, checked, selectedDate)}
-                  onPress={() => navigation.navigate('HabitDetail', { habitId: item.data.id })}
-                  onReorderRequest={onReorderRequest}
+                  onDone={handleHabitDone}
+                  onSkip={handleHabitSkip}
+                  onIncrement={handleHabitIncrement}
+                  onArchive={handleHabitArchive}
+                  onDelete={handleHabitDeleteRequest}
+                  onToggleChecklistItem={handleHabitChecklistToggle}
+                  onPress={handleHabitViewDetails}
+                  onReorderRequest={handleReorderRequest}
                 />
               );
             } else if (item.kind === 'task') {
@@ -418,17 +521,13 @@ export default function TodayScreen({ navigation }) {
                   task={item.data}
                   category={taskCategories.find((c) => c.id === item.data.categoryId)}
                   index={index}
-                  onToggleComplete={() =>
-                    item.data.taskType === 'single'
-                      ? toggleSingleTaskComplete(item.data.id)
-                      : setRecurringTaskStatus(item.data.id, 'done', selectedDate)
-                  }
-                  onSkip={() => setRecurringTaskStatus(item.data.id, 'skipped', selectedDate)}
-                  onArchive={() => archiveTask(item.data.id)}
-                  onDelete={() => handleDeleteTask(item.data)}
-                  onToggleChecklistItem={(itemId) => toggleChecklistItem(item.data.id, itemId)}
-                  onPress={() => navigation.navigate('TaskDetail', { taskId: item.data.id })}
-                  onReorderRequest={onReorderRequest}
+                  onToggleComplete={handleTaskToggleComplete}
+                  onSkip={handleTaskSkip}
+                  onArchive={handleTaskArchive}
+                  onDelete={handleTaskDeleteRequest}
+                  onToggleChecklistItem={handleTaskChecklistToggle}
+                  onPress={handleTaskViewDetails}
+                  onReorderRequest={handleReorderRequest}
                 />
               );
             } else {
@@ -437,11 +536,11 @@ export default function TodayScreen({ navigation }) {
                   item={item.data}
                   date={selectedDate}
                   index={index}
-                  onPress={() => navigation.navigate('AddEditPlanning', { planningId: item.data.id })}
-                  onToggleCompleted={() => setDayCompleted(item.data.id, !isPlanningDayCompleted(item.data, selectedDate), selectedDate)}
-                  onDeleteToday={() => deleteTodayOnly(item.data.id, selectedDate)}
-                  onDeletePlan={() => handleDeletePlanningItem(item.data)}
-                  onReorderRequest={onReorderRequest}
+                  onPress={handlePlanningPress}
+                  onToggleCompleted={handlePlanningToggleCompleted}
+                  onDeleteToday={handlePlanningDeleteToday}
+                  onDeletePlan={handlePlanningDeletePlanRequest}
+                  onReorderRequest={handleReorderRequest}
                 />
               );
             }

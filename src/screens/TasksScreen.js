@@ -77,7 +77,7 @@ export default function TasksScreen({ navigation }) {
               onSkip={() => setRecurringTaskStatus(item.id, 'skipped')}
               onArchive={() => archiveTask(item.id)}
               onDelete={() => handleDelete(item)}
-              onToggleChecklistItem={(itemId) => toggleChecklistItem(item.id, itemId)}
+              onToggleChecklistItem={(id, itemId) => toggleChecklistItem(item.id, itemId)}
               onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
             />
           )}
