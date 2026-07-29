@@ -3,8 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toKey } from '../utils/dateUtils';
 import { schedulePlanningReminder, cancelPlanningReminder } from '../utils/notifications';
 import { refreshTodayWidget } from '../utils/widgetSync';
-import { addToTrash, removeFromTrash } from './TrashContext';
-import { emitUndo } from '../utils/undoBus';
 
 const STORAGE_KEY = 'a_planning_v1';
 
@@ -79,31 +77,11 @@ export function PlanningProvider({ children }) {
     await persist(next);
   }, [planningItems, persist]);
 
-  /** Re-adds a previously trashed planning item (used by Undo and by the Trash screen). */
-  const restorePlanningItem = useCallback(async (itemData) => {
-    setPlanningItems((prev) => {
-      if (prev.some((p) => p.id === itemData.id)) return prev;
-      const next = [...prev, itemData];
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-      refreshTodayWidget();
-      return next;
-    });
-  }, []);
-
-  /** Soft-delete: moves the whole planning item to Trash (recoverable for 30 days). */
   const deletePlanningItem = useCallback(async (id) => {
     const existing = planningItems.find((p) => p.id === id);
-    if (!existing) return;
-    if (existing.reminderId) await cancelPlanningReminder(existing.reminderId);
+    if (existing?.reminderId) await cancelPlanningReminder(existing.reminderId);
     await persist(planningItems.filter((p) => p.id !== id));
-    const trashId = await addToTrash('planning', existing);
-    emitUndo({
-      onUndo: async () => {
-        await removeFromTrash(trashId);
-        await restorePlanningItem(existing);
-      },
-    });
-  }, [planningItems, persist, restorePlanningItem]);
+  }, [planningItems, persist]);
 
   /**
    * Replaces all local planning items with an imported/restored set,
@@ -144,7 +122,6 @@ export function PlanningProvider({ children }) {
         addPlanningItem,
         updatePlanningItem,
         deletePlanningItem,
-        restorePlanningItem,
         replaceAllPlanningItems,
         deleteTodayOnly,
         setDayCompleted,

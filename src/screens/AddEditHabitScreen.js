@@ -26,7 +26,6 @@ export default function AddEditHabitScreen({ navigation, route }) {
   const existing = habits.find((h) => h.id === habitId);
 
   const [name, setName] = useState(existing?.name || '');
-  const [kind, setKind] = useState(existing?.kind || 'build');
   const [icon, setIcon] = useState(existing?.icon || ICONS[0]);
   const [color, setColor] = useState(existing?.color || COLORS[0]);
   const [categoryId, setCategoryId] = useState(existing?.categoryId || CATEGORIES[0].id);
@@ -95,7 +94,6 @@ export default function AddEditHabitScreen({ navigation, route }) {
 
     const payload = {
       name: name.trim(),
-      kind,
       icon,
       color,
       categoryId,
@@ -162,26 +160,8 @@ export default function AddEditHabitScreen({ navigation, route }) {
         ))}
       </View>
 
-      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('habitKindLabel')}</Text>
-      <View style={styles.rowWrap}>
-        {['build', 'avoid'].map((k) => (
-          <TouchableOpacity
-            key={k}
-            onPress={() => setKind(k)}
-            style={[styles.pill, { backgroundColor: kind === k ? colors.primary : colors.surface, borderColor: colors.border }]}
-          >
-            <Text style={{ color: kind === k ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
-              {t(`habitKind_${k}`)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       {/* --- Evaluation type --- */}
-      {kind === 'build' && (
       <Text style={[styles.label, { color: colors.textSecondary }]}>{t('evaluationTypeLabel')}</Text>
-      )}
-      {kind === 'build' && (
       <View style={styles.rowWrap}>
         {EVAL_TYPES.map((typeVal) => (
           <TouchableOpacity
@@ -195,12 +175,9 @@ export default function AddEditHabitScreen({ navigation, route }) {
           </TouchableOpacity>
         ))}
       </View>
-      )}
-      {kind === 'build' && (
       <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t(`evalTypeDesc_${evaluationType}`)}</Text>
-      )}
 
-      {kind === 'build' && evaluationType === 'numeric' && (
+      {evaluationType === 'numeric' && (
         <View style={styles.typeConfigBlock}>
           <View style={styles.rowWrap}>
             {COMPARATORS.map((c) => (
@@ -229,7 +206,7 @@ export default function AddEditHabitScreen({ navigation, route }) {
         </View>
       )}
 
-      {kind === 'build' && evaluationType === 'timer' && (
+      {evaluationType === 'timer' && (
         <View style={styles.typeConfigBlock}>
           <View style={styles.rowWrap}>
             {COMPARATORS.map((c) => (
@@ -249,7 +226,7 @@ export default function AddEditHabitScreen({ navigation, route }) {
         </View>
       )}
 
-      {kind === 'build' && evaluationType === 'checklist' && (
+      {evaluationType === 'checklist' && (
         <View style={styles.typeConfigBlock}>
           <Text style={[styles.sublabel, { color: colors.textSecondary }]}>{t('checklistItemsLabel')}</Text>
           {checklistItems.map((item) => (

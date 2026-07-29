@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { addToTrash, removeFromTrash } from './TrashContext';
-import { emitUndo } from '../utils/undoBus';
 
 const STORAGE_KEY = 'a_favorites_v1';
 
@@ -74,32 +72,12 @@ export function FavoriteProvider({ children }) {
     [favorites, persist]
   );
 
-  /** Re-adds a previously trashed favorite (used by Undo and by the Trash screen). */
-  const restoreFavorite = useCallback(async (favData) => {
-    setFavorites((prev) => {
-      if (prev.some((f) => f.id === favData.id)) return prev;
-      const next = [favData, ...prev];
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-      return next;
-    });
-  }, []);
-
-  /** Soft-delete: moves the favorite to Trash (recoverable for 30 days) instead of erasing it. */
   const deleteFavorite = useCallback(
     async (id) => {
-      const existing = favorites.find((f) => f.id === id);
-      if (!existing) return false;
-      const ok = await persist(favorites.filter((f) => f.id !== id));
-      const trashId = await addToTrash('favorite', existing);
-      emitUndo({
-        onUndo: async () => {
-          await removeFromTrash(trashId);
-          await restoreFavorite(existing);
-        },
-      });
-      return ok;
+      const next = favorites.filter((f) => f.id !== id);
+      return persist(next);
     },
-    [favorites, persist, restoreFavorite]
+    [favorites, persist]
   );
 
   /** Replaces all local favorites with an imported/restored set. */
@@ -110,7 +88,7 @@ export function FavoriteProvider({ children }) {
 
   return (
     <FavoriteContext.Provider
-      value={{ favorites, loaded, addFavorite, updateFavorite, deleteFavorite, restoreFavorite, replaceAllFavorites }}
+      value={{ favorites, loaded, addFavorite, updateFavorite, deleteFavorite, replaceAllFavorites }}
     >
       {children}
     </FavoriteContext.Provider>

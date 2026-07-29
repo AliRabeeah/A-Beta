@@ -6,14 +6,12 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../theme/ThemeContext';
 import { useTokens, withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
-import { getCurrentStreak, statusOf, getAvoidStreak } from '../utils/streakUtils';
+import { getCurrentStreak, statusOf } from '../utils/streakUtils';
 import { toKey } from '../utils/dateUtils';
 import { useTapGesture } from '../utils/tapGesture';
-import { useHabits } from '../context/HabitContext';
 import AnimatedPressable from './AnimatedPressable';
 import ActionSheet from './ActionSheet';
 import ChecklistQuickView from './ChecklistQuickView';
-import RelapseModal from './RelapseModal';
 
 export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchive, onDelete, onPress, onToggleChecklistItem, onReorderRequest, date = new Date(), index = 0 }) {
   const { colors } = useTheme();
@@ -47,21 +45,10 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
     progressRatio = total > 0 ? doneCount / total : 0;
   }
 
-  const { logRelapse } = useHabits();
-  const isAvoid = habit.kind === 'avoid';
-  const avoidStreak = isAvoid ? getAvoidStreak(habit, date) : 0;
-  const [relapseModalVisible, setRelapseModalVisible] = useState(false);
-
-  const handleConfirmRelapse = async (note) => {
-    await logRelapse(habit.id, note, date);
-    setRelapseModalVisible(false);
-  };
-
   const [menuVisible, setMenuVisible] = useState(false);
   const [checklistViewVisible, setChecklistViewVisible] = useState(false);
 
   const handleSingleTap = () => {
-    if (isAvoid) return; // avoid habits aren't toggled by tapping — see relapse button
     if (evaluationType === 'checklist') setChecklistViewVisible(true);
     else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -70,7 +57,6 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
   };
 
   const handleDoubleTap = () => {
-    if (isAvoid) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onSkip && onSkip();
   };
@@ -82,7 +68,7 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
   };
 
   const menuActions = [
-    ...(isAvoid ? [] : [{ icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: onSkip }]),
+    { icon: 'play-skip-forward-outline', label: t('skipLabel'), onPress: onSkip },
     { icon: 'archive-outline', label: t('archive'), onPress: onArchive },
     { icon: 'eye-outline', label: t('viewDetails'), onPress: onPress },
     ...(onReorderRequest ? [{ icon: 'swap-vertical-outline', label: t('reorderItems'), onPress: onReorderRequest }] : []),
@@ -117,9 +103,7 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
         >
           {habit.icon} {habit.name}
         </Text>
-        {isAvoid ? (
-          <Text style={[styles.streak, { color: colors.textSecondary }]}>🛡️ {t('daysWithoutLabel', avoidStreak, habit.name)}</Text>
-        ) : progressText ? (
+        {progressText ? (
           <View style={styles.progressRow}>
             <Text style={[styles.streak, { color: colors.textSecondary }]}>{progressText}</Text>
             {progressRatio !== null && (
@@ -133,35 +117,18 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
         ) : null}
       </View>
 
-      {isAvoid ? (
+      {evaluationType !== 'yesno' && evaluationType !== 'checklist' && (
         <TouchableOpacity
           onPress={() => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            setRelapseModalVisible(true);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onIncrement && onIncrement(incrementStep);
           }}
-          style={[styles.iconBtn, { borderColor: colors.danger, backgroundColor: withAlpha(colors.danger, 0.08) }]}
+          style={[styles.iconBtn, { borderColor: tokens.hairline, backgroundColor: withAlpha(colors.text, 0.04) }]}
         >
-          <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+          <Ionicons name="add" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
-      ) : (
-        evaluationType !== 'yesno' && evaluationType !== 'checklist' && (
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onIncrement && onIncrement(incrementStep);
-            }}
-            style={[styles.iconBtn, { borderColor: tokens.hairline, backgroundColor: withAlpha(colors.text, 0.04) }]}
-          >
-            <Ionicons name="add" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )
       )}
 
-      {isAvoid ? (
-        <View style={[styles.checkbox, { borderColor: tokens.hairline, backgroundColor: 'transparent' }]}>
-          <Ionicons name="shield-checkmark-outline" size={16} color={colors.textSecondary} />
-        </View>
-      ) : (
       <View
         style={[
           styles.checkbox,
@@ -175,10 +142,8 @@ export default function HabitCard({ habit, onDone, onSkip, onIncrement, onArchiv
         {status === 'done' && <Ionicons name="checkmark" size={18} color={colors.onPrimary} />}
         {status === 'skipped' && <Ionicons name="play-skip-forward" size={14} color={colors.textSecondary} />}
       </View>
-      )}
     </AnimatedPressable>
     <ActionSheet visible={menuVisible} onClose={() => setMenuVisible(false)} title={habit.name} actions={menuActions} />
-    <RelapseModal visible={relapseModalVisible} onClose={() => setRelapseModalVisible(false)} onConfirm={handleConfirmRelapse} />
     <ChecklistQuickView
       visible={checklistViewVisible}
       onClose={() => setChecklistViewVisible(false)}
