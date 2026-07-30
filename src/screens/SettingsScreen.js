@@ -41,15 +41,6 @@ import { refreshTodayWidget } from '../utils/widgetSync';
 const SWITCH_ON_COLOR = '#0A84FF';
 const SWITCH_OFF_THUMB = '#f4f3f4';
 
-function SectionHeader({ icon, label, color }) {
-  return (
-    <View style={styles.sectionHeaderRow}>
-      <Ionicons name={icon} size={13} color={color} style={{ marginRight: 6 }} />
-      <Text style={[styles.section, { color, marginTop: 0, marginBottom: 0 }]}>{label}</Text>
-    </View>
-  );
-}
-
 export default function SettingsScreen({ navigation }) {
   const { colors, preference, setMode, accent, setAccent, presets } = useTheme();
   const { t, language, setLanguage } = useLanguage();
@@ -310,7 +301,6 @@ export default function SettingsScreen({ navigation }) {
     >
       <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
 
-      <SectionHeader icon="language-outline" label={t('languageSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('language')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -333,7 +323,6 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="contrast-outline" label={t('appearance')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('appearance')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -359,7 +348,6 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="color-palette-outline" label={t('accentColorSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('accent')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -387,7 +375,6 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="grid-outline" label={t('tabBarCustomizeSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('tabBar')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -453,64 +440,76 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="lock-closed-outline" label={t('appLockSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('appLockEnable')}</Text>
-          <Switch
-            value={lockEnabled}
-            onValueChange={handleToggleAppLock}
-            trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor={lockEnabled ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
-          />
-        </View>
+        <TouchableOpacity onPress={() => setOpenSection('appLock')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('appLockSection')}</Text>
+          </View>
+          <Ionicons name={openSection === 'appLock' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
 
-        {lockEnabled && (
-          <View style={{ padding: 14, paddingTop: 0 }}>
-            <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 6 }]}>{t('appLockMethodLabel')}</Text>
-            <View style={styles.rowWrapSettings}>
-              {biometricAvailable && (
-                <TouchableOpacity
-                  onPress={() => setLockMethod('biometric')}
-                  style={[styles.pill, { backgroundColor: lockMethod === 'biometric' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
-                >
-                  <Text style={{ color: lockMethod === 'biometric' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
-                    {t('appLockMethodBiometric')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                onPress={() => setLockMethod('pin')}
-                style={[styles.pill, { backgroundColor: lockMethod === 'pin' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
-              >
-                <Text style={{ color: lockMethod === 'pin' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
-                  {t('appLockMethodPin')}
-                </Text>
-              </TouchableOpacity>
+        {openSection === 'appLock' && (
+          <View style={{ paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.row}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{t('appLockEnable')}</Text>
+              <Switch
+                value={lockEnabled}
+                onValueChange={handleToggleAppLock}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor={lockEnabled ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
+              />
             </View>
 
-            {lockMethod === 'pin' && (
-              <TouchableOpacity onPress={() => setPinModalMode('set')} style={{ marginTop: 12 }}>
-                <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 13 }}>
-                  {hasPin ? t('appLockChangePin') : t('appLockSetPin')}
-                </Text>
-              </TouchableOpacity>
+            {lockEnabled && (
+              <View style={{ padding: 14, paddingTop: 0 }}>
+                <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 6 }]}>{t('appLockMethodLabel')}</Text>
+                <View style={styles.rowWrapSettings}>
+                  {biometricAvailable && (
+                    <TouchableOpacity
+                      onPress={() => setLockMethod('biometric')}
+                      style={[styles.pill, { backgroundColor: lockMethod === 'biometric' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                    >
+                      <Text style={{ color: lockMethod === 'biometric' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                        {t('appLockMethodBiometric')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => setLockMethod('pin')}
+                    style={[styles.pill, { backgroundColor: lockMethod === 'pin' ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                  >
+                    <Text style={{ color: lockMethod === 'pin' ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>
+                      {t('appLockMethodPin')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {lockMethod === 'pin' && (
+                  <TouchableOpacity onPress={() => setPinModalMode('set')} style={{ marginTop: 12 }}>
+                    <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 13 }}>
+                      {hasPin ? t('appLockChangePin') : t('appLockSetPin')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 16 }]}>{t('appLockAutoLockLabel')}</Text>
+                <View style={styles.rowWrapSettings}>
+                  {AUTO_LOCK_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt.id}
+                      onPress={() => setAutoLockMinutes(opt.id)}
+                      style={[styles.pill, { backgroundColor: autoLockMinutes === opt.id ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+                    >
+                      <Text style={{ color: autoLockMinutes === opt.id ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 12 }}>
+                        {t(opt.labelKey)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             )}
-
-            <Text style={[styles.sublabel, { color: colors.textSecondary, marginTop: 16 }]}>{t('appLockAutoLockLabel')}</Text>
-            <View style={styles.rowWrapSettings}>
-              {AUTO_LOCK_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  onPress={() => setAutoLockMinutes(opt.id)}
-                  style={[styles.pill, { backgroundColor: autoLockMinutes === opt.id ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
-                >
-                  <Text style={{ color: autoLockMinutes === opt.id ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 12 }}>
-                    {t(opt.labelKey)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
         )}
       </View>
@@ -547,7 +546,6 @@ export default function SettingsScreen({ navigation }) {
         </View>
       )}
 
-      <SectionHeader icon="notifications-outline" label={t('notifications')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('notifications')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -580,7 +578,6 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="apps-outline" label={t('widgetSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('widget')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -648,7 +645,6 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="cloud-upload-outline" label={t('backupSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('backup')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -673,18 +669,22 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="trash-outline" label={t('trashSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.navigate('Trash')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('trashEntry')}</Text>
+          <View style={styles.rowLeft}>
+            <Ionicons name="trash-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('trashEntry')}</Text>
+          </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <SectionHeader icon="logo-github" label={t('githubBackupSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('github')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
+          <View style={styles.rowLeft}>
+            <Ionicons name="logo-github" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
+          </View>
           <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
         </TouchableOpacity>
 
@@ -782,15 +782,16 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="happy-outline" label={t('moodHistoryTitle')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.navigate('MoodHistory')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('viewMoodHistory')}</Text>
+          <View style={styles.rowLeft}>
+            <Ionicons name="happy-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('viewMoodHistory')}</Text>
+          </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <SectionHeader icon="moon-outline" label={t('dayClosingReminderSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => setOpenSection('dayClosing')} style={styles.row} activeOpacity={0.7}>
           <View style={styles.rowLeft}>
@@ -831,18 +832,22 @@ export default function SettingsScreen({ navigation }) {
         )}
       </View>
 
-      <SectionHeader icon="chatbox-ellipses-outline" label={t('quoteSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.navigate('QuoteSettings')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('quoteSettingsEntry')}</Text>
+          <View style={styles.rowLeft}>
+            <Ionicons name="chatbox-ellipses-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('quoteSettingsEntry')}</Text>
+          </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <SectionHeader icon="information-circle-outline" label={t('aboutSection')} color={colors.textSecondary} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.navigate('About')} style={styles.row}>
-          <Text style={{ color: colors.text, fontSize: 15 }}>{t('aboutApp')}</Text>
+          <View style={styles.rowLeft}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 15 }}>{t('aboutApp')}</Text>
+          </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -855,7 +860,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: '800', marginBottom: 12 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 9 },
   section: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
-  card: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  card: { borderWidth: 1, borderRadius: 14, overflow: 'hidden', marginTop: 20 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   rowLeft: { flexDirection: 'row', alignItems: 'center' },
   swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
