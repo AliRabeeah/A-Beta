@@ -256,11 +256,39 @@ export async function cancelNoteReminder(notificationId) {
 }
 
 /**
- * Cancels every currently-scheduled quote notification. Used when the
- * feature is turned off, and internally before re-scheduling with a fresh
- * set of quotes.
+ * Quote notifications are entered from three places (app mount, every
+ * AppState -> 'active' transition, and the Quote Settings screen), and
+ * `rebuildQuoteNotificationsIfNeeded`'s "already scheduled today?" check
+ * involves several `await`s before it writes `lastScheduledDate` back.
+ * Without serialization, two calls landing close together (mount + the
+ * 'active' event that commonly fires right after it on startup) can both
+ * pass that check before either finishes, so both cancel-and-reschedule
+ * concurrently. The second call's notification ids then overwrite the
+ * first's in storage, leaving the first batch still scheduled with the OS
+ * but no longer tracked — an orphan that fires alongside the second batch
+ * (duplicate quote notifications at the same time), and that lingers as a
+ * stale alarm afterwards (a plausible cause of "late/at the wrong time"
+ * deliveries too, since it's competing with the real one).
+ *
+ * All entry points below funnel through this queue so only one runs at a
+ * time; the others simply await their turn instead of racing.
  */
-export async function cancelQuoteNotifications() {
+let quoteNotifQueue = Promise.resolve();
+function serializeQuoteNotif(task) {
+  const result = quoteNotifQueue.then(task, task);
+  // Keep the chain alive even if a task throws, and swallow the rejection
+  // here so it doesn't surface as an unhandled rejection — callers still
+  // get the real error via the `result` promise they were returned.
+  quoteNotifQueue = result.then(() => {}, () => {});
+  return result;
+}
+
+/** Marks every quote notification's payload so it can be found and swept
+ * later even if its id was never (or is no longer) in storage. */
+const QUOTE_NOTIF_DATA = { type: 'quote' };
+
+async function cancelQuoteNotificationsImpl() {
+  // Cancel by stored ids...
   const ids = await getScheduledQuoteNotifIds();
   for (const id of ids) {
     if (!id) continue;
@@ -270,18 +298,31 @@ export async function cancelQuoteNotifications() {
       // already fired or invalid id
     }
   }
+  // ...and also sweep any quote notification actually scheduled with the
+  // OS that isn't in that list (orphans from a past race, a killed app, or
+  // any other loss of storage sync). This is what actually stops "extra"
+  // notifications from firing even after storage and the OS have drifted
+  // apart.
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of scheduled) {
+      if (n?.content?.data?.type === 'quote') {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(n.identifier);
+        } catch (e) {
+          // already fired or invalid id
+        }
+      }
+    }
+  } catch (e) {
+    // getAllScheduledNotificationsAsync unsupported/unavailable; stored-id
+    // cancellation above still covers the common case.
+  }
   await setScheduledQuoteNotifIds([]);
 }
 
-/**
- * (Re)schedules one daily quote notification per configured time, each
- * with a freshly-picked random quote. Expo's DAILY trigger repeats the
- * same content every day, so to get a *different* quote each day this
- * must be called again once a day — see `rebuildQuoteNotificationsIfNeeded`,
- * which is the function screens/App startup should actually call.
- */
-export async function scheduleQuoteNotifications(times) {
-  await cancelQuoteNotifications();
+async function scheduleQuoteNotificationsImpl(times) {
+  await cancelQuoteNotificationsImpl();
 
   const list = (times && times.length > 0 ? times : ['09:00']).filter(Boolean);
   if (list.length === 0) return [];
@@ -311,7 +352,7 @@ export async function scheduleQuoteNotifications(times) {
     const body = quote.author ? `"${quote.text}" — ${quote.author}` : `"${quote.text}"`;
 
     const id = await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: 'default' },
+      content: { title, body, sound: 'default', data: QUOTE_NOTIF_DATA },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
@@ -328,21 +369,43 @@ export async function scheduleQuoteNotifications(times) {
 }
 
 /**
+ * Cancels every currently-scheduled quote notification. Used when the
+ * feature is turned off, and internally before re-scheduling with a fresh
+ * set of quotes.
+ */
+export async function cancelQuoteNotifications() {
+  return serializeQuoteNotif(cancelQuoteNotificationsImpl);
+}
+
+/**
+ * (Re)schedules one daily quote notification per configured time, each
+ * with a freshly-picked random quote. Expo's DAILY trigger repeats the
+ * same content every day, so to get a *different* quote each day this
+ * must be called again once a day — see `rebuildQuoteNotificationsIfNeeded`,
+ * which is the function screens/App startup should actually call.
+ */
+export async function scheduleQuoteNotifications(times) {
+  return serializeQuoteNotif(() => scheduleQuoteNotificationsImpl(times));
+}
+
+/**
  * Call on app startup (and whenever quote notification settings change).
  * Re-schedules with fresh quotes once per calendar day, and leaves the
  * existing schedule untouched otherwise so reopening the app repeatedly in
  * the same day doesn't reshuffle the quote that's about to fire.
  */
 export async function rebuildQuoteNotificationsIfNeeded() {
-  const enabled = await getQuoteNotifEnabled();
-  if (!enabled) return;
+  return serializeQuoteNotif(async () => {
+    const enabled = await getQuoteNotifEnabled();
+    if (!enabled) return;
 
-  const todayKey = toKey(new Date());
-  const lastDate = await getLastScheduledDate();
-  if (lastDate === todayKey) return;
+    const todayKey = toKey(new Date());
+    const lastDate = await getLastScheduledDate();
+    if (lastDate === todayKey) return;
 
-  const times = await getQuoteNotifTimes();
-  await scheduleQuoteNotifications(times);
+    const times = await getQuoteNotifTimes();
+    await scheduleQuoteNotificationsImpl(times);
+  });
 }
 
 /**
