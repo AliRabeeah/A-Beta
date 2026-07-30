@@ -10,6 +10,7 @@ import { useTasks } from '../context/TaskContext';
 import { useMood } from '../context/MoodContext';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
 import { toKey, addDays } from '../utils/dateUtils';
+import { setDayClosingCompletedDate } from '../utils/dayClosingSettings';
 
 const MOODS = [
   { level: 1, emoji: '😞' },
@@ -74,6 +75,7 @@ export default function DayClosingScreen({ navigation }) {
         dueDate: tomorrowKey,
       });
     }
+    await setDayClosingCompletedDate(todayKey);
     navigation.goBack();
   };
 

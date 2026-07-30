@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
@@ -8,16 +8,21 @@ import { useFavorites, FAVORITE_TYPES } from '../context/FavoriteContext';
 import FavoriteCard from '../components/FavoriteCard';
 import FilterBar from '../components/FilterBar';
 import SideDrawer from '../components/SideDrawer';
+import ActionSheet from '../components/ActionSheet';
 
-// Responsive column count: one column on phones, more as the viewport
-// widens (tablets / web), matching the spec's "single column on mobile,
-// several columns on larger screens" requirement.
+// Responsive column count. Two columns is the baseline everywhere — even
+// on phones — since the card was redesigned to be compact enough for a
+// half-width column; this is what actually fixes the large empty area a
+// single-column list left below just 1-2 cards. Only very narrow/legacy
+// screens fall back to one column.
 function columnsForWidth(width) {
   if (width >= 900) return 4;
   if (width >= 650) return 3;
-  if (width >= 420) return 2;
+  if (width >= 340) return 2;
   return 1;
 }
+
+const SORT_OPTIONS = ['newest', 'oldest', 'rating', 'title'];
 
 export default function FavoritesScreen({ navigation }) {
   const { colors } = useTheme();
@@ -29,6 +34,9 @@ export default function FavoritesScreen({ navigation }) {
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [activeType, setActiveType] = useState(null); // null = "All"
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  const [sortSheetVisible, setSortSheetVisible] = useState(false);
 
   const counts = useMemo(() => {
     const c = {};
@@ -38,10 +46,46 @@ export default function FavoritesScreen({ navigation }) {
     return c;
   }, [favorites]);
 
-  const filtered = useMemo(
-    () => (activeType ? favorites.filter((f) => f.type === activeType) : favorites),
-    [favorites, activeType]
-  );
+  const filtered = useMemo(() => {
+    let result = activeType ? favorites.filter((f) => f.type === activeType) : favorites;
+    const q = query.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (f) => f.title.toLowerCase().includes(q) || (f.note || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [favorites, activeType, query]);
+
+  // The badge on each card ("01/02/…") reads as "the Nth one I added"
+  // (chronological, oldest = 01) regardless of the sort/display order
+  // below — so it's ranked once here from `addedAt` ascending, independent
+  // of whatever order the list is currently shown in.
+  const numberById = useMemo(() => {
+    const chronological = [...filtered].sort(
+      (a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime()
+    );
+    const map = {};
+    chronological.forEach((item, i) => {
+      map[item.id] = i + 1;
+    });
+    return map;
+  }, [filtered]);
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    switch (sortBy) {
+      case 'oldest':
+        return list.sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt));
+      case 'rating':
+        return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      case 'title':
+        return list.sort((a, b) => a.title.localeCompare(b.title, isRTL ? 'ar' : 'en'));
+      case 'newest':
+      default:
+        return list.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+    }
+  }, [filtered, sortBy, isRTL]);
 
   const handleAdd = () => navigation.navigate('AddEditFavorite');
   const handleOpen = (item) => navigation.navigate('AddEditFavorite', { favoriteId: item.id });
@@ -53,8 +97,14 @@ export default function FavoritesScreen({ navigation }) {
     ]);
   };
 
+  const sortActions = SORT_OPTIONS.map((opt) => ({
+    icon: sortBy === opt ? 'checkmark-circle' : sortIcon(opt),
+    label: t(sortLabelKey(opt)),
+    onPress: () => setSortBy(opt),
+  }));
+
   const renderEmptyState = () => {
-    const filteredEmpty = favorites.length > 0 && activeType !== null;
+    const filteredEmpty = favorites.length > 0 && (activeType !== null || query.trim().length > 0);
     return (
       <View style={styles.empty}>
         <Text style={{ fontSize: 44, marginBottom: 12 }}>⭐</Text>
@@ -89,23 +139,48 @@ export default function FavoritesScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      <View style={[styles.searchRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        <View style={[styles.searchInputWrap, { backgroundColor: colors.surface }, isRTL && { flexDirection: 'row-reverse' }]}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('favoritesSearchPlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            style={[styles.searchInput, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={() => setSortSheetVisible(true)}
+          style={[styles.sortBtn, { backgroundColor: colors.surface }]}
+        >
+          <Ionicons name="swap-vertical" size={18} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.filterWrap}>
         <FilterBar counts={counts} activeType={activeType} onSelectType={setActiveType} />
       </View>
 
       <FlatList
-        data={filtered}
+        data={sorted}
         key={numColumns}
         keyExtractor={(item) => item.id}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
-        contentContainerStyle={filtered.length === 0 ? styles.emptyListContent : styles.listContent}
+        contentContainerStyle={sorted.length === 0 ? styles.emptyListContent : styles.listContent}
         ListEmptyComponent={renderEmptyState}
         renderItem={({ item, index }) => (
           <View style={numColumns > 1 ? styles.gridCell : undefined}>
             <FavoriteCard
               item={item}
-              index={index}
+              number={numberById[item.id] ?? index + 1}
               onPress={() => handleOpen(item)}
               onLongPress={() => handleDelete(item)}
             />
@@ -114,8 +189,43 @@ export default function FavoritesScreen({ navigation }) {
       />
 
       <SideDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} navigation={navigation} />
+
+      <ActionSheet
+        visible={sortSheetVisible}
+        onClose={() => setSortSheetVisible(false)}
+        title={t('favoritesSortTitle')}
+        actions={sortActions}
+      />
     </View>
   );
+}
+
+function sortLabelKey(opt) {
+  switch (opt) {
+    case 'oldest':
+      return 'sortByOldest';
+    case 'rating':
+      return 'sortByRating';
+    case 'title':
+      return 'sortByTitle';
+    case 'newest':
+    default:
+      return 'sortByNewest';
+  }
+}
+
+function sortIcon(opt) {
+  switch (opt) {
+    case 'oldest':
+      return 'time-outline';
+    case 'rating':
+      return 'star-outline';
+    case 'title':
+      return 'text-outline';
+    case 'newest':
+    default:
+      return 'sparkles-outline';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -125,11 +235,23 @@ const styles = StyleSheet.create({
   menuBtn: { padding: 6, marginRight: 6 },
   title: { fontSize: 24, fontWeight: '800' },
   addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, marginBottom: 4 },
+  searchInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 10,
+    height: 36,
+    paddingHorizontal: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 0, height: '100%' },
+  sortBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   filterWrap: { paddingHorizontal: 16 },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   emptyListContent: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 100 },
-  gridRow: { gap: 12 },
-  gridCell: { flex: 1, marginBottom: 12 },
+  gridRow: { gap: 10 },
+  gridCell: { flex: 1, marginBottom: 10 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 30 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
   emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19 },

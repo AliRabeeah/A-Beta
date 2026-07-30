@@ -25,9 +25,16 @@ import Confetti from '../components/Confetti';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
 import { isDueOnDate as isPlanningDueOnDate, isDayCompleted as isPlanningDayCompleted } from '../utils/planningUtils';
 import { toKey, addDays } from '../utils/dateUtils';
+import { getDayClosingCompletedDate } from '../utils/dayClosingSettings';
 
 const DATE_RANGE_DAYS = 15; // days shown before/after today in the strip
 const TODAY_ORDER_STORAGE_KEY = 'today_items_custom_order';
+const DAY_CLOSING_WINDOW_START_HOUR = 22; // icon shows from 10:00 PM to midnight
+
+function isWithinDayClosingWindow(date) {
+  const h = date.getHours();
+  return h >= DAY_CLOSING_WINDOW_START_HOUR; // 22 or 23 -> true, resets to 0 at midnight -> false
+}
 
 function isTaskDueOnDate(task, date) {
   if (task.taskType === 'recurring') return isDueOnDate(task, date);
@@ -62,6 +69,32 @@ export default function TodayScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       return () => setReorderMode(false);
+    }, [])
+  );
+
+  // Day Closing badge: visibility is time-gated (10 PM-midnight), so `now`
+  // needs to tick forward on its own even if nothing else re-renders the
+  // screen — a minute is precise enough for a UI toggle like this.
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const showDayClosingBadge = isWithinDayClosingWindow(now);
+
+  // Whether "Close My Day" was already completed today — re-read on every
+  // focus so coming back from the DayClosing flow (or from a fresh day)
+  // updates the badge without needing a manual refresh.
+  const [dayClosingDoneToday, setDayClosingDoneToday] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getDayClosingCompletedDate().then((dateKey) => {
+        if (!cancelled) setDayClosingDoneToday(dateKey === toKey(new Date()));
+      });
+      return () => {
+        cancelled = true;
+      };
     }, [])
   );
 
@@ -381,23 +414,41 @@ export default function TodayScreen({ navigation }) {
           <Text style={[styles.title, { color: colors.text }]}>{t('today')}</Text>
         </View>
 
-        {/* Compact circular progress ring replacing the old large summary card */}
-        {totalDue > 0 && (
-          <View style={styles.ringWrap}>
-            <ProgressRing
-              size={44}
-              strokeWidth={4.5}
-              progress={overallRatio}
-              color={allDoneToday ? '#00E676' : colors.primary}
-              trackColor={withAlpha(colors.text, 0.08)}
+        <View style={styles.headerRight}>
+          {showDayClosingBadge && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('DayClosing')}
+              activeOpacity={0.75}
+              style={[
+                styles.dayClosingBadge,
+                {
+                  borderColor: dayClosingDoneToday ? '#00E676' : withAlpha(colors.text, 0.25),
+                  backgroundColor: dayClosingDoneToday ? withAlpha('#00E676', 0.15) : 'transparent',
+                },
+              ]}
             >
-              <Text style={{ color: colors.text, fontSize: 11, fontWeight: '800' }}>
-                {overallDone}/{totalDue}
-              </Text>
-            </ProgressRing>
-            {allDoneToday && <Confetti burstKey={burstKey} colors={['#00E676', colors.primary, '#FFD60A']} />}
-          </View>
-        )}
+              <Ionicons name="moon" size={18} color={dayClosingDoneToday ? '#00E676' : colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Compact circular progress ring replacing the old large summary card */}
+          {totalDue > 0 && (
+            <View style={styles.ringWrap}>
+              <ProgressRing
+                size={44}
+                strokeWidth={4.5}
+                progress={overallRatio}
+                color={allDoneToday ? '#00E676' : colors.primary}
+                trackColor={withAlpha(colors.text, 0.08)}
+              >
+                <Text style={{ color: colors.text, fontSize: 11, fontWeight: '800' }}>
+                  {overallDone}/{totalDue}
+                </Text>
+              </ProgressRing>
+              {allDoneToday && <Confetti burstKey={burstKey} colors={['#00E676', colors.primary, '#FFD60A']} />}
+            </View>
+          )}
+        </View>
       </View>
 
       {priorityTask && (
@@ -615,6 +666,15 @@ export default function TodayScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dayClosingBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   priorityBanner: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuBtn: { padding: 4 },

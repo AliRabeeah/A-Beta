@@ -286,6 +286,31 @@ function serializeQuoteNotif(task) {
 /** Marks every quote notification's payload so it can be found and swept
  * later even if its id was never (or is no longer) in storage. */
 const QUOTE_NOTIF_DATA = { type: 'quote' };
+const QUOTE_CHANNEL_ID = 'quotes-v1';
+
+/**
+ * Identifies a quote notification from an OS-level scheduled-notification
+ * record. Checked three ways, broadest first:
+ *  1. `data.type === 'quote'` — set by this file for anything it schedules
+ *     going forward.
+ *  2. Android `channelId === 'quotes-v1'` — a second, independent tag on
+ *     the same notifications.
+ *  3. `title` containing "Daily Quote" — the fixed title string this
+ *     feature has always used, tag or not.
+ * (3) exists specifically to catch notifications scheduled by an *older*
+ * build of this app, before `data`/tagging was added — those have neither
+ * of the first two markers, so relying on the tag alone silently ignores
+ * exactly the pre-existing duplicates a user upgrading the app needs
+ * cleaned up. Matching on the title too means this cleanup is retroactive
+ * instead of only protecting installs going forward.
+ */
+function isQuoteNotification(n) {
+  if (!n) return false;
+  if (n?.content?.data?.type === 'quote') return true;
+  if (n?.trigger?.channelId === QUOTE_CHANNEL_ID) return true;
+  if (typeof n?.content?.title === 'string' && n.content.title.includes('Daily Quote')) return true;
+  return false;
+}
 
 async function cancelQuoteNotificationsImpl() {
   // Cancel by stored ids...
@@ -299,26 +324,34 @@ async function cancelQuoteNotificationsImpl() {
     }
   }
   // ...and also sweep any quote notification actually scheduled with the
-  // OS that isn't in that list (orphans from a past race, a killed app, or
-  // any other loss of storage sync). This is what actually stops "extra"
-  // notifications from firing even after storage and the OS have drifted
-  // apart.
+  // OS that isn't in that list (orphans from a past race, a killed app, a
+  // pre-update install, or any other loss of storage sync).
+  await sweepStrayQuoteNotifications();
+  await setScheduledQuoteNotifIds([]);
+}
+
+/**
+ * Cancels every OS-scheduled notification matching `isQuoteNotification`
+ * except (optionally) a given set of ids to keep. No-ops quietly if
+ * `getAllScheduledNotificationsAsync` isn't available on this platform.
+ */
+async function sweepStrayQuoteNotifications(keepIds) {
+  const keep = keepIds ? new Set(keepIds) : null;
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     for (const n of scheduled) {
-      if (n?.content?.data?.type === 'quote') {
-        try {
-          await Notifications.cancelScheduledNotificationAsync(n.identifier);
-        } catch (e) {
-          // already fired or invalid id
-        }
+      if (!isQuoteNotification(n)) continue;
+      if (keep && keep.has(n.identifier)) continue;
+      try {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier);
+      } catch (e) {
+        // already fired or invalid id
       }
     }
   } catch (e) {
     // getAllScheduledNotificationsAsync unsupported/unavailable; stored-id
-    // cancellation above still covers the common case.
+    // cancellation elsewhere still covers the common case.
   }
-  await setScheduledQuoteNotifIds([]);
 }
 
 async function scheduleQuoteNotificationsImpl(times) {
@@ -328,7 +361,7 @@ async function scheduleQuoteNotificationsImpl(times) {
   if (list.length === 0) return [];
 
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('quotes-v1', {
+    await Notifications.setNotificationChannelAsync(QUOTE_CHANNEL_ID, {
       name: 'Motivational Quotes',
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
@@ -357,7 +390,7 @@ async function scheduleQuoteNotificationsImpl(times) {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute,
-        channelId: 'quotes-v1',
+        channelId: QUOTE_CHANNEL_ID,
       },
     });
     ids.push(id);
@@ -393,15 +426,37 @@ export async function scheduleQuoteNotifications(times) {
  * Re-schedules with fresh quotes once per calendar day, and leaves the
  * existing schedule untouched otherwise so reopening the app repeatedly in
  * the same day doesn't reshuffle the quote that's about to fire.
+ *
+ * Every call — including the "nothing to do today" fast path — first runs
+ * a cheap dedupe pass that cancels anything scheduled at the OS level that
+ * doesn't match this app's own tracked id list. That's what makes the fix
+ * self-healing for a device that already has stray/duplicate quote
+ * notifications sitting on it from before this fix existed: rather than
+ * waiting for the next full reschedule (tomorrow) to clean them via
+ * `cancelQuoteNotificationsImpl`, they get trimmed the very next time the
+ * app is opened, today.
  */
 export async function rebuildQuoteNotificationsIfNeeded() {
   return serializeQuoteNotif(async () => {
     const enabled = await getQuoteNotifEnabled();
-    if (!enabled) return;
+    if (!enabled) {
+      // Feature is off but stray quote notifications could still be
+      // sitting on the device from before it was turned off/before this
+      // fix existed — clear them out entirely rather than leaving them.
+      await sweepStrayQuoteNotifications();
+      return;
+    }
 
     const todayKey = toKey(new Date());
     const lastDate = await getLastScheduledDate();
-    if (lastDate === todayKey) return;
+    if (lastDate === todayKey) {
+      // Already scheduled today — don't reshuffle the quote, but do make
+      // sure the OS doesn't have more quote notifications sitting around
+      // than the ones this app is actually tracking.
+      const trackedIds = await getScheduledQuoteNotifIds();
+      await sweepStrayQuoteNotifications(trackedIds);
+      return;
+    }
 
     const times = await getQuoteNotifTimes();
     await scheduleQuoteNotificationsImpl(times);
