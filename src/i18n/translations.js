@@ -194,6 +194,9 @@ export const translations = {
 
     // Settings
     settingsTitle: 'Settings',
+    reorderSections: 'Edit order',
+    reorderDone: 'Done',
+    reorderSectionsHint: 'Use the arrows to reorder sections.',
     appearance: 'APPEARANCE',
     dark: 'Dark',
     light: 'Light',
@@ -831,6 +834,9 @@ export const translations = {
     leaderboard: 'ترتيب العادات',
 
     settingsTitle: 'الإعدادات',
+    reorderSections: 'ترتيب الأقسام',
+    reorderDone: 'تم',
+    reorderSectionsHint: 'استخدم الأسهم لإعادة ترتيب الأقسام.',
     appearance: 'المظهر',
     dark: 'داكن',
     light: 'فاتح',

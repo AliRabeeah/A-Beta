@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -10,7 +10,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
@@ -47,10 +46,11 @@ import { refreshTodayWidget } from '../utils/widgetSync';
 const SWITCH_ON_COLOR = '#0A84FF';
 const SWITCH_OFF_THUMB = '#f4f3f4';
 
-// Every top-level Settings card, in its default order. Long-pressing a
-// card's header lets the user drag it into a new order (mirrors the app
-// drawer's reorderable menu); the chosen order is persisted here so it
-// survives app restarts.
+// Every top-level Settings card, in its default order. An explicit "Edit
+// order" toggle switches to a simple list with up/down arrow buttons to
+// reorder cards (see reorderMode below) — no drag gesture involved, so it
+// can't conflict with the screen's normal scrolling. The chosen order is
+// persisted here so it survives app restarts.
 const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 const DEFAULT_SETTINGS_SECTION_ORDER = [
   'language', 'appearance', 'accent', 'tabBar', 'speedDial', 'appLock',
@@ -58,9 +58,30 @@ const DEFAULT_SETTINGS_SECTION_ORDER = [
   'dayClosing', 'quoteSettings', 'about',
 ];
 
+// Icon + label per section, used only by the compact "Edit order" list —
+// kept separate from each section's full render() so that list stays tiny
+// and has nothing to do with the (possibly long, expandable) card content.
+const SETTINGS_SECTION_META = {
+  language: { icon: 'language-outline', labelKey: 'languageSection' },
+  appearance: { icon: 'contrast-outline', labelKey: 'appearance' },
+  accent: { icon: 'color-palette-outline', labelKey: 'accentColorSection' },
+  tabBar: { icon: 'grid-outline', labelKey: 'tabBarCustomizeEntry' },
+  speedDial: { icon: 'flash-outline', labelKey: 'speedDialCustomizeEntry' },
+  appLock: { icon: 'lock-closed-outline', labelKey: 'appLockSection' },
+  notifications: { icon: 'notifications-outline', labelKey: 'notifications' },
+  widget: { icon: 'options-outline', labelKey: 'widgetSection' },
+  backup: { icon: 'cloud-upload-outline', labelKey: 'backupSection' },
+  trash: { icon: 'trash-outline', labelKey: 'trashEntry' },
+  github: { icon: 'logo-github', labelKey: 'githubBackupToggle' },
+  moodHistory: { icon: 'happy-outline', labelKey: 'viewMoodHistory' },
+  dayClosing: { icon: 'moon-outline', labelKey: 'dayClosingReminderSection' },
+  quoteSettings: { icon: 'chatbox-ellipses-outline', labelKey: 'quoteSettingsEntry' },
+  about: { icon: 'information-circle-outline', labelKey: 'aboutApp' },
+};
+
 export default function SettingsScreen({ navigation }) {
   const { colors, preference, setMode, accent, setAccent, presets } = useTheme();
-  const { t, language, setLanguage } = useLanguage();
+  const { t, language, setLanguage, isRTL } = useLanguage();
   const { habits, replaceAllHabits } = useHabits();
   const { tasks, replaceAllTasks } = useTasks();
   const { challenges, badges, replaceAllChallenges, replaceAllBadges } = useChallenges();
@@ -68,8 +89,8 @@ export default function SettingsScreen({ navigation }) {
   const { items: wishlist, customTags: wishlistTags, replaceAllWishlist } = useWishlist();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
-  const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
-  const { items: activeSpeedDialIds, toggleItem: toggleSpeedDialItem, reorderItems: reorderSpeedDialItems, pool: speedDialPool } = useSpeedDial();
+  const { tabs: activeTabIds, toggleTab, moveTab, pool: tabPool } = useTabBar();
+  const { items: activeSpeedDialIds, toggleItem: toggleSpeedDialItem, moveItem: moveSpeedDialItem, pool: speedDialPool } = useSpeedDial();
   const {
     enabled: lockEnabled,
     method: lockMethod,
@@ -341,6 +362,22 @@ export default function SettingsScreen({ navigation }) {
     AsyncStorage.setItem(SETTINGS_SECTION_ORDER_KEY, JSON.stringify(next)).catch(() => {});
   }, []);
 
+  // "Edit order" mode: shows a compact list with up/down buttons instead of
+  // the full cards, entered/exited via the header toggle.
+  const [reorderMode, setReorderMode] = useState(false);
+
+  const moveSection = useCallback(
+    (index, direction) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= sectionOrder.length) return;
+      const next = [...sectionOrder];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      Haptics.selectionAsync();
+      persistSectionOrder(next);
+    },
+    [sectionOrder, persistSectionOrder]
+  );
+
   const SETTINGS_SECTIONS = [
     {
       id: 'language',
@@ -451,46 +488,40 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {/* NestableDraggableFlatList so this coexists correctly with the
-                        outer section list and NestableScrollContainer — plain
-                        DraggableFlatList doesn't support this kind of nesting. */}
-                    <NestableDraggableFlatList
-                      data={activeTabIds.map((id) => tabPool.find((s) => s.id === id)).filter(Boolean)}
-                      keyExtractor={(screen) => screen.id}
-                      scrollEnabled={false}
-                      activationDistance={0}
-                      onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-                      onDragEnd={({ data }) => reorderTabs(data.map((screen) => screen.id))}
-                      renderItem={({ item: screen, drag, isActive }) => (
-                        <ScaleDecorator>
-                          <View
-                            style={[
-                              styles.tabBarRow,
-                              isActive && { backgroundColor: withAlpha(colors.primary, 0.08), borderRadius: 10 },
-                            ]}
+                    {activeTabIds.map((id, index) => {
+                      const screen = tabPool.find((s) => s.id === id);
+                      if (!screen) return null;
+                      return (
+                        <View key={screen.id} style={styles.tabBarRow}>
+                          <TouchableOpacity onPress={() => moveTab(screen.id, -1)} disabled={index === 0} hitSlop={8} style={[{ marginRight: 2 }, index === 0 && { opacity: 0.3 }]}>
+                            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => moveTab(screen.id, 1)}
+                            disabled={index === activeTabIds.length - 1}
+                            hitSlop={8}
+                            style={[{ marginRight: 6 }, index === activeTabIds.length - 1 && { opacity: 0.3 }]}
                           >
-                            <TouchableOpacity onLongPress={drag} delayLongPress={150} hitSlop={8} style={{ marginRight: 4 }}>
-                              <Ionicons name="reorder-three" size={20} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                            <Ionicons name={screen.icon} size={18} color={colors.primary} />
-                            <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
-                              {t(`tabScreen_${screen.id}`)}
-                            </Text>
-                            <Switch
-                              value
-                              onValueChange={async () => {
-                                const result = await toggleTab(screen.id);
-                                if (!result.ok) {
-                                  Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
-                                }
-                              }}
-                              trackColor={{ true: colors.primary, false: colors.border }}
-                              thumbColor={SWITCH_ON_COLOR}
-                            />
-                          </View>
-                        </ScaleDecorator>
-                      )}
-                    />
+                            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                          <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                          <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                            {t(`tabScreen_${screen.id}`)}
+                          </Text>
+                          <Switch
+                            value
+                            onValueChange={async () => {
+                              const result = await toggleTab(screen.id);
+                              if (!result.ok) {
+                                Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                              }
+                            }}
+                            trackColor={{ true: colors.primary, false: colors.border }}
+                            thumbColor={SWITCH_ON_COLOR}
+                          />
+                        </View>
+                      );
+                    })}
         
                     {tabPool.some((screen) => !activeTabIds.includes(screen.id)) && (
                       <>
@@ -546,46 +577,40 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('speedDialCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {/* NestableDraggableFlatList so this coexists correctly with the
-                        outer section list and NestableScrollContainer — plain
-                        DraggableFlatList doesn't support this kind of nesting. */}
-                    <NestableDraggableFlatList
-                      data={activeSpeedDialIds.map((id) => speedDialPool.find((s) => s.id === id)).filter(Boolean)}
-                      keyExtractor={(screen) => screen.id}
-                      scrollEnabled={false}
-                      activationDistance={0}
-                      onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-                      onDragEnd={({ data }) => reorderSpeedDialItems(data.map((screen) => screen.id))}
-                      renderItem={({ item: screen, drag, isActive }) => (
-                        <ScaleDecorator>
-                          <View
-                            style={[
-                              styles.tabBarRow,
-                              isActive && { backgroundColor: withAlpha(colors.primary, 0.08), borderRadius: 10 },
-                            ]}
+                    {activeSpeedDialIds.map((id, index) => {
+                      const screen = speedDialPool.find((s) => s.id === id);
+                      if (!screen) return null;
+                      return (
+                        <View key={screen.id} style={styles.tabBarRow}>
+                          <TouchableOpacity onPress={() => moveSpeedDialItem(screen.id, -1)} disabled={index === 0} hitSlop={8} style={[{ marginRight: 2 }, index === 0 && { opacity: 0.3 }]}>
+                            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => moveSpeedDialItem(screen.id, 1)}
+                            disabled={index === activeSpeedDialIds.length - 1}
+                            hitSlop={8}
+                            style={[{ marginRight: 6 }, index === activeSpeedDialIds.length - 1 && { opacity: 0.3 }]}
                           >
-                            <TouchableOpacity onLongPress={drag} delayLongPress={150} hitSlop={8} style={{ marginRight: 4 }}>
-                              <Ionicons name="reorder-three" size={20} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                            <Ionicons name={screen.icon} size={18} color={colors.primary} />
-                            <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
-                              {t(`tabScreen_${screen.id}`)}
-                            </Text>
-                            <Switch
-                              value
-                              onValueChange={async () => {
-                                const result = await toggleSpeedDialItem(screen.id);
-                                if (!result.ok) {
-                                  Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
-                                }
-                              }}
-                              trackColor={{ true: colors.primary, false: colors.border }}
-                              thumbColor={SWITCH_ON_COLOR}
-                            />
-                          </View>
-                        </ScaleDecorator>
-                      )}
-                    />
+                            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                          <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                          <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                            {t(`tabScreen_${screen.id}`)}
+                          </Text>
+                          <Switch
+                            value
+                            onValueChange={async () => {
+                              const result = await toggleSpeedDialItem(screen.id);
+                              if (!result.ok) {
+                                Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
+                              }
+                            }}
+                            trackColor={{ true: colors.primary, false: colors.border }}
+                            thumbColor={SWITCH_ON_COLOR}
+                          />
+                        </View>
+                      );
+                    })}
         
                     {speedDialPool.some((screen) => !activeSpeedDialIds.includes(screen.id)) && (
                       <>
@@ -1074,34 +1099,96 @@ export default function SettingsScreen({ navigation }) {
   ];
 
   return (
-    <NestableScrollContainer
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 40 }}
     >
-      <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
+      <View style={[styles.titleRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
+        <TouchableOpacity
+          onPress={() => setReorderMode((v) => !v)}
+          style={[styles.reorderToggle, { borderColor: colors.border, backgroundColor: reorderMode ? colors.primary : colors.surface }]}
+        >
+          <Ionicons name={reorderMode ? 'checkmark' : 'swap-vertical-outline'} size={15} color={reorderMode ? colors.onPrimary : colors.textSecondary} />
+          <Text style={{ color: reorderMode ? colors.onPrimary : colors.textSecondary, fontSize: 12.5, fontWeight: '700' }}>
+            {reorderMode ? t('reorderDone') : t('reorderSections')}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Long-press (and hold) any section's header to drag it into a new
-          order, exactly like the app drawer's reorderable menu. The order
-          is persisted per-device so it survives app restarts. */}
-      <NestableDraggableFlatList
-        data={sectionOrder.map((id) => ({ id }))}
-        keyExtractor={(item) => item.id}
-        activationDistance={0}
-        onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-        onDragEnd={({ data }) => persistSectionOrder(data.map((it) => it.id))}
-        renderItem={({ item, drag, isActive }) => {
-          const section = SETTINGS_SECTIONS.find((sec) => sec.id === item.id);
+      {reorderMode ? (
+        // A dedicated, simple list — up/down buttons only, no drag gesture
+        // of any kind — so it can never fight the ScrollView for touches.
+        <View>
+          <Text style={[styles.reorderHint, { color: colors.textSecondary }]}>{t('reorderSectionsHint')}</Text>
+          {sectionOrder.map((id, index) => {
+            const meta = SETTINGS_SECTION_META[id];
+            if (!meta) return null;
+            return (
+              <View
+                key={id}
+                style={[styles.reorderRow, isRTL && { flexDirection: 'row-reverse' }, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <Ionicons name={meta.icon} size={17} color={colors.textSecondary} style={isRTL ? { marginLeft: 10 } : { marginRight: 10 }} />
+                <Text style={{ color: colors.text, fontSize: 14.5, flex: 1 }} numberOfLines={1}>
+                  {t(meta.labelKey)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => moveSection(index, -1)}
+                  disabled={index === 0}
+                  hitSlop={8}
+                  style={[styles.reorderArrowBtn, index === 0 && { opacity: 0.3 }]}
+                >
+                  <Ionicons name="chevron-up" size={20} color={colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => moveSection(index, 1)}
+                  disabled={index === sectionOrder.length - 1}
+                  hitSlop={8}
+                  style={[styles.reorderArrowBtn, index === sectionOrder.length - 1 && { opacity: 0.3 }]}
+                >
+                  <Ionicons name="chevron-down" size={20} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        sectionOrder.map((id) => {
+          const section = SETTINGS_SECTIONS.find((sec) => sec.id === id);
           if (!section) return null;
-          return <ScaleDecorator>{section.render(drag, isActive)}</ScaleDecorator>;
-        }}
-      />
-    </NestableScrollContainer>
+          return <React.Fragment key={id}>{section.render(undefined, false)}</React.Fragment>;
+        })
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  title: { fontSize: 30, fontWeight: '800', marginBottom: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  title: { fontSize: 30, fontWeight: '800' },
+  reorderToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  reorderHint: { fontSize: 12.5, lineHeight: 18, marginBottom: 14 },
+  reorderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    gap: 4,
+  },
+  reorderArrowBtn: { padding: 4 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 9 },
   section: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
   card: { borderWidth: 1, borderRadius: 14, overflow: 'hidden', marginTop: 20 },

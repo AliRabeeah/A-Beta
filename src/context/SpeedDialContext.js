@@ -69,6 +69,20 @@ export function SpeedDialProvider({ children }) {
     [items, persist]
   );
 
+  // Adjacent-swap reorder for the up/down arrow buttons in Settings.
+  const moveItem = useCallback(
+    async (screenId, direction) => {
+      const index = items.indexOf(screenId);
+      if (index === -1) return;
+      const swapWith = index + direction;
+      if (swapWith < 0 || swapWith >= items.length) return;
+      const next = [...items];
+      [next[index], next[swapWith]] = [next[swapWith], next[index]];
+      await persist(next);
+    },
+    [items, persist]
+  );
+
   // Used by drag-and-drop reordering in Settings, where the gesture already
   // produces the full final order.
   const reorderItems = useCallback(
@@ -85,8 +99,8 @@ export function SpeedDialProvider({ children }) {
   }, [persist]);
 
   const value = useMemo(
-    () => ({ items, loaded, toggleItem, reorderItems, resetToDefault, pool: SPEED_DIAL_POOL }),
-    [items, loaded, toggleItem, reorderItems, resetToDefault]
+    () => ({ items, loaded, toggleItem, moveItem, reorderItems, resetToDefault, pool: SPEED_DIAL_POOL }),
+    [items, loaded, toggleItem, moveItem, reorderItems, resetToDefault]
   );
 
   return (
