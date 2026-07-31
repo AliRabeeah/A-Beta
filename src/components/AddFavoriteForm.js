@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
 import { FAVORITE_TYPES } from '../context/FavoriteContext';
+import TmdbImportBox from './TmdbImportBox';
 
 /**
  * Pure, reusable form UI for creating/editing a favorite. Holds no state or
@@ -21,8 +22,9 @@ export default function AddFavoriteForm({
   onChangeNote,
   rating,
   onChangeRating,
-  imageUrl,
-  onChangeImageUrl,
+  posterUrl,
+  onChangePosterUrl,
+  onTmdbImport,
   onSave,
   onCancel,
   saveLabel,
@@ -30,9 +32,6 @@ export default function AddFavoriteForm({
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
   const textAlign = isRTL ? 'right' : 'left';
-  const [imageError, setImageError] = useState(false);
-  const trimmedImageUrl = (imageUrl || '').trim();
-  const showPreview = trimmedImageUrl.length > 0 && !imageError;
 
   return (
     <View>
@@ -61,7 +60,27 @@ export default function AddFavoriteForm({
         })}
       </View>
 
+      {!!onTmdbImport && (
+        <TmdbImportBox
+          onImport={(data) => {
+            onTmdbImport(data);
+          }}
+        />
+      )}
+
       <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favTitleLabel')}</Text>
+      {!!posterUrl && (
+        <View style={[styles.posterPreviewRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          <Image source={{ uri: posterUrl }} style={styles.posterThumb} resizeMode="cover" />
+          <TouchableOpacity
+            onPress={() => onChangePosterUrl && onChangePosterUrl(null)}
+            style={[styles.removePosterBtn, { borderColor: colors.border }]}
+          >
+            <Ionicons name="close" size={12} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>{t('tmdbRemovePoster')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <TextInput
         value={title}
         onChangeText={onChangeTitle}
@@ -82,36 +101,6 @@ export default function AddFavoriteForm({
           </TouchableOpacity>
         ))}
       </View>
-
-      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favImageLabel')}</Text>
-      <View style={[styles.imageRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        <TextInput
-          value={imageUrl}
-          onChangeText={(v) => {
-            setImageError(false);
-            onChangeImageUrl(v);
-          }}
-          placeholder={t('favImagePlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          style={[
-            styles.input,
-            styles.imageInput,
-            { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, textAlign },
-          ]}
-        />
-        {showPreview && (
-          <Image
-            source={{ uri: trimmedImageUrl }}
-            style={[styles.imagePreview, { borderColor: colors.border }]}
-            resizeMode="cover"
-            onError={() => setImageError(true)}
-          />
-        )}
-      </View>
-      <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t('favImageHelper')}</Text>
 
       <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favNoteLabel')}</Text>
       <TextInput
@@ -151,11 +140,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
+  posterPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  posterThumb: { width: 44, height: 66, borderRadius: 8 },
+  removePosterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15 },
-  imageRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  imageInput: { flex: 1 },
-  imagePreview: { width: 46, height: 46, borderRadius: 10, borderWidth: 1 },
-  helperText: { fontSize: 11, marginTop: 6, lineHeight: 15 },
   textArea: { minHeight: 90, textAlignVertical: 'top' },
   starsRow: { flexDirection: 'row', gap: 10 },
   saveBtn: { marginTop: 32, padding: 16, borderRadius: 14, alignItems: 'center' },

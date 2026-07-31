@@ -51,14 +51,16 @@ export function FavoriteProvider({ children }) {
   }, []);
 
   const addFavorite = useCallback(
-    async ({ title, type, note, rating, imageUrl }) => {
+    async ({ title, type, note, rating, posterUrl, year }) => {
       const newItem = {
         id: `fav_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         title: title.trim(),
         type: type || 'other',
         note: note?.trim() || '',
         rating: rating || 0,
-        imageUrl: imageUrl?.trim() || '',
+        // Optional TMDb import metadata — absent for manually-added favorites.
+        posterUrl: posterUrl || null,
+        year: year || '',
         addedAt: new Date().toISOString(),
       };
       const ok = await persist([newItem, ...favorites]);

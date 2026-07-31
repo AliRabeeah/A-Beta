@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -38,8 +38,6 @@ export default function FavoriteCard({ item, number = 1, onPress, onLongPress })
   const locale = language === 'ar' ? 'ar-EG' : 'en-US';
   const isRTL = language === 'ar';
   const addedLabel = formatAddedDate(item.addedAt, locale);
-  const [imageError, setImageError] = useState(false);
-  const showPoster = !!item.imageUrl && !imageError;
 
   return (
     <TouchableOpacity
@@ -48,14 +46,23 @@ export default function FavoriteCard({ item, number = 1, onPress, onLongPress })
       onLongPress={onLongPress}
       style={[styles.card, tokens.glass.card, { borderRadius: tokens.radius.card }]}
     >
+      {!!item.posterUrl && (
+        <Image
+          source={{ uri: item.posterUrl }}
+          style={[styles.poster, { borderTopLeftRadius: tokens.radius.card, borderTopRightRadius: tokens.radius.card }]}
+          resizeMode="cover"
+        />
+      )}
+
       <View
         style={[
           styles.strip,
           isRTL && { flexDirection: 'row-reverse' },
           {
             backgroundColor: withAlpha(typeInfo.color, 0.18),
-            borderTopLeftRadius: tokens.radius.card,
-            borderTopRightRadius: tokens.radius.card,
+            ...(item.posterUrl
+              ? null
+              : { borderTopLeftRadius: tokens.radius.card, borderTopRightRadius: tokens.radius.card }),
           },
         ]}
       >
@@ -80,18 +87,10 @@ export default function FavoriteCard({ item, number = 1, onPress, onLongPress })
         </Text>
       </View>
 
-      {showPoster && (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.poster}
-          resizeMode="cover"
-          onError={() => setImageError(true)}
-        />
-      )}
-
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
           {item.title}
+          {!!item.year && <Text style={{ color: colors.textSecondary, fontWeight: '500' }}> ({item.year})</Text>}
         </Text>
 
         {!!item.note && (
@@ -113,6 +112,7 @@ export default function FavoriteCard({ item, number = 1, onPress, onLongPress })
 
 const styles = StyleSheet.create({
   card: { flex: 1, overflow: 'hidden' },
+  poster: { width: '100%', aspectRatio: 2 / 3 },
   strip: {
     height: 34,
     flexDirection: 'row',
@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
   stripEmoji: { fontSize: 15 },
   starsRow: { flexDirection: 'row' },
   indexBadge: { fontSize: 10, fontWeight: '700' },
-  poster: { width: '100%', height: 120 },
   body: { padding: 10, gap: 4 },
   title: { fontSize: 13, fontWeight: '700', lineHeight: 17 },
   note: { fontSize: 11.5, lineHeight: 15 },

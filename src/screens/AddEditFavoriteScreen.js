@@ -17,7 +17,9 @@ export default function AddEditFavoriteScreen({ navigation, route }) {
   const [title, setTitle] = useState(existing?.title || '');
   const [note, setNote] = useState(existing?.note || '');
   const [rating, setRating] = useState(existing?.rating || 0);
-  const [imageUrl, setImageUrl] = useState(existing?.imageUrl || '');
+  // Optional — only populated when the user imports a title from TMDb.
+  const [posterUrl, setPosterUrl] = useState(existing?.posterUrl || null);
+  const [year, setYear] = useState(existing?.year || '');
 
   const handleSave = async () => {
     if (!title.trim()) return Alert.alert(t('pleaseEnterFavoriteTitle'));
@@ -28,12 +30,25 @@ export default function AddEditFavoriteScreen({ navigation, route }) {
         title: title.trim(),
         note: note.trim(),
         rating,
-        imageUrl: imageUrl.trim(),
+        posterUrl,
+        year,
       });
     } else {
-      await addFavorite({ type, title, note, rating, imageUrl });
+      await addFavorite({ type, title, note, rating, posterUrl, year });
     }
     navigation.goBack();
+  };
+
+  // Applies everything TMDb returned in one go — used by the "Import from
+  // TMDb" section in the form. The user can still edit any of these fields
+  // afterwards, same as if they'd typed them manually.
+  const handleTmdbImport = (data) => {
+    setType(data.type);
+    setTitle(data.title);
+    setRating(data.rating);
+    setNote(data.overview);
+    setPosterUrl(data.posterUrl);
+    setYear(data.year);
   };
 
   return (
@@ -47,8 +62,9 @@ export default function AddEditFavoriteScreen({ navigation, route }) {
         onChangeNote={setNote}
         rating={rating}
         onChangeRating={setRating}
-        imageUrl={imageUrl}
-        onChangeImageUrl={setImageUrl}
+        posterUrl={posterUrl}
+        onChangePosterUrl={setPosterUrl}
+        onTmdbImport={handleTmdbImport}
         onSave={handleSave}
         onCancel={() => navigation.goBack()}
         saveLabel={existing ? t('saveChanges') : t('createFavorite')}
