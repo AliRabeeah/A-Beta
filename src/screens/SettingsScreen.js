@@ -10,7 +10,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
@@ -451,13 +451,10 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {/* Nested inside the screen's outer ScrollView, so its own
-                        scrolling is disabled — fine here since it only ever holds
-                        up to MAX_TABS (5) rows, all visible without scrolling.
-                        Dragging itself still works fully via reanimated/gesture
-                        handler; only the auto-scroll-while-dragging-near-the-edge
-                        behavior is unused. */}
-                    <DraggableFlatList
+                    {/* NestableDraggableFlatList so this coexists correctly with the
+                        outer section list and NestableScrollContainer — plain
+                        DraggableFlatList doesn't support this kind of nesting. */}
+                    <NestableDraggableFlatList
                       data={activeTabIds.map((id) => tabPool.find((s) => s.id === id)).filter(Boolean)}
                       keyExtractor={(screen) => screen.id}
                       scrollEnabled={false}
@@ -549,13 +546,10 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('speedDialCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {/* Nested inside the screen's outer ScrollView, so its own
-                        scrolling is disabled — fine here since it only ever holds
-                        up to MAX_SHORTCUTS (8) rows, all visible without scrolling.
-                        Dragging itself still works fully via reanimated/gesture
-                        handler; only the auto-scroll-while-dragging-near-the-edge
-                        behavior is unused. */}
-                    <DraggableFlatList
+                    {/* NestableDraggableFlatList so this coexists correctly with the
+                        outer section list and NestableScrollContainer — plain
+                        DraggableFlatList doesn't support this kind of nesting. */}
+                    <NestableDraggableFlatList
                       data={activeSpeedDialIds.map((id) => speedDialPool.find((s) => s.id === id)).filter(Boolean)}
                       keyExtractor={(screen) => screen.id}
                       scrollEnabled={false}
@@ -1080,21 +1074,28 @@ export default function SettingsScreen({ navigation }) {
   ];
 
   return (
-    <DraggableFlatList
+    <NestableScrollContainer
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 40 }}
-      ListHeaderComponent={<Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>}
-      data={sectionOrder.map((id) => ({ id }))}
-      keyExtractor={(item) => item.id}
-      activationDistance={0}
-      onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-      onDragEnd={({ data }) => persistSectionOrder(data.map((it) => it.id))}
-      renderItem={({ item, drag, isActive }) => {
-        const section = SETTINGS_SECTIONS.find((sec) => sec.id === item.id);
-        if (!section) return null;
-        return <ScaleDecorator>{section.render(drag, isActive)}</ScaleDecorator>;
-      }}
-    />
+    >
+      <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
+
+      {/* Long-press (and hold) any section's header to drag it into a new
+          order, exactly like the app drawer's reorderable menu. The order
+          is persisted per-device so it survives app restarts. */}
+      <NestableDraggableFlatList
+        data={sectionOrder.map((id) => ({ id }))}
+        keyExtractor={(item) => item.id}
+        activationDistance={0}
+        onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+        onDragEnd={({ data }) => persistSectionOrder(data.map((it) => it.id))}
+        renderItem={({ item, drag, isActive }) => {
+          const section = SETTINGS_SECTIONS.find((sec) => sec.id === item.id);
+          if (!section) return null;
+          return <ScaleDecorator>{section.render(drag, isActive)}</ScaleDecorator>;
+        }}
+      />
+    </NestableScrollContainer>
   );
 }
 
