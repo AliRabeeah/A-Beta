@@ -84,13 +84,25 @@ export function TabBarProvider({ children }) {
     [tabs, persist]
   );
 
+  // Used by drag-and-drop reordering in Settings, where the gesture already
+  // produces the full final order — no need to compute it as a series of
+  // adjacent swaps the way the up/down arrow buttons (`moveTab`) do.
+  const reorderTabs = useCallback(
+    async (nextOrder) => {
+      const valid = Array.isArray(nextOrder) && nextOrder.length === tabs.length && nextOrder.every((id) => tabs.includes(id));
+      if (!valid) return;
+      await persist(nextOrder);
+    },
+    [tabs, persist]
+  );
+
   const resetToDefault = useCallback(async () => {
     await persist(DEFAULT_TAB_CONFIG);
   }, [persist]);
 
   const value = useMemo(
-    () => ({ tabs, loaded, toggleTab, moveTab, resetToDefault, pool: TAB_BAR_POOL }),
-    [tabs, loaded, toggleTab, moveTab, resetToDefault]
+    () => ({ tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault, pool: TAB_BAR_POOL }),
+    [tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault]
   );
 
   return (

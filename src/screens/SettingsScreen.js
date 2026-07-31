@@ -9,8 +9,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
+import { withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useHabits } from '../context/HabitContext';
 import { useTasks } from '../context/TaskContext';
@@ -50,7 +53,7 @@ export default function SettingsScreen({ navigation }) {
   const { favorites, replaceAllFavorites } = useFavorites();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
-  const { tabs: activeTabIds, toggleTab, moveTab, pool: tabPool } = useTabBar();
+  const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
   const {
     enabled: lockEnabled,
     method: lockMethod,
@@ -393,49 +396,78 @@ export default function SettingsScreen({ navigation }) {
           <View style={{ padding: 14, paddingTop: 0 }}>
             <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 12 }]} />
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
-            {tabPool.map((screen) => {
-              const isActive = activeTabIds.includes(screen.id);
-              const activeIndex = activeTabIds.indexOf(screen.id);
-              return (
-                <View key={screen.id} style={styles.tabBarRow}>
-                  <Ionicons name={screen.icon} size={18} color={isActive ? colors.primary : colors.textSecondary} />
-                  <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>{t(`tabScreen_${screen.id}`)}</Text>
-                  {isActive && (
-                    <View style={{ flexDirection: 'row', marginRight: 6 }}>
-                      <TouchableOpacity
-                        disabled={activeIndex === 0}
-                        onPress={() => moveTab(screen.id, -1)}
-                        style={styles.tabBarArrowBtn}
-                      >
-                        <Ionicons name="chevron-up" size={16} color={activeIndex === 0 ? colors.border : colors.textSecondary} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        disabled={activeIndex === activeTabIds.length - 1}
-                        onPress={() => moveTab(screen.id, 1)}
-                        style={styles.tabBarArrowBtn}
-                      >
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={activeIndex === activeTabIds.length - 1 ? colors.border : colors.textSecondary}
-                        />
-                      </TouchableOpacity>
+
+            <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
+            {/* Nested inside the screen's outer ScrollView, so its own
+                scrolling is disabled — fine here since it only ever holds
+                up to MAX_TABS (5) rows, all visible without scrolling.
+                Dragging itself still works fully via reanimated/gesture
+                handler; only the auto-scroll-while-dragging-near-the-edge
+                behavior is unused. */}
+            <DraggableFlatList
+              data={activeTabIds.map((id) => tabPool.find((s) => s.id === id)).filter(Boolean)}
+              keyExtractor={(screen) => screen.id}
+              scrollEnabled={false}
+              activationDistance={0}
+              onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+              onDragEnd={({ data }) => reorderTabs(data.map((screen) => screen.id))}
+              renderItem={({ item: screen, drag, isActive }) => (
+                <ScaleDecorator>
+                  <View
+                    style={[
+                      styles.tabBarRow,
+                      isActive && { backgroundColor: withAlpha(colors.primary, 0.08), borderRadius: 10 },
+                    ]}
+                  >
+                    <TouchableOpacity onLongPress={drag} delayLongPress={150} hitSlop={8} style={{ marginRight: 4 }}>
+                      <Ionicons name="reorder-three" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                    <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                      {t(`tabScreen_${screen.id}`)}
+                    </Text>
+                    <Switch
+                      value
+                      onValueChange={async () => {
+                        const result = await toggleTab(screen.id);
+                        if (!result.ok) {
+                          Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                        }
+                      }}
+                      trackColor={{ true: colors.primary, false: colors.border }}
+                      thumbColor={SWITCH_ON_COLOR}
+                    />
+                  </View>
+                </ScaleDecorator>
+              )}
+            />
+
+            {tabPool.some((screen) => !activeTabIds.includes(screen.id)) && (
+              <>
+                <Text style={[styles.tabBarGroupLabel, { marginTop: 14 }]}>{t('tabBarInactiveGroupLabel')}</Text>
+                {tabPool
+                  .filter((screen) => !activeTabIds.includes(screen.id))
+                  .map((screen) => (
+                    <View key={screen.id} style={styles.tabBarRow}>
+                      <Ionicons name={screen.icon} size={18} color={colors.textSecondary} style={{ marginLeft: 28 }} />
+                      <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                        {t(`tabScreen_${screen.id}`)}
+                      </Text>
+                      <Switch
+                        value={false}
+                        onValueChange={async () => {
+                          const result = await toggleTab(screen.id);
+                          if (!result.ok) {
+                            Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                          }
+                        }}
+                        trackColor={{ true: colors.primary, false: colors.border }}
+                        thumbColor={SWITCH_OFF_THUMB}
+                      />
                     </View>
-                  )}
-                  <Switch
-                    value={isActive}
-                    onValueChange={async () => {
-                      const result = await toggleTab(screen.id);
-                      if (!result.ok) {
-                        Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
-                      }
-                    }}
-                    trackColor={{ true: colors.primary, false: colors.border }}
-                    thumbColor={isActive ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
-                  />
-                </View>
-              );
-            })}
+                  ))}
+              </>
+            )}
           </View>
         )}
       </View>
@@ -871,6 +903,6 @@ const styles = StyleSheet.create({
   pickerList: { maxHeight: 220 },
   pickerRow: { paddingVertical: 10 },
   tabBarRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  tabBarArrowBtn: { padding: 4 },
+  tabBarGroupLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', color: '#8E8E93', marginBottom: 2 },
   rowWrapSettings: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

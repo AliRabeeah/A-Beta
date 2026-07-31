@@ -21,6 +21,7 @@ import PlanningCard from '../components/PlanningCard';
 import ChallengeCard from '../components/ChallengeCard';
 import SideDrawer from '../components/SideDrawer';
 import AddOptionsSheet from '../components/AddOptionsSheet';
+import FabSpeedDial from '../components/FabSpeedDial';
 import Confetti from '../components/Confetti';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
 import { isDueOnDate as isPlanningDueOnDate, isDayCompleted as isPlanningDayCompleted } from '../utils/planningUtils';
@@ -59,6 +60,7 @@ export default function TodayScreen({ navigation }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [addMenuVisible, setAddMenuVisible] = useState(false);
+  const [speedDialVisible, setSpeedDialVisible] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
 
   // Safety net for the invisible drag-catching overlay in renderItem: if the
@@ -367,6 +369,11 @@ export default function TodayScreen({ navigation }) {
     setAddMenuVisible(true);
   };
 
+  const handleFabLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSpeedDialVisible(true);
+  };
+
   // Scroll-aware FAB: fade/slide it out of the way while the user is
   // actively scrolling down the list, and bring it back on scroll-up or as
   // soon as scrolling stops, so it doesn't permanently block content.
@@ -639,7 +646,13 @@ export default function TodayScreen({ navigation }) {
           },
         ]}
       >
-        <TouchableOpacity onPress={handleAddPress} style={styles.fabTouchable} activeOpacity={0.85}>
+        <TouchableOpacity
+          onPress={handleAddPress}
+          onLongPress={handleFabLongPress}
+          delayLongPress={350}
+          style={styles.fabTouchable}
+          activeOpacity={0.85}
+        >
           <LinearGradient
             colors={tokens.gradient(colors.primary)}
             start={{ x: 0, y: 0 }}
@@ -659,6 +672,7 @@ export default function TodayScreen({ navigation }) {
         onSelectRecurringTask={() => navigation.navigate('NewTask', { taskType: 'recurring' })}
         onSelectTask={() => navigation.navigate('NewTask', { taskType: 'single' })}
       />
+      <FabSpeedDial visible={speedDialVisible} onClose={() => setSpeedDialVisible(false)} />
     </View>
   );
 }
