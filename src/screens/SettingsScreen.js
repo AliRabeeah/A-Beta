@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -20,6 +20,7 @@ import { useHabits } from '../context/HabitContext';
 import { useTasks } from '../context/TaskContext';
 import { useChallenges } from '../context/ChallengeContext';
 import { useFavorites } from '../context/FavoriteContext';
+import { useWishlist } from '../context/WishlistContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useTabBar, MIN_TABS, MAX_TABS } from '../context/TabBarContext';
@@ -64,6 +65,7 @@ export default function SettingsScreen({ navigation }) {
   const { tasks, replaceAllTasks } = useTasks();
   const { challenges, badges, replaceAllChallenges, replaceAllBadges } = useChallenges();
   const { favorites, replaceAllFavorites } = useFavorites();
+  const { items: wishlist, customTags: wishlistTags, replaceAllWishlist } = useWishlist();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
   const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
@@ -207,7 +209,7 @@ export default function SettingsScreen({ navigation }) {
   const handleTestGithubBackup = async () => {
     setGhTesting(true);
     try {
-      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, accent, mode: preference, language });
+      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
       const result = await uploadBackupToGithub(payload);
       setGhLastStatus(await getLastBackupStatus());
       Alert.alert(result.ok ? t('githubBackupTestSuccess') : t('githubBackupTestFailed'), result.message);
@@ -265,7 +267,7 @@ export default function SettingsScreen({ navigation }) {
   const handleExport = async () => {
     setBusy('export');
     try {
-      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, accent, mode: preference, language });
+      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
       await exportBackupToFile(payload);
     } catch (e) {
       Alert.alert(t('backupFailed'));
@@ -293,6 +295,7 @@ export default function SettingsScreen({ navigation }) {
               if (data.favorites) await replaceAllFavorites(data.favorites);
               if (data.notes) await replaceAllNotes(data.notes);
               if (data.planningItems) await replaceAllPlanningItems(data.planningItems);
+              if (data.wishlist) await replaceAllWishlist(data.wishlist, data.wishlistTags);
               if (data.accent) await setAccent(data.accent);
               if (data.mode) await setMode(data.mode);
               if (data.language) await setLanguage(data.language);
@@ -1077,29 +1080,21 @@ export default function SettingsScreen({ navigation }) {
   ];
 
   return (
-    <ScrollView
+    <DraggableFlatList
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 40 }}
-    >
-      <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
-
-      {/* Long-press (and hold) any section's header to drag it into a new
-          order, exactly like the app drawer's reorderable menu. The order
-          is persisted per-device so it survives app restarts. */}
-      <DraggableFlatList
-        data={sectionOrder.map((id) => ({ id }))}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        activationDistance={0}
-        onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-        onDragEnd={({ data }) => persistSectionOrder(data.map((it) => it.id))}
-        renderItem={({ item, drag, isActive }) => {
-          const section = SETTINGS_SECTIONS.find((sec) => sec.id === item.id);
-          if (!section) return null;
-          return <ScaleDecorator>{section.render(drag, isActive)}</ScaleDecorator>;
-        }}
-      />
-    </ScrollView>
+      ListHeaderComponent={<Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>}
+      data={sectionOrder.map((id) => ({ id }))}
+      keyExtractor={(item) => item.id}
+      activationDistance={0}
+      onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+      onDragEnd={({ data }) => persistSectionOrder(data.map((it) => it.id))}
+      renderItem={({ item, drag, isActive }) => {
+        const section = SETTINGS_SECTIONS.find((sec) => sec.id === item.id);
+        if (!section) return null;
+        return <ScaleDecorator>{section.render(drag, isActive)}</ScaleDecorator>;
+      }}
+    />
   );
 }
 

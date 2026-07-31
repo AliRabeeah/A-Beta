@@ -43,6 +43,8 @@ import AddEditPlanningScreen from '../screens/AddEditPlanningScreen';
 import TrashScreen from '../screens/TrashScreen';
 import DayClosingScreen from '../screens/DayClosingScreen';
 import MoodHistoryScreen from '../screens/MoodHistoryScreen';
+import WishlistScreen from '../screens/WishlistScreen';
+import AddEditWishlistScreen from '../screens/AddEditWishlistScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -147,6 +149,12 @@ export default function RootNavigator() {
         options={({ route }) => ({ title: route.params?.planningId ? 'Edit Plan' : 'New Plan', presentation: 'modal' })}
       />
       <Stack.Screen name="Trash" component={TrashScreen} options={({ route }) => ({ title: '' })} />
+      <Stack.Screen name="Wishlist" component={WishlistScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="AddEditWishlist"
+        component={AddEditWishlistScreen}
+        options={({ route }) => ({ title: route.params?.wishlistId ? 'Edit Wishlist Item' : 'New Wishlist Item', presentation: 'modal' })}
+      />
       <Stack.Screen
         name="DayClosing"
         component={DayClosingScreen}

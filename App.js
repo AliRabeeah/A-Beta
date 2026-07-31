@@ -13,6 +13,7 @@ import { TaskProvider } from './src/context/TaskContext';
 import { ChallengeProvider } from './src/context/ChallengeContext';
 import { NoteProvider } from './src/context/NoteContext';
 import { FavoriteProvider } from './src/context/FavoriteContext';
+import { WishlistProvider } from './src/context/WishlistContext';
 import { TabBarProvider } from './src/context/TabBarContext';
 import { SpeedDialProvider } from './src/context/SpeedDialContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
@@ -121,11 +122,13 @@ export default function App() {
                       <ChallengeProvider>
                         <NoteProvider>
                           <FavoriteProvider>
+                            <WishlistProvider>
                             <MoodProvider>
                               <TrashProvider>
                                 <Root />
                               </TrashProvider>
                             </MoodProvider>
+                            </WishlistProvider>
                           </FavoriteProvider>
                         </NoteProvider>
                       </ChallengeProvider>

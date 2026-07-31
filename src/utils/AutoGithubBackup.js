@@ -7,6 +7,7 @@ import { useChallenges } from '../context/ChallengeContext';
 import { useFavorites } from '../context/FavoriteContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
+import { useWishlist } from '../context/WishlistContext';
 import { buildBackupPayload } from './backup';
 import { shouldRunAutoBackupToday, uploadBackupToGithub, getGithubConfig } from './githubBackup';
 
@@ -25,11 +26,12 @@ export default function AutoGithubBackup() {
   const { favorites, loaded: favoritesLoaded } = useFavorites();
   const { notes, loaded: notesLoaded } = useNotes();
   const { planningItems, loaded: planningLoaded } = usePlanning();
+  const { items: wishlist, customTags: wishlistTags, loaded: wishlistLoaded } = useWishlist();
   const ranRef = useRef(false);
 
   useEffect(() => {
     if (ranRef.current) return;
-    if (!habitsLoaded || !tasksLoaded || !challengesLoaded || !favoritesLoaded || !notesLoaded || !planningLoaded) return; // wait until local data is actually loaded
+    if (!habitsLoaded || !tasksLoaded || !challengesLoaded || !favoritesLoaded || !notesLoaded || !planningLoaded || !wishlistLoaded) return; // wait until local data is actually loaded
 
     ranRef.current = true;
 
@@ -48,6 +50,8 @@ export default function AutoGithubBackup() {
         favorites,
         notes,
         planningItems,
+        wishlist,
+        wishlistTags,
         accent,
         mode: preference,
         language,
@@ -61,6 +65,7 @@ export default function AutoGithubBackup() {
     favoritesLoaded,
     notesLoaded,
     planningLoaded,
+    wishlistLoaded,
     habits,
     tasks,
     challenges,
@@ -68,6 +73,8 @@ export default function AutoGithubBackup() {
     favorites,
     notes,
     planningItems,
+    wishlist,
+    wishlistTags,
     accent,
     preference,
     language,

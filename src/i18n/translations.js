@@ -390,6 +390,32 @@ export const translations = {
     tmdbNotFound: 'Couldn\u2019t find that title on TMDb.',
     tmdbNetworkError: 'Couldn\u2019t reach TMDb. Check your connection and try again.',
 
+    // Wishlist
+    wishlistTitle: 'Wishlist',
+    wishlistSearchPlaceholder: 'Search your wishlist…',
+    wishlistEmptyTitle: 'Nothing here yet',
+    wishlistEmptySubtitle: 'Add books to buy, movies to watch, games to try — anything you want to get to someday.',
+    wishlistAddFirst: 'Add your first item',
+    wishlistNoResultsTitle: 'No matches',
+    wishlistNoResultsSubtitle: 'Try a different search or clear the tag filter.',
+    wishlistThumbnailLabel: 'Image (optional)',
+    wishlistThumbnailHint: 'Paste an image link instead of uploading a photo — keeps your backups small.',
+    wishlistImageUrlPlaceholder: 'https://example.com/image.jpg',
+    wishlistImageUrlInvalid: 'Couldn\u2019t load an image from that link.',
+    wishlistTitleLabel: 'Title',
+    wishlistTitlePlaceholder: 'What do you want?',
+    wishlistDescriptionLabel: 'Description (optional)',
+    wishlistDescriptionPlaceholder: 'A short note about it…',
+    wishlistTagsLabel: 'Tags',
+    wishlistAddTag: 'New tag',
+    wishlistNewTagPlaceholder: 'Tag name',
+    wishlistPleaseEnterTitle: 'Please enter a title',
+    wishlistCreate: 'Add to Wishlist',
+    wishlistTag_buyBooks: 'Buy books',
+    wishlistTag_watchMovie: 'Watch a movie',
+    wishlistTag_tryGame: 'Try a game',
+    wishlistTag_general: 'Something general',
+
     // Planning
     planningTitle: 'Planning',
     planningEmptyTitle: 'No plans yet.',
@@ -567,6 +593,7 @@ export const translations = {
     trashType_note: 'Note',
     trashType_planning: 'Planning',
     trashType_favorite: 'Favorite',
+    trashType_wishlist: 'Wishlist item',
 
     // --- Avoidance habits ---
     habitKindLabel: 'Habit Type',
@@ -997,6 +1024,32 @@ export const translations = {
     tmdbNotFound: 'لم يتم العثور على هذا العنوان في TMDb.',
     tmdbNetworkError: 'تعذر الوصول إلى TMDb. تحقق من اتصالك وحاول مرة أخرى.',
 
+    // Wishlist
+    wishlistTitle: 'قائمة الأمنيات',
+    wishlistSearchPlaceholder: 'ابحث في قائمة أمنياتك…',
+    wishlistEmptyTitle: 'لا يوجد شيء بعد',
+    wishlistEmptySubtitle: 'أضف كتبًا تريد شراءها، أفلامًا لمشاهدتها، ألعابًا لتجربتها — أي شيء تريد فعله يومًا ما.',
+    wishlistAddFirst: 'أضف أول عنصر',
+    wishlistNoResultsTitle: 'لا توجد نتائج',
+    wishlistNoResultsSubtitle: 'جرّب بحثًا مختلفًا أو امسح فلتر الوسوم.',
+    wishlistThumbnailLabel: 'صورة (اختياري)',
+    wishlistThumbnailHint: 'ألصق رابط صورة بدل رفع صورة من الجهاز — يبقي النسخة الاحتياطية صغيرة.',
+    wishlistImageUrlPlaceholder: 'https://example.com/image.jpg',
+    wishlistImageUrlInvalid: 'تعذر تحميل صورة من هذا الرابط.',
+    wishlistTitleLabel: 'العنوان',
+    wishlistTitlePlaceholder: 'ماذا تريد؟',
+    wishlistDescriptionLabel: 'الوصف (اختياري)',
+    wishlistDescriptionPlaceholder: 'ملاحظة قصيرة عنه…',
+    wishlistTagsLabel: 'الوسوم',
+    wishlistAddTag: 'وسم جديد',
+    wishlistNewTagPlaceholder: 'اسم الوسم',
+    wishlistPleaseEnterTitle: 'الرجاء إدخال عنوان',
+    wishlistCreate: 'إضافة إلى قائمة الأمنيات',
+    wishlistTag_buyBooks: 'شراء كتب',
+    wishlistTag_watchMovie: 'مشاهدة فيلم',
+    wishlistTag_tryGame: 'تجربة لعبة',
+    wishlistTag_general: 'شيء عام',
+
     // Planning
     planningTitle: 'التخطيط',
     planningEmptyTitle: 'لا توجد خطط بعد.',
@@ -1174,6 +1227,7 @@ export const translations = {
     trashType_note: 'ملاحظة',
     trashType_planning: 'تخطيط',
     trashType_favorite: 'مفضلة',
+    trashType_wishlist: 'عنصر أمنيات',
 
     // --- عادات التجنّب ---
     habitKindLabel: 'نوع العادة',

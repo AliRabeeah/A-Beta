@@ -256,6 +256,45 @@ export async function cancelNoteReminder(notificationId) {
 }
 
 /**
+ * Schedules a one-off reminder for a Wishlist item at an exact date+time
+ * (`item.reminderAt`, an ISO datetime string). Mirrors scheduleNoteReminder.
+ * Returns null if there's no reminder set or the moment has already passed.
+ */
+export async function scheduleWishlistReminder(item) {
+  if (!item.reminderAt) return null;
+  const due = new Date(item.reminderAt);
+  if (isNaN(due.getTime()) || due.getTime() <= Date.now()) return null;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('wishlist-v1', {
+      name: 'Wishlist Reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+    });
+  }
+
+  const title = item.title || 'Wishlist reminder';
+  const body = (item.description || '').trim().slice(0, 120) || 'Wishlist reminder';
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: { title, body, sound: 'default', data: { screen: 'Wishlist' } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: due, channelId: 'wishlist-v1' },
+  });
+  return id;
+}
+
+export async function cancelWishlistReminder(notificationId) {
+  if (!notificationId) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (e) {
+    // already fired or invalid id
+  }
+}
+
+/**
  * Quote notifications are entered from three places (app mount, every
  * AppState -> 'active' transition, and the Quote Settings screen), and
  * `rebuildQuoteNotificationsIfNeeded`'s "already scheduled today?" check

@@ -9,6 +9,7 @@ import { useTasks } from '../context/TaskContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useFavorites } from '../context/FavoriteContext';
+import { useWishlist } from '../context/WishlistContext';
 
 function labelFor(item, t) {
   switch (item.type) {
@@ -20,6 +21,8 @@ function labelFor(item, t) {
       return item.data.title || t('trashType_planning');
     case 'favorite':
       return item.data.title || t('trashType_favorite');
+    case 'wishlist':
+      return item.data.title || t('trashType_wishlist');
     default:
       return '—';
   }
@@ -33,6 +36,7 @@ export default function TrashScreen({ navigation }) {
   const { restoreNote } = useNotes();
   const { restorePlanningItem } = usePlanning();
   const { restoreFavorite } = useFavorites();
+  const { restoreItem: restoreWishlistItem } = useWishlist();
 
   useEffect(() => {
     navigation.setOptions({ title: t('trashTitle') });
@@ -49,6 +53,7 @@ export default function TrashScreen({ navigation }) {
     note: restoreNote,
     planning: restorePlanningItem,
     favorite: restoreFavorite,
+    wishlist: restoreWishlistItem,
   };
 
   const handleRestore = async (item) => {
@@ -77,6 +82,7 @@ export default function TrashScreen({ navigation }) {
     note: items.filter((i) => i.type === 'note'),
     planning: items.filter((i) => i.type === 'planning'),
     favorite: items.filter((i) => i.type === 'favorite'),
+    wishlist: items.filter((i) => i.type === 'wishlist'),
   };
 
   return (
@@ -95,7 +101,7 @@ export default function TrashScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4 }}>
-          {['task', 'note', 'planning', 'favorite'].map((type) =>
+          {['task', 'note', 'planning', 'favorite', 'wishlist'].map((type) =>
             byType[type].length === 0 ? null : (
               <View key={type} style={{ marginBottom: 16 }}>
                 <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t(`trashType_${type}`)}</Text>
