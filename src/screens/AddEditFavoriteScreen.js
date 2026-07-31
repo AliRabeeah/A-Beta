@@ -17,14 +17,21 @@ export default function AddEditFavoriteScreen({ navigation, route }) {
   const [title, setTitle] = useState(existing?.title || '');
   const [note, setNote] = useState(existing?.note || '');
   const [rating, setRating] = useState(existing?.rating || 0);
+  const [imageUrl, setImageUrl] = useState(existing?.imageUrl || '');
 
   const handleSave = async () => {
     if (!title.trim()) return Alert.alert(t('pleaseEnterFavoriteTitle'));
 
     if (existing) {
-      await updateFavorite(existing.id, { type, title: title.trim(), note: note.trim(), rating });
+      await updateFavorite(existing.id, {
+        type,
+        title: title.trim(),
+        note: note.trim(),
+        rating,
+        imageUrl: imageUrl.trim(),
+      });
     } else {
-      await addFavorite({ type, title, note, rating });
+      await addFavorite({ type, title, note, rating, imageUrl });
     }
     navigation.goBack();
   };
@@ -40,6 +47,8 @@ export default function AddEditFavoriteScreen({ navigation, route }) {
         onChangeNote={setNote}
         rating={rating}
         onChangeRating={setRating}
+        imageUrl={imageUrl}
+        onChangeImageUrl={setImageUrl}
         onSave={handleSave}
         onCancel={() => navigation.goBack()}
         saveLabel={existing ? t('saveChanges') : t('createFavorite')}

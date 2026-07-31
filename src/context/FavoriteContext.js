@@ -51,13 +51,14 @@ export function FavoriteProvider({ children }) {
   }, []);
 
   const addFavorite = useCallback(
-    async ({ title, type, note, rating }) => {
+    async ({ title, type, note, rating, imageUrl }) => {
       const newItem = {
         id: `fav_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         title: title.trim(),
         type: type || 'other',
         note: note?.trim() || '',
         rating: rating || 0,
+        imageUrl: imageUrl?.trim() || '',
         addedAt: new Date().toISOString(),
       };
       const ok = await persist([newItem, ...favorites]);

@@ -373,6 +373,9 @@ export const translations = {
     favRatingLabel: 'Rating (optional)',
     favNoteLabel: 'Note (optional)',
     favNotePlaceholder: 'Why do you like it?',
+    favImageLabel: 'Poster image link (optional)',
+    favImagePlaceholder: 'Paste an image URL',
+    favImageHelper: "Doesn't count against your backup size — it's just a link.",
     createFavorite: 'Add Favorite',
     pleaseEnterFavoriteTitle: 'Please enter a name',
 
@@ -966,6 +969,9 @@ export const translations = {
     favRatingLabel: 'التقييم (اختياري)',
     favNoteLabel: 'ملاحظة (اختياري)',
     favNotePlaceholder: 'لماذا يعجبك؟',
+    favImageLabel: 'رابط صورة البوستر (اختياري)',
+    favImagePlaceholder: 'الصق رابط الصورة هنا',
+    favImageHelper: 'لا يزيد من حجم النسخة الاحتياطية — مجرد رابط نصي.',
     createFavorite: 'إضافة مفضلة',
     pleaseEnterFavoriteTitle: 'الرجاء إدخال اسم',
 

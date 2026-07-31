@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { withAlpha } from '../theme/tokens';
@@ -21,6 +21,8 @@ export default function AddFavoriteForm({
   onChangeNote,
   rating,
   onChangeRating,
+  imageUrl,
+  onChangeImageUrl,
   onSave,
   onCancel,
   saveLabel,
@@ -28,6 +30,9 @@ export default function AddFavoriteForm({
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
   const textAlign = isRTL ? 'right' : 'left';
+  const [imageError, setImageError] = useState(false);
+  const trimmedImageUrl = (imageUrl || '').trim();
+  const showPreview = trimmedImageUrl.length > 0 && !imageError;
 
   return (
     <View>
@@ -78,6 +83,36 @@ export default function AddFavoriteForm({
         ))}
       </View>
 
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favImageLabel')}</Text>
+      <View style={[styles.imageRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        <TextInput
+          value={imageUrl}
+          onChangeText={(v) => {
+            setImageError(false);
+            onChangeImageUrl(v);
+          }}
+          placeholder={t('favImagePlaceholder')}
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={[
+            styles.input,
+            styles.imageInput,
+            { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, textAlign },
+          ]}
+        />
+        {showPreview && (
+          <Image
+            source={{ uri: trimmedImageUrl }}
+            style={[styles.imagePreview, { borderColor: colors.border }]}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        )}
+      </View>
+      <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t('favImageHelper')}</Text>
+
       <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favNoteLabel')}</Text>
       <TextInput
         value={note}
@@ -117,6 +152,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15 },
+  imageRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  imageInput: { flex: 1 },
+  imagePreview: { width: 46, height: 46, borderRadius: 10, borderWidth: 1 },
+  helperText: { fontSize: 11, marginTop: 6, lineHeight: 15 },
   textArea: { minHeight: 90, textAlignVertical: 'top' },
   starsRow: { flexDirection: 'row', gap: 10 },
   saveBtn: { marginTop: 32, padding: 16, borderRadius: 14, alignItems: 'center' },
