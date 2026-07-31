@@ -22,6 +22,7 @@ import { useFavorites } from '../context/FavoriteContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useTabBar, MIN_TABS, MAX_TABS } from '../context/TabBarContext';
+import { useSpeedDial, MIN_SHORTCUTS, MAX_SHORTCUTS } from '../context/SpeedDialContext';
 import { useAppLock, AUTO_LOCK_OPTIONS } from '../context/AppLockContext';
 import { isBiometricAvailable } from '../utils/biometricAuth';
 import {
@@ -54,6 +55,7 @@ export default function SettingsScreen({ navigation }) {
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
   const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
+  const { items: activeSpeedDialIds, toggleItem: toggleSpeedDialItem, reorderItems: reorderSpeedDialItems, pool: speedDialPool } = useSpeedDial();
   const {
     enabled: lockEnabled,
     method: lockMethod,
@@ -459,6 +461,100 @@ export default function SettingsScreen({ navigation }) {
                           const result = await toggleTab(screen.id);
                           if (!result.ok) {
                             Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                          }
+                        }}
+                        trackColor={{ true: colors.primary, false: colors.border }}
+                        thumbColor={SWITCH_OFF_THUMB}
+                      />
+                    </View>
+                  ))}
+              </>
+            )}
+          </View>
+        )}
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity onPress={() => setOpenSection('speedDial')} style={styles.row} activeOpacity={0.7}>
+          <View style={styles.rowLeft}>
+            <Ionicons name="flash-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+            <View>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('speedDialCustomizeEntry')}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                {activeSpeedDialIds.length}/{MAX_SHORTCUTS} {t('speedDialCustomizeActiveSuffix')}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name={openSection === 'speedDial' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {openSection === 'speedDial' && (
+          <View style={{ padding: 14, paddingTop: 0 }}>
+            <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 12 }]} />
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('speedDialCustomizeHint')}</Text>
+
+            <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
+            {/* Nested inside the screen's outer ScrollView, so its own
+                scrolling is disabled — fine here since it only ever holds
+                up to MAX_SHORTCUTS (8) rows, all visible without scrolling.
+                Dragging itself still works fully via reanimated/gesture
+                handler; only the auto-scroll-while-dragging-near-the-edge
+                behavior is unused. */}
+            <DraggableFlatList
+              data={activeSpeedDialIds.map((id) => speedDialPool.find((s) => s.id === id)).filter(Boolean)}
+              keyExtractor={(screen) => screen.id}
+              scrollEnabled={false}
+              activationDistance={0}
+              onDragBegin={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+              onDragEnd={({ data }) => reorderSpeedDialItems(data.map((screen) => screen.id))}
+              renderItem={({ item: screen, drag, isActive }) => (
+                <ScaleDecorator>
+                  <View
+                    style={[
+                      styles.tabBarRow,
+                      isActive && { backgroundColor: withAlpha(colors.primary, 0.08), borderRadius: 10 },
+                    ]}
+                  >
+                    <TouchableOpacity onLongPress={drag} delayLongPress={150} hitSlop={8} style={{ marginRight: 4 }}>
+                      <Ionicons name="reorder-three" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                    <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                      {t(`tabScreen_${screen.id}`)}
+                    </Text>
+                    <Switch
+                      value
+                      onValueChange={async () => {
+                        const result = await toggleSpeedDialItem(screen.id);
+                        if (!result.ok) {
+                          Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
+                        }
+                      }}
+                      trackColor={{ true: colors.primary, false: colors.border }}
+                      thumbColor={SWITCH_ON_COLOR}
+                    />
+                  </View>
+                </ScaleDecorator>
+              )}
+            />
+
+            {speedDialPool.some((screen) => !activeSpeedDialIds.includes(screen.id)) && (
+              <>
+                <Text style={[styles.tabBarGroupLabel, { marginTop: 14 }]}>{t('tabBarInactiveGroupLabel')}</Text>
+                {speedDialPool
+                  .filter((screen) => !activeSpeedDialIds.includes(screen.id))
+                  .map((screen) => (
+                    <View key={screen.id} style={styles.tabBarRow}>
+                      <Ionicons name={screen.icon} size={18} color={colors.textSecondary} style={{ marginLeft: 28 }} />
+                      <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                        {t(`tabScreen_${screen.id}`)}
+                      </Text>
+                      <Switch
+                        value={false}
+                        onValueChange={async () => {
+                          const result = await toggleSpeedDialItem(screen.id);
+                          if (!result.ok) {
+                            Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
                           }
                         }}
                         trackColor={{ true: colors.primary, false: colors.border }}

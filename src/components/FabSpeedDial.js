@@ -8,14 +8,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, Eas
 import { useTheme } from '../theme/ThemeContext';
 import { useTokens, withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
-import { TAB_BAR_POOL } from '../context/TabBarContext';
-
-// Which shortcuts to offer and in what order. Icons/labels are pulled from
-// TAB_BAR_POOL and the tabScreen_* i18n keys so a shortcut here looks
-// identical to the same screen's entry in the bottom tab bar or the
-// Settings tab-bar customizer, instead of drifting out of sync with its
-// own separate copy of the icon/label.
-const SPEED_DIAL_SCREENS = ['Tasks', 'Habits', 'Today', 'Notes', 'Settings'];
+import { useSpeedDial, DEFAULT_SPEED_DIAL } from '../context/SpeedDialContext';
 
 /**
  * Long-press-triggered quick-navigation popover, anchored above the FAB
@@ -30,6 +23,7 @@ export default function FabSpeedDial({ visible, onClose }) {
   const tokens = useTokens();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { items: activeIds, loaded, pool } = useSpeedDial();
 
   const scale = useSharedValue(0.85);
   const opacity = useSharedValue(0);
@@ -54,7 +48,10 @@ export default function FabSpeedDial({ visible, onClose }) {
 
   if (!visible) return null;
 
-  const items = SPEED_DIAL_SCREENS.map((id) => TAB_BAR_POOL.find((s) => s.id === id)).filter(Boolean);
+  // Before the stored config loads, fall back to the classic 5-shortcut
+  // layout so there's never a flash of an empty popover.
+  const shortcutIds = loaded && activeIds.length > 0 ? activeIds : DEFAULT_SPEED_DIAL;
+  const items = shortcutIds.map((id) => pool.find((s) => s.id === id)).filter(Boolean);
 
   const handleSelect = (screenId) => {
     Haptics.selectionAsync();

@@ -501,6 +501,15 @@ export const translations = {
     tabScreen_Favorites: 'Favorites',
     tabScreen_Planning: 'Planning',
     tabScreen_Timer: 'Timer',
+    tabScreen_Archive: 'Archived Habits',
+    tabScreen_About: 'About A',
+
+    // --- Quick menu (FAB shortcuts) customization ---
+    speedDialCustomizeEntry: 'Quick Menu',
+    speedDialCustomizeActiveSuffix: 'shortcuts active — tap to edit',
+    speedDialCustomizeHint: 'Choose which screens appear in the quick menu opened from the + button (2–8 shortcuts), and in what order. Press and hold a shortcut to drag it into a new order.',
+    speedDialMinReached: 'You need at least 2 shortcuts.',
+    speedDialMaxReached: 'You can have at most 8 shortcuts.',
 
     // --- App lock ---
     appLockSection: 'App Lock',
@@ -1085,6 +1094,15 @@ export const translations = {
     tabScreen_Favorites: 'المفضلة',
     tabScreen_Planning: 'التخطيط',
     tabScreen_Timer: 'المؤقت',
+    tabScreen_Archive: 'العادات المؤرشفة',
+    tabScreen_About: 'حول A',
+
+    // --- تخصيص القائمة السريعة (اختصارات زر +) ---
+    speedDialCustomizeEntry: 'القائمة السريعة',
+    speedDialCustomizeActiveSuffix: 'اختصارات مفعّلة — اضغط للتعديل',
+    speedDialCustomizeHint: 'اختر الشاشات التي تظهر في القائمة السريعة التي تفتح من زر (+) (من 2 إلى 8 اختصارات)، وحدد ترتيبها. اضغط مطولاً على أي اختصار واسحبه لتغيير ترتيبه.',
+    speedDialMinReached: 'يجب أن يبقى اختصاران على الأقل.',
+    speedDialMaxReached: 'الحد الأقصى 8 اختصارات.',
 
     // --- قفل التطبيق ---
     appLockSection: 'قفل التطبيق',

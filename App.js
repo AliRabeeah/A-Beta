@@ -14,6 +14,7 @@ import { ChallengeProvider } from './src/context/ChallengeContext';
 import { NoteProvider } from './src/context/NoteContext';
 import { FavoriteProvider } from './src/context/FavoriteContext';
 import { TabBarProvider } from './src/context/TabBarContext';
+import { SpeedDialProvider } from './src/context/SpeedDialContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
 import { MoodProvider } from './src/context/MoodContext';
 import { TrashProvider, purgeExpiredTrash } from './src/context/TrashContext';
@@ -113,6 +114,7 @@ export default function App() {
           <LanguageProvider>
             <AppLockProvider>
               <TabBarProvider>
+              <SpeedDialProvider>
                 <HabitProvider>
                   <PlanningProvider>
                     <TaskProvider>
@@ -130,6 +132,7 @@ export default function App() {
                     </TaskProvider>
                   </PlanningProvider>
                 </HabitProvider>
+              </SpeedDialProvider>
               </TabBarProvider>
             </AppLockProvider>
           </LanguageProvider>
