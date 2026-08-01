@@ -14,16 +14,32 @@ const ORDER_STORAGE_KEY = 'sidebar_menu_order';
 export default function SideDrawer({ visible, onClose, navigation }) {
   const { colors } = useTheme();
   const { t, language } = useLanguage();
-  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-  const [order, setOrder] = useState(null);
+  // The drawer is anchored to the left edge in English and the right edge
+  // in Arabic (see the `[language === 'ar' ? 'right' : 'left']: 0` below).
+  // Its "closed" (offscreen) position has to point toward that same edge,
+  // or it slides in from the wrong side — which is exactly what happened
+  // before: it always animated from -DRAWER_WIDTH (offscreen-left) even
+  // when anchored to the right in Arabic.
+  const closedX = language === 'ar' ? DRAWER_WIDTH : -DRAWER_WIDTH;
+  const slideAnim = useRef(new Animated.Value(closedX)).current;
+
+  // If the language changes while the drawer is closed, snap instantly to
+  // the new closed position (no animation) so the *next* open slides in
+  // from the correct edge instead of animating from the old one.
+  useEffect(() => {
+    if (!visible) slideAnim.setValue(closedX);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   useEffect(() => {
     Animated.timing(slideAnim, {
-      toValue: visible ? 0 : -DRAWER_WIDTH,
+      toValue: visible ? 0 : closedX,
       duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [visible, slideAnim]);
+  }, [visible, closedX, slideAnim]);
+
+  const [order, setOrder] = useState(null);
 
   const locale = language === 'ar' ? 'ar-EG' : 'en-US';
   const dateLabel = new Date().toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
