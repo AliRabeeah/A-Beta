@@ -32,6 +32,8 @@ import {
   getPermissionStatus,
   ensureDayClosingReminder,
   cancelDayClosingReminder,
+  ensureWeeklyReviewReminder,
+  cancelWeeklyReviewReminder,
 } from '../utils/notifications';
 import {
   getDayClosingReminderEnabled,
@@ -39,6 +41,14 @@ import {
   getDayClosingReminderTime,
   setDayClosingReminderTime,
 } from '../utils/dayClosingSettings';
+import {
+  getWeeklyReviewEnabled,
+  setWeeklyReviewEnabled,
+  getWeeklyReviewTime,
+  setWeeklyReviewTime,
+  getWeeklyReviewWeekday,
+  setWeeklyReviewWeekday,
+} from '../utils/weeklyReviewSettings';
 import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '../utils/backup';
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
@@ -56,7 +66,7 @@ const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 const DEFAULT_SETTINGS_SECTION_ORDER = [
   'language', 'appearance', 'accent', 'tabBar', 'speedDial', 'appLock',
   'notifications', 'widget', 'backup', 'trash', 'github', 'moodHistory',
-  'dayClosing', 'quoteSettings', 'about',
+  'dayClosing', 'weeklyReview', 'quoteSettings', 'about',
 ];
 
 // Icon + label per section, used only by the compact "Edit order" list —
@@ -76,6 +86,7 @@ const SETTINGS_SECTION_META = {
   github: { icon: 'logo-github', labelKey: 'githubBackupToggle' },
   moodHistory: { icon: 'happy-outline', labelKey: 'viewMoodHistory' },
   dayClosing: { icon: 'moon-outline', labelKey: 'dayClosingReminderSection' },
+  weeklyReview: { icon: 'calendar-outline', labelKey: 'weeklyReviewReminderSection' },
   quoteSettings: { icon: 'chatbox-ellipses-outline', labelKey: 'quoteSettingsEntry' },
   about: { icon: 'information-circle-outline', labelKey: 'aboutApp' },
 };
@@ -123,6 +134,15 @@ export default function SettingsScreen({ navigation }) {
   });
   const [showDayClosingPicker, setShowDayClosingPicker] = useState(false);
 
+  const [weeklyReviewOn, setWeeklyReviewOn] = useState(false);
+  const [weeklyReviewTime, setWeeklyReviewTimeState] = useState(() => {
+    const d = new Date();
+    d.setHours(19, 0, 0, 0);
+    return d;
+  });
+  const [weeklyReviewWeekday, setWeeklyReviewWeekdayState] = useState(1); // 1 = Sunday
+  const [showWeeklyReviewPicker, setShowWeeklyReviewPicker] = useState(false);
+
   useEffect(() => {
     isBiometricAvailable().then(setBiometricAvailable);
     getDayClosingReminderEnabled().then(setDayClosingReminderOn);
@@ -132,6 +152,16 @@ export default function SettingsScreen({ navigation }) {
         const d = new Date();
         d.setHours(h, m, 0, 0);
         setDayClosingTimeState(d);
+      }
+    });
+    getWeeklyReviewEnabled().then(setWeeklyReviewOn);
+    getWeeklyReviewWeekday().then(setWeeklyReviewWeekdayState);
+    getWeeklyReviewTime().then((time) => {
+      if (time) {
+        const [h, m] = time.split(':').map(Number);
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        setWeeklyReviewTimeState(d);
       }
     });
   }, []);
@@ -174,6 +204,33 @@ export default function SettingsScreen({ navigation }) {
     await setDayClosingReminderTime(timeStr);
     if (dayClosingReminderOn) await ensureDayClosingReminder(timeStr);
   };
+
+  const handleToggleWeeklyReview = async (value) => {
+    setWeeklyReviewOn(value);
+    await setWeeklyReviewEnabled(value);
+    const timeStr = `${String(weeklyReviewTime.getHours()).padStart(2, '0')}:${String(weeklyReviewTime.getMinutes()).padStart(2, '0')}`;
+    if (value) await ensureWeeklyReviewReminder(weeklyReviewWeekday, timeStr);
+    else await cancelWeeklyReviewReminder();
+  };
+
+  const handleWeeklyReviewTimeChange = async (event, selected) => {
+    setShowWeeklyReviewPicker(false);
+    if (!selected) return;
+    setWeeklyReviewTimeState(selected);
+    const timeStr = `${String(selected.getHours()).padStart(2, '0')}:${String(selected.getMinutes()).padStart(2, '0')}`;
+    await setWeeklyReviewTime(timeStr);
+    if (weeklyReviewOn) await ensureWeeklyReviewReminder(weeklyReviewWeekday, timeStr);
+  };
+
+  const handleWeeklyReviewWeekdayChange = async (weekday) => {
+    setWeeklyReviewWeekdayState(weekday);
+    await setWeeklyReviewWeekday(weekday);
+    if (weeklyReviewOn) {
+      const timeStr = `${String(weeklyReviewTime.getHours()).padStart(2, '0')}:${String(weeklyReviewTime.getMinutes()).padStart(2, '0')}`;
+      await ensureWeeklyReviewReminder(weekday, timeStr);
+    }
+  };
+
   const [widgetOpacity, setWidgetOpacityState] = useState(100);
   const [permissionStatus, setPermissionStatus] = useState('undetermined');
   const [focusHabitId, setFocusHabitIdState] = useState(null);
@@ -1094,6 +1151,79 @@ export default function SettingsScreen({ navigation }) {
                     <TouchableOpacity onPress={() => navigation.navigate('DayClosing')} style={[styles.row, { paddingTop: dayClosingReminderOn ? 0 : undefined }]}>
                       <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('dayClosingEntry')}</Text>
                       <Ionicons name="moon-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+      ),
+    },
+    {
+      id: 'weeklyReview',
+      render: (drag, isActive) => (
+              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, isActive && { opacity: 0.6 }]}>
+                <TouchableOpacity onPress={() => setOpenSection('weeklyReview')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row} activeOpacity={0.7}>
+                  <View style={styles.rowLeft}>
+                    <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('weeklyReviewReminderSection')}</Text>
+                  </View>
+                  <Ionicons name={openSection === 'weeklyReview' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                {openSection === 'weeklyReview' && (
+                  <View style={{ paddingTop: 0 }}>
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                    <View style={styles.row}>
+                      <Text style={{ color: colors.text, fontSize: 15 }}>{t('weeklyReviewReminderToggle')}</Text>
+                      <Switch
+                        value={weeklyReviewOn}
+                        onValueChange={handleToggleWeeklyReview}
+                        trackColor={{ true: colors.primary, false: colors.border }}
+                        thumbColor={weeklyReviewOn ? SWITCH_ON_COLOR : SWITCH_OFF_THUMB}
+                      />
+                    </View>
+                    {weeklyReviewOn && (
+                      <>
+                        <View style={[styles.row, { paddingTop: 0 }]}>
+                          <Text style={{ color: colors.text, fontSize: 15 }}>{t('weeklyReviewReminderWeekdayLabel')}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 }}>
+                          {t('weekdayShort').map((label, i) => {
+                            const weekdayValue = i + 1; // 1 = Sunday ... 7 = Saturday
+                            const selected = weeklyReviewWeekday === weekdayValue;
+                            return (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => handleWeeklyReviewWeekdayChange(weekdayValue)}
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: 17,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: selected ? colors.primary : 'transparent',
+                                  borderWidth: selected ? 0 : StyleSheet.hairlineWidth,
+                                  borderColor: colors.border,
+                                }}
+                              >
+                                <Text style={{ color: selected ? colors.onPrimary : colors.text, fontSize: 12.5, fontWeight: '600' }}>{label}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                        <TouchableOpacity onPress={() => setShowWeeklyReviewPicker(true)} style={[styles.row, { paddingTop: 0 }]}>
+                          <Text style={{ color: colors.text, fontSize: 15 }}>{t('weeklyReviewReminderTimeLabel')}</Text>
+                          <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                            {weeklyReviewTime.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    {showWeeklyReviewPicker && (
+                      <DateTimePicker value={weeklyReviewTime} mode="time" is24Hour={false} onChange={handleWeeklyReviewTimeChange} />
+                    )}
+                    <TouchableOpacity onPress={() => navigation.navigate('WeeklyReview')} style={[styles.row, { paddingTop: weeklyReviewOn ? 0 : undefined }]}>
+                      <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('weeklyReviewEntry')}</Text>
+                      <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                     </TouchableOpacity>
                   </View>
                 )}

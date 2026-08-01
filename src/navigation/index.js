@@ -48,6 +48,8 @@ import WishlistScreen from '../screens/WishlistScreen';
 import AddEditWishlistScreen from '../screens/AddEditWishlistScreen';
 import SearchScreen from '../screens/SearchScreen';
 import AgendaScreen from '../screens/AgendaScreen';
+import WeeklyReviewScreen from '../screens/WeeklyReviewScreen';
+import YearInPixelsScreen from '../screens/YearInPixelsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -175,6 +177,8 @@ export default function RootNavigator() {
       <Stack.Screen name="MoodHistory" component={MoodHistoryScreen} options={{ title: '' }} />
       <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Agenda" component={AgendaScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="YearInPixels" component={YearInPixelsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

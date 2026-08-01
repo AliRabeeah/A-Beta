@@ -7,8 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
-import { LanguageProvider } from './src/i18n/LanguageContext';
-import { HabitProvider } from './src/context/HabitContext';
+import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
+import { HabitProvider, useHabits } from './src/context/HabitContext';
 import { PlanningProvider } from './src/context/PlanningContext';
 import { TaskProvider } from './src/context/TaskContext';
 import { ChallengeProvider } from './src/context/ChallengeContext';
@@ -23,11 +23,16 @@ import { TrashProvider, purgeExpiredTrash } from './src/context/TrashContext';
 import RootNavigator, { navigationRef, navigate } from './src/navigation';
 import AutoGithubBackup from './src/utils/AutoGithubBackup';
 import AutoQuoteScheduler from './src/utils/AutoQuoteScheduler';
+import { ensureHabitNotificationCategory, scheduleHabitSnooze } from './src/utils/notifications';
+import * as QuickActions from 'expo-quick-actions';
+import { setupAppShortcuts, handleQuickAction } from './src/utils/quickActions';
 import LockScreen from './src/screens/LockScreen';
 import UndoSnackbarHost from './src/components/UndoSnackbarHost';
 
 function Root() {
   const { mode, colors } = useTheme();
+  const { t } = useLanguage();
+  const { habits, setCompletionStatus } = useHabits();
   const { loaded: lockConfigLoaded, enabled: lockEnabled, autoLockMinutes } = useAppLock();
 
   // Keep Android's system navigation bar (the bar/pill at the very bottom
@@ -78,15 +83,50 @@ function Root() {
     return () => sub.remove();
   }, [lockEnabled, autoLockMinutes]);
 
-  // Route a tapped notification straight to its target screen (currently
-  // just the Day Closing reminder).
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const screen = response.notification.request.content.data?.screen;
-      if (screen) navigate(screen);
-    });
+    ensureHabitNotificationCategory(t);
+    // Only needs the translated button labels once; re-registering on
+    // every language change is unnecessary and Notifications categories
+    // don't need to track live language switches for existing content.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setupAppShortcuts(t);
+  }, [t]);
+
+  useEffect(() => {
+    // App launched directly from a long-pressed home-screen shortcut.
+    if (QuickActions.initial) handleQuickAction(QuickActions.initial);
+    // App was already running/backgrounded and a shortcut was tapped.
+    const sub = QuickActions.addListener(handleQuickAction);
     return () => sub.remove();
   }, []);
+
+  // Route a tapped notification straight to its target screen (currently
+  // just the Day Closing reminder), and handle interactive habit-reminder
+  // actions ("✓ Done" / "⏰ +1h") without necessarily navigating anywhere.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      const data = response.notification.request.content.data || {};
+      const actionId = response.actionIdentifier;
+
+      if (data.type === 'habit-reminder' && data.habitId) {
+        if (actionId === 'MARK_DONE') {
+          await setCompletionStatus(data.habitId, true, new Date());
+          return;
+        }
+        if (actionId === 'SNOOZE_1H') {
+          const habit = habits.find((h) => h.id === data.habitId);
+          if (habit) await scheduleHabitSnooze(habit);
+          return;
+        }
+      }
+
+      if (data.screen) navigate(data.screen);
+    });
+    return () => sub.remove();
+  }, [habits, setCompletionStatus]);
 
   useEffect(() => {
     // One-off cleanup of trash items older than 30 days on every cold start.

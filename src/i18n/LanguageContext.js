@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { I18nManager, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Updates from 'expo-updates';
 import * as Localization from 'expo-localization';
 import { translations } from './translations';
 
@@ -25,23 +23,18 @@ export function LanguageProvider({ children }) {
     })();
   }, []);
 
+  // Deliberately does NOT touch React Native's native I18nManager RTL
+  // flag. The whole app already mirrors its own layouts manually via the
+  // `isRTL` flag below (every screen/component checks `isRTL` and flips
+  // flexDirection/text-align/icons itself). Native I18nManager.forceRTL
+  // mirrors flexDirection a second time on top of that, which cancels out
+  // those manual flips and is exactly what caused rows (icon + text lists)
+  // to render in the wrong order in Arabic. Keeping RTL fully app-driven
+  // avoids that double-mirroring, and as a bonus no longer needs an app
+  // restart when switching languages.
   const setLanguage = useCallback(async (lang) => {
     await AsyncStorage.setItem(STORAGE_KEY, lang);
     setLanguageState(lang);
-
-    const shouldBeRTL = lang === 'ar';
-    if (I18nManager.isRTL !== shouldBeRTL) {
-      I18nManager.allowRTL(true);
-      I18nManager.forceRTL(shouldBeRTL);
-      try {
-        await Updates.reloadAsync();
-      } catch (e) {
-        Alert.alert(
-          lang === 'ar' ? 'أعد التشغيل' : 'Restart Needed',
-          translations[lang].restartNotice
-        );
-      }
-    }
   }, []);
 
   // Like colors/`t` in ThemeContext, this is read by virtually every screen

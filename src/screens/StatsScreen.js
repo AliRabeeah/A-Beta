@@ -66,6 +66,9 @@ export default function StatsScreen({ navigation }) {
         )}
         <Text style={[styles.title, { color: colors.text }]}>{t('statsTitle')}</Text>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={() => navigation.navigate('YearInPixels')} style={styles.exportBtn}>
+          <Ionicons name="grid-outline" size={22} color={colors.text} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={handleExport} disabled={exporting} style={styles.exportBtn}>
           {exporting ? (
             <ActivityIndicator size="small" color={colors.text} />

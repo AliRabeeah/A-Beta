@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { toKey } from './dateUtils';
 import { getDayClosingNotifId, setDayClosingNotifId } from './dayClosingSettings';
+import { getWeeklyReviewNotifId, setWeeklyReviewNotifId } from './weeklyReviewSettings';
 import { pickRandomQuote, randomQuoteEmoji } from './quotePicker';
 import {
   getQuoteNotifEnabled,
@@ -34,6 +35,31 @@ export async function getPermissionStatus() {
   return status; // 'granted' | 'denied' | 'undetermined'
 }
 
+// Identifier for the interactive habit-reminder notification category (a
+// "✓ Done" and "⏰ Snooze" button pair). Registering it is a no-op if it's
+// already registered, so it's safe to call this on every app start.
+export const HABIT_REMINDER_CATEGORY = 'habit-reminder';
+
+export async function ensureHabitNotificationCategory(t) {
+  try {
+    await Notifications.setNotificationCategoryAsync(HABIT_REMINDER_CATEGORY, [
+      {
+        identifier: 'MARK_DONE',
+        buttonTitle: t ? t('notifActionDone') : '✓ Done',
+        options: { opensAppToForeground: true },
+      },
+      {
+        identifier: 'SNOOZE_1H',
+        buttonTitle: t ? t('notifActionSnooze') : '⏰ +1h',
+        options: { opensAppToForeground: true },
+      },
+    ]);
+  } catch (e) {
+    // Category actions are best-effort; the notification still works as a
+    // plain tap-to-open reminder even if this fails on some platform/OS.
+  }
+}
+
 export async function scheduleReminder(habit) {
   if (!habit.reminderTime) return null;
   const [hour, minute] = habit.reminderTime.split(':').map(Number);
@@ -53,11 +79,45 @@ export async function scheduleReminder(habit) {
       title: habit.icon ? `${habit.icon} ${habit.name}` : habit.name,
       body: "Time to check off today's habit.",
       sound: 'default',
+      categoryIdentifier: HABIT_REMINDER_CATEGORY,
+      data: { screen: 'Today', habitId: habit.id, type: 'habit-reminder' },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour,
       minute,
+      channelId: 'reminders-v2',
+    },
+  });
+  return id;
+}
+
+/**
+ * Re-fires a single habit reminder ~1 hour from now, for the "⏰ +1h" action
+ * on a habit reminder notification. A one-off (not repeating) alert, kept
+ * separate from the habit's own daily `scheduleReminder` schedule/id.
+ */
+export async function scheduleHabitSnooze(habit) {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('reminders-v2', {
+      name: 'Habit Reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+    });
+  }
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: habit.icon ? `${habit.icon} ${habit.name}` : habit.name,
+      body: "Time to check off today's habit.",
+      sound: 'default',
+      categoryIdentifier: HABIT_REMINDER_CATEGORY,
+      data: { screen: 'Today', habitId: habit.id, type: 'habit-reminder' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 60 * 60,
       channelId: 'reminders-v2',
     },
   });
@@ -550,4 +610,55 @@ export async function cancelDayClosingReminder() {
     // already cancelled or invalid id
   }
   await setDayClosingNotifId(null);
+}
+
+/**
+ * Schedules (or reschedules) the weekly review reminder on the given
+ * weekday (1 = Sunday ... 7 = Saturday) at the given HH:mm local time.
+ * Tapping it carries `data.screen = 'WeeklyReview'` so App.js's
+ * notification-response listener opens that screen directly.
+ */
+export async function ensureWeeklyReviewReminder(weekday, time) {
+  await cancelWeeklyReviewReminder();
+  const [hour, minute] = (time || '19:00').split(':').map(Number);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('weekly-review-v1', {
+      name: 'Weekly Review',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+    });
+  }
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '📅 Weekly Review',
+      body: 'See how your week went and plan the next one.',
+      sound: 'default',
+      data: { screen: 'WeeklyReview' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: weekday || 1,
+      hour,
+      minute,
+      channelId: 'weekly-review-v1',
+    },
+  });
+  await setWeeklyReviewNotifId(id);
+  return id;
+}
+
+export async function cancelWeeklyReviewReminder() {
+  const id = await getWeeklyReviewNotifId();
+  if (!id) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id);
+  } catch (e) {
+    // already cancelled or invalid id
+  }
+  await setWeeklyReviewNotifId(null);
 }

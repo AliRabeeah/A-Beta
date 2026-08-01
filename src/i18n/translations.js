@@ -659,6 +659,28 @@ export const translations = {
     dayClosingReminderToggle: 'Remind me to close my day',
     dayClosingReminderTimeLabel: 'Reminder time',
     dayClosingEntry: 'Close My Day',
+
+    // Weekly Review
+    weeklyReviewTitle: 'Weekly Review',
+    weeklyReviewDailyBreakdown: 'Daily breakdown',
+    weeklyReviewCompleted: (done, total) => `${done} of ${total} completed this week`,
+    weeklyReviewBestDay: 'Best day',
+    weeklyReviewWorstDayHint: (day) => `${day} was your toughest day — maybe ease up on that day next week.`,
+    weeklyReviewPlanNext: 'Plan next week',
+    weeklyReviewReminderSection: 'Weekly Review Reminder',
+    weeklyReviewReminderToggle: 'Remind me weekly',
+    weeklyReviewReminderTimeLabel: 'Time',
+    weeklyReviewReminderWeekdayLabel: 'Day',
+    weeklyReviewEntry: 'View Weekly Review',
+    notifActionDone: '✓ Done',
+    notifActionSnooze: '⏰ +1h',
+    quickActionNewTask: 'New Task',
+    quickActionNewHabit: 'New Habit',
+    quickActionNewNote: 'New Note',
+
+    // Year in Pixels
+    yearInPixelsTitle: 'Year in Pixels',
+    yearInPixelsBestWeekday: (day, pct) => `Your strongest day overall is ${day}, averaging ${pct}% completion.`,
     priorityTaskPinnedLabel: '⭐ Priority for today',
 
     weekdayShort: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
@@ -1312,6 +1334,28 @@ export const translations = {
     dayClosingReminderToggle: 'ذكّرني بإغلاق يومي',
     dayClosingReminderTimeLabel: 'وقت التذكير',
     dayClosingEntry: 'أغلق يومي',
+
+    // Weekly Review
+    weeklyReviewTitle: 'المراجعة الأسبوعية',
+    weeklyReviewDailyBreakdown: 'تفصيل الأيام',
+    weeklyReviewCompleted: (done, total) => `أنجزت ${done} من ${total} هذا الأسبوع`,
+    weeklyReviewBestDay: 'أفضل يوم',
+    weeklyReviewWorstDayHint: (day) => `يوم ${day} كان الأصعب — جرّب تخفف فيه الأسبوع الجاي.`,
+    weeklyReviewPlanNext: 'خطط للأسبوع القادم',
+    weeklyReviewReminderSection: 'تذكير المراجعة الأسبوعية',
+    weeklyReviewReminderToggle: 'ذكّرني أسبوعيًا',
+    weeklyReviewReminderTimeLabel: 'الوقت',
+    weeklyReviewReminderWeekdayLabel: 'اليوم',
+    weeklyReviewEntry: 'عرض المراجعة الأسبوعية',
+    notifActionDone: '✓ تم',
+    notifActionSnooze: '⏰ +ساعة',
+    quickActionNewTask: 'مهمة جديدة',
+    quickActionNewHabit: 'عادة جديدة',
+    quickActionNewNote: 'ملاحظة جديدة',
+
+    // Year in Pixels
+    yearInPixelsTitle: 'خريطة السنة',
+    yearInPixelsBestWeekday: (day, pct) => `أقوى يوم لك بشكل عام هو ${day}، بمعدل إنجاز ${pct}%.`,
     priorityTaskPinnedLabel: '⭐ أولوية اليوم',
 
     weekdayShort: ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'],
