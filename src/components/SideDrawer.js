@@ -36,6 +36,8 @@ export default function SideDrawer({ visible, onClose, navigation }) {
 
   const MENU_ITEMS = [
     { key: 'Today', icon: 'checkmark-circle-outline', label: t('today') },
+    { key: 'Search', icon: 'search-outline', label: t('searchTitle') },
+    { key: 'Agenda', icon: 'calendar-outline', label: t('agendaTitle') },
     { key: 'Habits', icon: 'list-outline', label: t('habitsTitle') },
     { key: 'Planning', icon: 'school-outline', label: t('planningTitle') },
     { key: 'Tasks', icon: 'clipboard-outline', label: t('tasksTitle') },
@@ -119,7 +121,7 @@ export default function SideDrawer({ visible, onClose, navigation }) {
             styles.drawer,
             {
               width: DRAWER_WIDTH,
-              backgroundColor: colors.surface,
+              backgroundColor: colors.background,
               transform: [{ translateX: slideAnim }],
               [language === 'ar' ? 'right' : 'left']: 0,
             },

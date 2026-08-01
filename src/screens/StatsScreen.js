@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useHabits } from '../context/HabitContext';
 import { getCurrentStreak, getBestStreak, statusOf, getAvoidStreak, getLongestAvoidStreak } from '../utils/streakUtils';
 import { toKey, addDays } from '../utils/dateUtils';
+import { exportStatsToFile } from '../utils/statsExport';
 
 export default function StatsScreen({ navigation }) {
   const { colors } = useTheme();
@@ -23,6 +24,18 @@ export default function StatsScreen({ navigation }) {
   const avoidHabits = activeHabits.filter((h) => h.kind === 'avoid');
   const insets = useSafeAreaInsets();
   const locale = language === 'ar' ? 'ar-EG' : 'en-US';
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportStatsToFile(activeHabits);
+    } catch (e) {
+      Alert.alert(t('statsExportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const last7 = Array.from({ length: 7 }).map((_, i) => addDays(new Date(), -(6 - i)));
   const dayCompletion = last7.map((date) => {
@@ -52,6 +65,14 @@ export default function StatsScreen({ navigation }) {
           </TouchableOpacity>
         )}
         <Text style={[styles.title, { color: colors.text }]}>{t('statsTitle')}</Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={handleExport} disabled={exporting} style={styles.exportBtn}>
+          {exporting ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <Ionicons name="share-outline" size={22} color={colors.text} />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Bento summary row: two small glass tiles side by side */}
@@ -153,6 +174,7 @@ export default function StatsScreen({ navigation }) {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   backBtn: { padding: 4, marginLeft: -4 },
+  exportBtn: { padding: 4 },
   title: { fontSize: 30, fontWeight: '800' },
   section: { fontSize: 12, fontWeight: '700', marginTop: 20, marginBottom: 10, letterSpacing: 0.5 },
   bentoRow: { flexDirection: 'row', gap: 12 },

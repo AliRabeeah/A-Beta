@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android"
+    "android": "expo run:android",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
@@ -24,6 +25,7 @@
     "expo-av": "~15.0.1",
     "expo-haptics": "~14.0.0",
     "expo-linear-gradient": "~14.0.1",
+    "expo-navigation-bar": "~4.0.0",
     "expo-local-authentication": "~14.0.0",
     "expo-localization": "~16.0.0",
     "expo-notifications": "~0.29.0",
@@ -41,7 +43,14 @@
     "react-native-screens": "~4.3.0",
     "react-native-svg": "15.8.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-expo": "~52.0.0"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": ["/node_modules/", "/android/", "/ios/"]
+  },
   "private": true,
   "description": "A minimal, AMOLED-black habit tracker built with Expo/React Native.",
   "keywords": [],

@@ -1,5 +1,16 @@
 export const translations = {
   en: {
+    // Search
+    searchTitle: 'Search',
+    searchPlaceholder: 'Search habits, tasks, notes...',
+    searchHint: 'Search across everything in the app',
+    searchNoResults: 'No matches found',
+
+    // Agenda
+    agendaTitle: 'Agenda',
+    agendaActiveChallenges: (n) => (n === 1 ? '1 active challenge' : `${n} active challenges`),
+    agendaHint: 'Tap any day to jump to it in Today',
+
     // Today
     today: 'Today',
     noHabitsToday: 'No habits scheduled for today.',
@@ -189,6 +200,7 @@ export const translations = {
 
     // Stats
     statsTitle: 'Stats',
+    statsExportFailed: 'Could not export stats.',
     last7Days: 'LAST 7 DAYS',
     leaderboard: 'HABIT LEADERBOARD',
 
@@ -286,6 +298,10 @@ export const translations = {
     githubBackupTestFailed: 'Backup failed',
     githubLastBackupOk: 'Last successful backup:',
     githubLastBackupFailed: 'Last backup failed:',
+    backupHealthNotSet: 'Not set up',
+    backupHealthNever: 'Never backed up',
+    backupHealthToday: 'Backed up today',
+    backupHealthDaysAgo: (n) => (n === 1 ? '1 day ago' : `${n} days ago`),
 
     // About
     version: 'Version',
@@ -648,6 +664,16 @@ export const translations = {
     weekdayShort: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
   },
   ar: {
+    // Search
+    searchTitle: 'البحث',
+    searchPlaceholder: 'ابحث في العادات، المهام، الملاحظات...',
+    searchHint: 'ابحث في كل أقسام التطبيق دفعة واحدة',
+    searchNoResults: 'لا توجد نتائج مطابقة',
+
+    // Agenda
+    agendaTitle: 'الأجندة',
+    agendaActiveChallenges: (n) => (n === 1 ? 'تحدٍ نشط واحد' : `${n} تحديات نشطة`),
+    agendaHint: 'اضغط على أي يوم للانتقال إليه في Today',
     today: 'اليوم',
     noHabitsToday: 'لا توجد عادات مجدولة لهذا اليوم.',
     addFirstHabit: '+ أضف أول عادة لك',
@@ -831,6 +857,7 @@ export const translations = {
     deletePermanentBody: 'سيؤدي هذا إلى حذف هذه العادة وكل سجلها نهائيًا. لا يمكن التراجع عن هذا الإجراء.',
 
     statsTitle: 'الإحصائيات',
+    statsExportFailed: 'تعذّر تصدير الإحصائيات.',
     last7Days: 'آخر 7 أيام',
     leaderboard: 'ترتيب العادات',
 
@@ -925,6 +952,10 @@ export const translations = {
     githubBackupTestFailed: 'فشل النسخ الاحتياطي',
     githubLastBackupOk: 'آخر نسخة احتياطية ناجحة:',
     githubLastBackupFailed: 'فشلت آخر عملية نسخ:',
+    backupHealthNotSet: 'غير مُفعّل',
+    backupHealthNever: 'لم يتم النسخ بعد',
+    backupHealthToday: 'تم النسخ اليوم',
+    backupHealthDaysAgo: (n) => (n === 1 ? 'منذ يوم واحد' : `منذ ${n} أيام`),
 
     version: 'الإصدار',
     aboutBody: '"العقلية هي المفتاح. والانضباط هو الطريق."',

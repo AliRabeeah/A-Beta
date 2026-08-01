@@ -46,7 +46,7 @@ function isTaskDueOnDate(task, date) {
   return false;
 }
 
-export default function TodayScreen({ navigation }) {
+export default function TodayScreen({ navigation, route }) {
   const { colors } = useTheme();
   const tokens = useTokens();
   const { t, language } = useLanguage();
@@ -62,6 +62,16 @@ export default function TodayScreen({ navigation }) {
   const [addMenuVisible, setAddMenuVisible] = useState(false);
   const [speedDialVisible, setSpeedDialVisible] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
+
+  // Lets other screens (e.g. Agenda) open Today already scrolled to a
+  // specific date by navigating here with { jumpToDate: 'YYYY-MM-DD' }.
+  useEffect(() => {
+    const jumpKey = route?.params?.jumpToDate;
+    if (!jumpKey) return;
+    const [y, m, d] = jumpKey.split('-').map(Number);
+    setSelectedDate(new Date(y, m - 1, d));
+    navigation.setParams({ jumpToDate: undefined });
+  }, [route?.params?.jumpToDate, navigation]);
 
   // Safety net for the invisible drag-catching overlay in renderItem: if the
   // user enters reorder mode and then leaves this tab/screen without tapping
@@ -427,6 +437,10 @@ export default function TodayScreen({ navigation }) {
         </View>
 
         <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => navigation.navigate('Search')} style={styles.searchBtn}>
+            <Ionicons name="search" size={22} color={colors.text} />
+          </TouchableOpacity>
+
           {showDayClosingBadge && (
             <TouchableOpacity
               onPress={() => navigation.navigate('DayClosing')}
@@ -697,6 +711,7 @@ const styles = StyleSheet.create({
   priorityBanner: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuBtn: { padding: 4 },
+  searchBtn: { padding: 4, marginRight: 4 },
   title: { fontSize: 26, fontWeight: '800' },
   ringWrap: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   dateTile: { width: 38, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },

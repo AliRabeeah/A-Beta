@@ -46,6 +46,8 @@ import DayClosingScreen from '../screens/DayClosingScreen';
 import MoodHistoryScreen from '../screens/MoodHistoryScreen';
 import WishlistScreen from '../screens/WishlistScreen';
 import AddEditWishlistScreen from '../screens/AddEditWishlistScreen';
+import SearchScreen from '../screens/SearchScreen';
+import AgendaScreen from '../screens/AgendaScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -171,6 +173,8 @@ export default function RootNavigator() {
         options={{ headerShown: false, presentation: 'fullScreenModal' }}
       />
       <Stack.Screen name="MoodHistory" component={MoodHistoryScreen} options={{ title: '' }} />
+      <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Agenda" component={AgendaScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

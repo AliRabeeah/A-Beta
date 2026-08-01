@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -188,6 +188,7 @@ export default function SettingsScreen({ navigation }) {
   const [ghSaving, setGhSaving] = useState(false);
   const [ghTesting, setGhTesting] = useState(false);
   const [ghLastStatus, setGhLastStatus] = useState(null);
+  const [ghConfigured, setGhConfigured] = useState(false);
   // Accordion: only one foldable section is expanded at a time, so the
   // page doesn't turn into a long wall of open panels.
   const [openSection, setOpenSectionState] = useState(null);
@@ -208,6 +209,7 @@ export default function SettingsScreen({ navigation }) {
         setGhRepo(cfg.repo || '');
         setGhBranch(cfg.branch || 'main');
         setGhFolder(cfg.folder || 'backups');
+        setGhConfigured(true);
       }
     });
     getLastBackupStatus().then(setGhLastStatus);
@@ -227,6 +229,7 @@ export default function SettingsScreen({ navigation }) {
         branch: (ghBranch || 'main').trim(),
         folder: (ghFolder || 'backups').trim(),
       });
+      setGhConfigured(true);
       Alert.alert(t('githubBackupSaved'));
     } finally {
       setGhSaving(false);
@@ -246,6 +249,17 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const activeHabits = habits.filter((h) => !h.archived);
+
+  // Small always-visible signal of backup freshness, so an overdue or
+  // never-configured backup isn't hidden behind the collapsed accordion.
+  const backupHealth = useMemo(() => {
+    if (!ghConfigured) return { color: colors.textSecondary, label: t('backupHealthNotSet') };
+    if (!ghLastStatus || ghLastStatus.ok !== true) return { color: colors.danger, label: t('backupHealthNever') };
+    const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(ghLastStatus.at).getTime()) / 86400000));
+    if (daysAgo === 0) return { color: '#00E676', label: t('backupHealthToday') };
+    if (daysAgo <= 2) return { color: '#FFD60A', label: t('backupHealthDaysAgo', daysAgo) };
+    return { color: colors.danger, label: t('backupHealthDaysAgo', daysAgo) };
+  }, [ghConfigured, ghLastStatus, colors.textSecondary, colors.danger, t]);
 
   const handlePickFocusHabit = async (habitId) => {
     setFocusHabitIdState(habitId);
@@ -924,7 +938,11 @@ export default function SettingsScreen({ navigation }) {
                     <Ionicons name="logo-github" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
                     <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
                   </View>
-                  <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: backupHealth.color }} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1}>{backupHealth.label}</Text>
+                    <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+                  </View>
                 </TouchableOpacity>
         
                 {openSection === 'github' && (

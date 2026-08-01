@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { LanguageProvider } from './src/i18n/LanguageContext';
@@ -28,6 +29,17 @@ import UndoSnackbarHost from './src/components/UndoSnackbarHost';
 function Root() {
   const { mode, colors } = useTheme();
   const { loaded: lockConfigLoaded, enabled: lockEnabled, autoLockMinutes } = useAppLock();
+
+  // Keep Android's system navigation bar (the bar/pill at the very bottom
+  // of the screen) matching the app background, so it blends seamlessly
+  // instead of showing up as a mismatched strip under our own tab bar.
+  // No-op on iOS (there's no colorable nav bar there) and safely ignored
+  // if the OS/launcher doesn't support it (e.g. gesture-nav edge-to-edge).
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
+    NavigationBar.setButtonStyleAsync(mode === 'dark' ? 'light' : 'dark').catch(() => {});
+  }, [mode, colors.background]);
 
   // `null` = not yet decided; `true`/`false` once we know whether to show
   // the lock screen. Starting locked (once config has loaded) whenever the
