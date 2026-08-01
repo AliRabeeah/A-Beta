@@ -9,6 +9,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // Smooth expand/collapse used by every foldable settings section.
 const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,10 +48,10 @@ const SWITCH_ON_COLOR = '#0A84FF';
 const SWITCH_OFF_THUMB = '#f4f3f4';
 
 // Every top-level Settings card, in its default order. An explicit "Edit
-// order" toggle switches to a simple list with up/down arrow buttons to
-// reorder cards (see reorderMode below) — no drag gesture involved, so it
-// can't conflict with the screen's normal scrolling. The chosen order is
-// persisted here so it survives app restarts.
+// order" toggle switches to a compact list you can long-press and drag to
+// reorder (react-native-draggable-flatlist — same mechanism already used
+// on the Today screen and the side drawer). The chosen order is persisted
+// here so it survives app restarts.
 const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 const DEFAULT_SETTINGS_SECTION_ORDER = [
   'language', 'appearance', 'accent', 'tabBar', 'speedDial', 'appLock',
@@ -89,8 +90,13 @@ export default function SettingsScreen({ navigation }) {
   const { items: wishlist, customTags: wishlistTags, replaceAllWishlist } = useWishlist();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
-  const { tabs: activeTabIds, toggleTab, moveTab, pool: tabPool } = useTabBar();
-  const { items: activeSpeedDialIds, toggleItem: toggleSpeedDialItem, moveItem: moveSpeedDialItem, pool: speedDialPool } = useSpeedDial();
+  const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
+  const {
+    items: activeSpeedDialIds,
+    toggleItem: toggleSpeedDialItem,
+    reorderItems: reorderSpeedDialItems,
+    pool: speedDialPool,
+  } = useSpeedDial();
   const {
     enabled: lockEnabled,
     method: lockMethod,
@@ -362,20 +368,16 @@ export default function SettingsScreen({ navigation }) {
     AsyncStorage.setItem(SETTINGS_SECTION_ORDER_KEY, JSON.stringify(next)).catch(() => {});
   }, []);
 
-  // "Edit order" mode: shows a compact list with up/down buttons instead of
-  // the full cards, entered/exited via the header toggle.
+  // "Edit order" mode: shows a compact list you long-press and drag to
+  // reorder, instead of the full cards, entered/exited via the header toggle.
   const [reorderMode, setReorderMode] = useState(false);
 
-  const moveSection = useCallback(
-    (index, direction) => {
-      const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= sectionOrder.length) return;
-      const next = [...sectionOrder];
-      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  const handleSectionDragEnd = useCallback(
+    ({ data }) => {
       Haptics.selectionAsync();
-      persistSectionOrder(next);
+      persistSectionOrder(data);
     },
-    [sectionOrder, persistSectionOrder]
+    [persistSectionOrder]
   );
 
   const SETTINGS_SECTIONS = [
@@ -488,40 +490,45 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('tabBarCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {activeTabIds.map((id, index) => {
-                      const screen = tabPool.find((s) => s.id === id);
-                      if (!screen) return null;
-                      return (
-                        <View key={screen.id} style={styles.tabBarRow}>
-                          <TouchableOpacity onPress={() => moveTab(screen.id, -1)} disabled={index === 0} hitSlop={8} style={[{ marginRight: 2 }, index === 0 && { opacity: 0.3 }]}>
-                            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => moveTab(screen.id, 1)}
-                            disabled={index === activeTabIds.length - 1}
-                            hitSlop={8}
-                            style={[{ marginRight: 6 }, index === activeTabIds.length - 1 && { opacity: 0.3 }]}
-                          >
-                            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                          <Ionicons name={screen.icon} size={18} color={colors.primary} />
-                          <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
-                            {t(`tabScreen_${screen.id}`)}
-                          </Text>
-                          <Switch
-                            value
-                            onValueChange={async () => {
-                              const result = await toggleTab(screen.id);
-                              if (!result.ok) {
-                                Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
-                              }
-                            }}
-                            trackColor={{ true: colors.primary, false: colors.border }}
-                            thumbColor={SWITCH_ON_COLOR}
-                          />
-                        </View>
-                      );
-                    })}
+                    <DraggableFlatList
+                      data={activeTabIds}
+                      keyExtractor={(id) => id}
+                      scrollEnabled={false}
+                      activationDistance={0}
+                      onDragEnd={({ data }) => reorderTabs(data)}
+                      renderItem={({ item: id, drag, isActive }) => {
+                        const screen = tabPool.find((s) => s.id === id);
+                        if (!screen) return null;
+                        return (
+                          <ScaleDecorator>
+                            <TouchableOpacity
+                              onLongPress={drag}
+                              disabled={isActive}
+                              delayLongPress={150}
+                              activeOpacity={0.8}
+                              style={[styles.tabBarRow, isActive && { opacity: 0.6 }]}
+                            >
+                              <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                              <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                                {t(`tabScreen_${screen.id}`)}
+                              </Text>
+                              <Switch
+                                value
+                                onValueChange={async () => {
+                                  const result = await toggleTab(screen.id);
+                                  if (!result.ok) {
+                                    Alert.alert(result.reason === 'min' ? t('tabBarMinReached') : t('tabBarMaxReached'));
+                                  }
+                                }}
+                                trackColor={{ true: colors.primary, false: colors.border }}
+                                thumbColor={SWITCH_ON_COLOR}
+                              />
+                              <Ionicons name="reorder-three-outline" size={20} color={colors.textSecondary} style={{ marginLeft: 10 }} />
+                            </TouchableOpacity>
+                          </ScaleDecorator>
+                        );
+                      }}
+                    />
         
                     {tabPool.some((screen) => !activeTabIds.includes(screen.id)) && (
                       <>
@@ -577,40 +584,45 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 12 }}>{t('speedDialCustomizeHint')}</Text>
         
                     <Text style={styles.tabBarGroupLabel}>{t('tabBarActiveGroupLabel')}</Text>
-                    {activeSpeedDialIds.map((id, index) => {
-                      const screen = speedDialPool.find((s) => s.id === id);
-                      if (!screen) return null;
-                      return (
-                        <View key={screen.id} style={styles.tabBarRow}>
-                          <TouchableOpacity onPress={() => moveSpeedDialItem(screen.id, -1)} disabled={index === 0} hitSlop={8} style={[{ marginRight: 2 }, index === 0 && { opacity: 0.3 }]}>
-                            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => moveSpeedDialItem(screen.id, 1)}
-                            disabled={index === activeSpeedDialIds.length - 1}
-                            hitSlop={8}
-                            style={[{ marginRight: 6 }, index === activeSpeedDialIds.length - 1 && { opacity: 0.3 }]}
-                          >
-                            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                          <Ionicons name={screen.icon} size={18} color={colors.primary} />
-                          <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
-                            {t(`tabScreen_${screen.id}`)}
-                          </Text>
-                          <Switch
-                            value
-                            onValueChange={async () => {
-                              const result = await toggleSpeedDialItem(screen.id);
-                              if (!result.ok) {
-                                Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
-                              }
-                            }}
-                            trackColor={{ true: colors.primary, false: colors.border }}
-                            thumbColor={SWITCH_ON_COLOR}
-                          />
-                        </View>
-                      );
-                    })}
+                    <DraggableFlatList
+                      data={activeSpeedDialIds}
+                      keyExtractor={(id) => id}
+                      scrollEnabled={false}
+                      activationDistance={0}
+                      onDragEnd={({ data }) => reorderSpeedDialItems(data)}
+                      renderItem={({ item: id, drag, isActive }) => {
+                        const screen = speedDialPool.find((s) => s.id === id);
+                        if (!screen) return null;
+                        return (
+                          <ScaleDecorator>
+                            <TouchableOpacity
+                              onLongPress={drag}
+                              disabled={isActive}
+                              delayLongPress={150}
+                              activeOpacity={0.8}
+                              style={[styles.tabBarRow, isActive && { opacity: 0.6 }]}
+                            >
+                              <Ionicons name={screen.icon} size={18} color={colors.primary} />
+                              <Text style={{ color: colors.text, fontSize: 14, flex: 1, marginLeft: 10 }}>
+                                {t(`tabScreen_${screen.id}`)}
+                              </Text>
+                              <Switch
+                                value
+                                onValueChange={async () => {
+                                  const result = await toggleSpeedDialItem(screen.id);
+                                  if (!result.ok) {
+                                    Alert.alert(result.reason === 'min' ? t('speedDialMinReached') : t('speedDialMaxReached'));
+                                  }
+                                }}
+                                trackColor={{ true: colors.primary, false: colors.border }}
+                                thumbColor={SWITCH_ON_COLOR}
+                              />
+                              <Ionicons name="reorder-three-outline" size={20} color={colors.textSecondary} style={{ marginLeft: 10 }} />
+                            </TouchableOpacity>
+                          </ScaleDecorator>
+                        );
+                      }}
+                    />
         
                     {speedDialPool.some((screen) => !activeSpeedDialIds.includes(screen.id)) && (
                       <>
@@ -1098,11 +1110,38 @@ export default function SettingsScreen({ navigation }) {
     },
   ];
 
+  const renderSectionRow = useCallback(
+    ({ item: id, drag, isActive }) => {
+      const meta = SETTINGS_SECTION_META[id];
+      if (!meta) return null;
+      return (
+        <ScaleDecorator>
+          <TouchableOpacity
+            onLongPress={drag}
+            disabled={isActive}
+            delayLongPress={150}
+            activeOpacity={0.8}
+            style={[
+              styles.reorderRow,
+              isRTL && { flexDirection: 'row-reverse' },
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              isActive && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name={meta.icon} size={17} color={colors.textSecondary} style={isRTL ? { marginLeft: 10 } : { marginRight: 10 }} />
+            <Text style={{ color: colors.text, fontSize: 14.5, flex: 1 }} numberOfLines={1}>
+              {t(meta.labelKey)}
+            </Text>
+            <Ionicons name="reorder-three-outline" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </ScaleDecorator>
+      );
+    },
+    [colors, isRTL, t]
+  );
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 40 }}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 20 }]}>
       <View style={[styles.titleRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
         <TouchableOpacity
@@ -1117,50 +1156,32 @@ export default function SettingsScreen({ navigation }) {
       </View>
 
       {reorderMode ? (
-        // A dedicated, simple list — up/down buttons only, no drag gesture
-        // of any kind — so it can never fight the ScrollView for touches.
-        <View>
+        // Its own scrollable (DraggableFlatList), separate from the
+        // ScrollView below — nesting a draggable list inside a ScrollView
+        // fights over the same gesture, so the two modes get separate
+        // scroll containers instead of sharing one.
+        <>
           <Text style={[styles.reorderHint, { color: colors.textSecondary }]}>{t('reorderSectionsHint')}</Text>
-          {sectionOrder.map((id, index) => {
-            const meta = SETTINGS_SECTION_META[id];
-            if (!meta) return null;
-            return (
-              <View
-                key={id}
-                style={[styles.reorderRow, isRTL && { flexDirection: 'row-reverse' }, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
-                <Ionicons name={meta.icon} size={17} color={colors.textSecondary} style={isRTL ? { marginLeft: 10 } : { marginRight: 10 }} />
-                <Text style={{ color: colors.text, fontSize: 14.5, flex: 1 }} numberOfLines={1}>
-                  {t(meta.labelKey)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => moveSection(index, -1)}
-                  disabled={index === 0}
-                  hitSlop={8}
-                  style={[styles.reorderArrowBtn, index === 0 && { opacity: 0.3 }]}
-                >
-                  <Ionicons name="chevron-up" size={20} color={colors.text} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => moveSection(index, 1)}
-                  disabled={index === sectionOrder.length - 1}
-                  hitSlop={8}
-                  style={[styles.reorderArrowBtn, index === sectionOrder.length - 1 && { opacity: 0.3 }]}
-                >
-                  <Ionicons name="chevron-down" size={20} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </View>
+          <DraggableFlatList
+            data={sectionOrder}
+            keyExtractor={(id) => id}
+            renderItem={renderSectionRow}
+            onDragEnd={handleSectionDragEnd}
+            activationDistance={0}
+            containerStyle={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
+          />
+        </>
       ) : (
-        sectionOrder.map((id) => {
-          const section = SETTINGS_SECTIONS.find((sec) => sec.id === id);
-          if (!section) return null;
-          return <React.Fragment key={id}>{section.render(undefined, false)}</React.Fragment>;
-        })
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          {sectionOrder.map((id) => {
+            const section = SETTINGS_SECTIONS.find((sec) => sec.id === id);
+            if (!section) return null;
+            return <React.Fragment key={id}>{section.render(undefined, false)}</React.Fragment>;
+          })}
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -1188,7 +1209,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 4,
   },
-  reorderArrowBtn: { padding: 4 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 9 },
   section: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
   card: { borderWidth: 1, borderRadius: 14, overflow: 'hidden', marginTop: 20 },

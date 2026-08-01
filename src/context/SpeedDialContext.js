@@ -12,6 +12,7 @@ const STORAGE_KEY = 'a_speeddial_config_v1';
 // still valid navigation targets.
 export const SPEED_DIAL_POOL = [
   ...TAB_BAR_POOL,
+  { id: 'Wishlist', icon: 'sparkles-outline' },
   { id: 'Archive', icon: 'archive-outline' },
   { id: 'About', icon: 'information-circle-outline' },
 ];

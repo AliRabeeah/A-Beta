@@ -19,6 +19,9 @@ function columnsForWidth(width) {
   return 1;
 }
 
+const HORIZONTAL_PADDING = 16;
+const GRID_GAP = 10;
+
 export default function WishlistScreen({ navigation }) {
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
@@ -26,6 +29,11 @@ export default function WishlistScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const numColumns = columnsForWidth(width);
+  // Fixed pixel width per card (instead of flex: 1) so that when the last
+  // row has fewer items than numColumns, the lone card keeps its normal
+  // compact size instead of stretching to fill the whole row.
+  const cardWidth =
+    numColumns > 1 ? (width - HORIZONTAL_PADDING * 2 - GRID_GAP * (numColumns - 1)) / numColumns : undefined;
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [activeTagIds, setActiveTagIds] = useState([]);
@@ -139,7 +147,7 @@ export default function WishlistScreen({ navigation }) {
         contentContainerStyle={filtered.length === 0 ? styles.emptyListContent : styles.listContent}
         ListEmptyComponent={renderEmptyState}
         renderItem={({ item }) => (
-          <View style={numColumns > 1 ? styles.gridCell : undefined}>
+          <View style={numColumns > 1 ? [styles.gridCell, { width: cardWidth }] : undefined}>
             <WishlistCard
               item={item}
               tagsById={tagsById}
@@ -183,8 +191,8 @@ const styles = StyleSheet.create({
   filterWrap: { paddingHorizontal: 16 },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   emptyListContent: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 100 },
-  gridRow: { gap: 10 },
-  gridCell: { flex: 1, marginBottom: 10 },
+  gridRow: { gap: GRID_GAP },
+  gridCell: { marginBottom: 10 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 30 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
   emptySubtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19 },
