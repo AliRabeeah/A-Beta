@@ -49,7 +49,7 @@ function isTaskDueOnDate(task, date) {
 export default function TodayScreen({ navigation, route }) {
   const { colors } = useTheme();
   const tokens = useTokens();
-  const { t, language } = useLanguage();
+  const { t, language, isRTL } = useLanguage();
   const { habits, setCompletionStatus, addToValue, logTimerSeconds, setChecklistItem, archiveAllCompletedToday, archiveHabit, deleteHabit } = useHabits();
   const { tasks, categories: taskCategories, toggleSingleTaskComplete, setRecurringTaskStatus, toggleChecklistItem, archiveTask, deleteTask } = useTasks();
   const { planningItems, setDayCompleted, deleteTodayOnly, deletePlanningItem } = usePlanning();
@@ -423,7 +423,7 @@ export default function TodayScreen({ navigation, route }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             onPress={() => setDrawerVisible(true)}
