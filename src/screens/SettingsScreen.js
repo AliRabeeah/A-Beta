@@ -922,7 +922,7 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.navigate('Trash')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row}>
                   <View style={styles.rowLeft}>
                     <Ionicons name="trash-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-                    <Text style={{ color: colors.text, fontSize: 15 }}>{t('trashEntry')}</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('trashEntry')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -937,7 +937,7 @@ export default function SettingsScreen({ navigation }) {
                   <View style={styles.rowLeft}>
                     <Ionicons name="logo-github" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
                     <View>
-                      <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
+                      <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('githubBackupToggle')}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: backupHealth.color }} />
                         <Text style={{ color: colors.textSecondary, fontSize: 11.5 }} numberOfLines={1}>{backupHealth.label}</Text>
@@ -1049,7 +1049,7 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.navigate('MoodHistory')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row}>
                   <View style={styles.rowLeft}>
                     <Ionicons name="happy-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-                    <Text style={{ color: colors.text, fontSize: 15 }}>{t('viewMoodHistory')}</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('viewMoodHistory')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -1107,7 +1107,7 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.navigate('QuoteSettings')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row}>
                   <View style={styles.rowLeft}>
                     <Ionicons name="chatbox-ellipses-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-                    <Text style={{ color: colors.text, fontSize: 15 }}>{t('quoteSettingsEntry')}</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('quoteSettingsEntry')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -1121,7 +1121,7 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.navigate('About')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row}>
                   <View style={styles.rowLeft}>
                     <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-                    <Text style={{ color: colors.text, fontSize: 15 }}>{t('aboutApp')}</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('aboutApp')}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
