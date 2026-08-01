@@ -936,13 +936,15 @@ export default function SettingsScreen({ navigation }) {
                 <TouchableOpacity onPress={() => setOpenSection('github')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row}>
                   <View style={styles.rowLeft}>
                     <Ionicons name="logo-github" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-                    <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
+                    <View>
+                      <Text style={{ color: colors.text, fontSize: 15 }}>{t('githubBackupToggle')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: backupHealth.color }} />
+                        <Text style={{ color: colors.textSecondary, fontSize: 11.5 }} numberOfLines={1}>{backupHealth.label}</Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: backupHealth.color }} />
-                    <Text style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1}>{backupHealth.label}</Text>
-                    <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
-                  </View>
+                  <Ionicons name={openSection === 'github' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
         
                 {openSection === 'github' && (
