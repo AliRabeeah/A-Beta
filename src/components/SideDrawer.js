@@ -125,16 +125,18 @@ export default function SideDrawer({ visible, onClose, navigation }) {
             },
           ]}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, language === 'ar' && { flexDirection: 'row-reverse' }]}>
             {/* TODO: once you have your logo file, replace this placeholder
                 square with: <Image source={require('../../assets/logo.png')}
                 style={{ width: 56, height: 56, borderRadius: 14 }} /> */}
             <View style={[styles.logoPlaceholder, { backgroundColor: colors.primary }]}>
-              <Text style={{ color: colors.onPrimary, fontSize: 24, fontWeight: '800' }}>∞</Text>
+              <Text style={{ color: colors.onPrimary, fontSize: 22, fontWeight: '800' }}>∞</Text>
             </View>
-            <Text style={[styles.appName, { color: colors.text }]}>A</Text>
-            <Text style={[styles.byLine, { color: colors.textSecondary }]}>by Ali Halim</Text>
-            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>{dateLabel}</Text>
+            <View style={[styles.headerText, language === 'ar' && { alignItems: 'flex-end' }]}>
+              <Text style={[styles.appName, { color: colors.text }]}>A</Text>
+              <Text style={[styles.byLine, { color: colors.textSecondary }]}>by Ali Halim</Text>
+              <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>{dateLabel}</Text>
+            </View>
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -163,11 +165,12 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, flexDirection: 'row' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   drawer: { position: 'absolute', top: 0, bottom: 0, paddingTop: 60, paddingHorizontal: 20 },
-  header: { alignItems: 'flex-start', marginBottom: 16 },
-  logoPlaceholder: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  appName: { fontSize: 20, fontWeight: '800' },
-  byLine: { fontSize: 12, marginTop: 2 },
-  dateLabel: { fontSize: 12, marginTop: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  logoPlaceholder: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  headerText: { alignItems: 'flex-start' },
+  appName: { fontSize: 18, fontWeight: '800' },
+  byLine: { fontSize: 11.5, marginTop: 2 },
+  dateLabel: { fontSize: 11.5, marginTop: 3 },
   divider: { height: 1, marginBottom: 8 },
   draggableListWrap: { flex: 1 },
   menuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
