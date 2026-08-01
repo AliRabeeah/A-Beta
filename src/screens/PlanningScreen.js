@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -30,7 +31,15 @@ export default function PlanningScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
       <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => setDrawerVisible(true)} style={styles.menuBtn}>
+          <TouchableOpacity
+            onPress={() => setDrawerVisible(true)}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate('Today');
+            }}
+            delayLongPress={450}
+            style={styles.menuBtn}
+          >
             <Ionicons name="menu" size={26} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>{t('planningTitle')}</Text>

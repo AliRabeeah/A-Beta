@@ -108,7 +108,15 @@ export default function WishlistScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
       <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={[styles.headerLeft, isRTL && { flexDirection: 'row-reverse' }]}>
-          <TouchableOpacity onPress={() => setDrawerVisible(true)} style={styles.menuBtn}>
+          <TouchableOpacity
+            onPress={() => setDrawerVisible(true)}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate('Today');
+            }}
+            delayLongPress={450}
+            style={styles.menuBtn}
+          >
             <Ionicons name="menu" size={26} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>{t('wishlistTitle')}</Text>

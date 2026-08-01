@@ -415,7 +415,12 @@ export default function TodayScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => setDrawerVisible(true)} style={styles.menuBtn}>
+          <TouchableOpacity
+            onPress={() => setDrawerVisible(true)}
+            onLongPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+            delayLongPress={450}
+            style={styles.menuBtn}
+          >
             <Ionicons name="menu" size={26} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>{t('today')}</Text>
