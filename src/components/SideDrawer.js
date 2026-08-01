@@ -10,7 +10,6 @@ import { useLanguage } from '../i18n/LanguageContext';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(300, SCREEN_WIDTH * 0.8);
 const ORDER_STORAGE_KEY = 'sidebar_menu_order';
-const PINNED_LAST_KEY = 'About';
 
 export default function SideDrawer({ visible, onClose, navigation }) {
   const { colors } = useTheme();
@@ -57,7 +56,7 @@ export default function SideDrawer({ visible, onClose, navigation }) {
     return acc;
   }, {});
 
-  const reorderableKeys = MENU_ITEMS.filter((i) => i.key !== PINNED_LAST_KEY).map((i) => i.key);
+  const reorderableKeys = MENU_ITEMS.map((i) => i.key);
 
   // Load (and reconcile) the persisted order every time the drawer opens.
   useEffect(() => {
@@ -152,11 +151,6 @@ export default function SideDrawer({ visible, onClose, navigation }) {
               containerStyle={{ flex: 1 }}
             />
           </View>
-
-          <TouchableOpacity key="About" onPress={() => go('About')} style={styles.menuRow}>
-            <Ionicons name={itemsByKey.About.icon} size={20} color={colors.textSecondary} />
-            <Text style={{ color: colors.text, marginLeft: 16, fontSize: 15 }}>{itemsByKey.About.label}</Text>
-          </TouchableOpacity>
         </Animated.View>
       </GestureHandlerRootView>
     </Modal>
