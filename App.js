@@ -39,15 +39,13 @@ import UndoSnackbarHost from './src/components/UndoSnackbarHost';
 // and it's driven by actual readiness rather than a guessed fixed delay.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Hide with a short cross-fade instead of an instant cut. An abrupt cut is
-// what reads as a "glitch" — the very first RN frame under the splash is
-// sometimes still settling (fonts/icons/layout), and swapping instantly
-// exposes that half-ready frame for a beat. A short fade smooths over it.
-// Guarded: if this API isn't present in the installed version, calling it
-// would throw synchronously (before .catch can attach) and crash the app
-// at startup — so wrap in try/catch, not just .catch.
+// NOTE: we tried fade:true here, but a real device log showed it fighting
+// with the native module's own draw-blocking mechanism — onPreDraw kept
+// returning false (canceling every frame) for ~1.4s, then everything
+// snapped in on a single frame. That snap IS the glitch. An immediate,
+// un-faded hide avoids that fight, so we disable the fade explicitly.
 try {
-  SplashScreen.setOptions?.({ duration: 300, fade: true })?.catch?.(() => {});
+  SplashScreen.setOptions?.({ fade: false })?.catch?.(() => {});
 } catch (e) {}
 
 /**
