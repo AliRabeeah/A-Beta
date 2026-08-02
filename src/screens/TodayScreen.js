@@ -424,7 +424,7 @@ export default function TodayScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
       <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        <View style={styles.headerLeft}>
+        <View style={[styles.headerLeft, isRTL && { flexDirection: 'row-reverse' }]}>
           <TouchableOpacity
             onPress={() => setDrawerVisible(true)}
             onLongPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
