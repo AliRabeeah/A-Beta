@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Animated, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Animated, Dimensions, Image } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,12 +145,7 @@ export default function SideDrawer({ visible, onClose, navigation }) {
           ]}
         >
           <View style={[styles.header, language === 'ar' && { flexDirection: 'row-reverse' }]}>
-            {/* TODO: once you have your logo file, replace this placeholder
-                square with: <Image source={require('../../assets/logo.png')}
-                style={{ width: 56, height: 56, borderRadius: 14 }} /> */}
-            <View style={[styles.logoPlaceholder, { backgroundColor: colors.primary }]}>
-              <Text style={{ color: colors.onPrimary, fontSize: 22, fontWeight: '800' }}>∞</Text>
-            </View>
+            <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="cover" />
             <View style={[styles.headerText, language === 'ar' && { alignItems: 'flex-end' }]}>
               <Text style={[styles.appName, { color: colors.text }]}>A</Text>
               <Text style={[styles.byLine, { color: colors.textSecondary }]}>by Ali Halim</Text>
@@ -180,7 +175,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   drawer: { position: 'absolute', top: 0, bottom: 0, paddingTop: 60, paddingHorizontal: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  logoPlaceholder: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 56, height: 56, borderRadius: 14 },
   headerText: { alignItems: 'flex-start' },
   appName: { fontSize: 18, fontWeight: '800' },
   byLine: { fontSize: 11.5, marginTop: 2 },
