@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
@@ -37,6 +38,12 @@ import UndoSnackbarHost from './src/components/UndoSnackbarHost';
 // empty/default content with a flash of nothing (the splash stays put),
 // and it's driven by actual readiness rather than a guessed fixed delay.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Hide with a short cross-fade instead of an instant cut. An abrupt cut is
+// what reads as a "glitch" — the very first RN frame under the splash is
+// sometimes still settling (fonts/icons/layout), and swapping instantly
+// exposes that half-ready frame for a beat. A short fade smooths over it.
+SplashScreen.setOptions({ duration: 300, fade: true }).catch(() => {});
 
 /**
  * Renders nothing — its only job is to watch every data context's `loaded`
@@ -80,7 +87,15 @@ function SplashGate() {
   useEffect(() => {
     if (allLoaded && !hiddenRef.current) {
       hiddenRef.current = true;
-      SplashScreen.hideAsync().catch(() => {});
+      // Wait two animation frames before hiding: the first lets React commit
+      // the newly-mounted screen, the second lets the native side actually
+      // paint it. Hiding on the same tick `allLoaded` flips can expose a
+      // frame that's mounted but not yet painted — that's the flash/glitch.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          SplashScreen.hideAsync().catch(() => {});
+        });
+      });
     }
   }, [allLoaded]);
 
@@ -118,6 +133,14 @@ function Root() {
     NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
     NavigationBar.setButtonStyleAsync(mode === 'dark' ? 'light' : 'dark').catch(() => {});
   }, [mode, colors.background]);
+
+  // Keep the native root view's background in sync with the theme too —
+  // not just the nav bar. Without this, the OS-level background behind the
+  // very first frame defaults to white, so any tiny gap in the splash → RN
+  // handoff shows white instead of the app's actual background.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
+  }, [colors.background]);
 
   // `null` = not yet decided; `true`/`false` once we know whether to show
   // the lock screen. Starting locked (once config has loaded) whenever the
