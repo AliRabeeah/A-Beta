@@ -43,7 +43,12 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 // what reads as a "glitch" — the very first RN frame under the splash is
 // sometimes still settling (fonts/icons/layout), and swapping instantly
 // exposes that half-ready frame for a beat. A short fade smooths over it.
-SplashScreen.setOptions({ duration: 300, fade: true }).catch(() => {});
+// Guarded: if this API isn't present in the installed version, calling it
+// would throw synchronously (before .catch can attach) and crash the app
+// at startup — so wrap in try/catch, not just .catch.
+try {
+  SplashScreen.setOptions?.({ duration: 300, fade: true })?.catch?.(() => {});
+} catch (e) {}
 
 /**
  * Renders nothing — its only job is to watch every data context's `loaded`
@@ -139,7 +144,9 @@ function Root() {
   // very first frame defaults to white, so any tiny gap in the splash → RN
   // handoff shows white instead of the app's actual background.
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
+    try {
+      SystemUI.setBackgroundColorAsync?.(colors.background)?.catch?.(() => {});
+    } catch (e) {}
   }, [colors.background]);
 
   // `null` = not yet decided; `true`/`false` once we know whether to show
