@@ -493,12 +493,12 @@ export default function TodayScreen({ navigation, route }) {
         showsHorizontalScrollIndicator={false}
         data={dateStrip}
         keyExtractor={(d) => toKey(d)}
-        initialScrollIndex={DATE_RANGE_DAYS}
-        // FlatList's initialScrollIndex renders at offset 0 first, then
-        // snaps to the target index right after the first paint — that
-        // snap is a visible horizontal jump of the whole date strip. A
-        // matching contentOffset makes the very first frame already land
-        // in the right place, so there's nothing left to snap to.
+        // Deliberately NOT using initialScrollIndex here. It fires an
+        // imperative scrollToIndex on mount regardless of contentOffset
+        // already being correct — and whether that call lands before or
+        // after the first paint is a timing race, which is exactly why
+        // this only glitched sometimes. contentOffset alone applies
+        // synchronously with the first frame, so there's no race left.
         contentOffset={{ x: 44 * DATE_RANGE_DAYS, y: 0 }}
         getItemLayout={(_, index) => ({ length: 44, offset: 44 * index, index })}
         onScrollToIndexFailed={() => {}}
