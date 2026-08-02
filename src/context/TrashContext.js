@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'a_trash_v1';
@@ -87,6 +87,13 @@ export function TrashProvider({ children }) {
     await emptyTrashStorage();
     setItems([]);
   }, []);
+
+  // Every other context loads its data as soon as the app starts; trash
+  // previously only loaded once the Trash screen was opened, which left
+  // `loaded` permanently false on a normal cold start.
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const value = useMemo(
     () => ({ items, loaded, refresh, removeItem, clearAll }),

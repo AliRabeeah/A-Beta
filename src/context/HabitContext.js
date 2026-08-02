@@ -23,10 +23,12 @@ export function HabitProvider({ children }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) setHabits(JSON.parse(raw));
-      setLoaded(true);
-    });
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (raw) setHabits(JSON.parse(raw));
+      })
+      .catch((e) => console.error('Error loading habits:', e))
+      .finally(() => setLoaded(true));
   }, []);
 
   const persist = useCallback(async (next) => {

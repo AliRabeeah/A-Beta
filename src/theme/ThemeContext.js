@@ -51,15 +51,20 @@ export function ThemeProvider({ children }) {
   const systemScheme = useColorScheme();
   const [mode, setModeState] = useState('dark'); // 'dark' | 'light' | 'system'
   const [accent, setAccentState] = useState(DEFAULT_ACCENT);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [storedMode, storedAccent] = await Promise.all([
-        AsyncStorage.getItem(MODE_KEY),
-        AsyncStorage.getItem(ACCENT_KEY),
-      ]);
-      if (storedMode) setModeState(storedMode);
-      if (storedAccent) setAccentState(storedAccent);
+      try {
+        const [storedMode, storedAccent] = await Promise.all([
+          AsyncStorage.getItem(MODE_KEY),
+          AsyncStorage.getItem(ACCENT_KEY),
+        ]);
+        if (storedMode) setModeState(storedMode);
+        if (storedAccent) setAccentState(storedAccent);
+      } finally {
+        setLoaded(true);
+      }
     })();
   }, []);
 
@@ -82,8 +87,8 @@ export function ThemeProvider({ children }) {
   const colors = useMemo(() => buildColors(resolvedMode, accent), [resolvedMode, accent]);
 
   const value = useMemo(
-    () => ({ mode: resolvedMode, preference: mode, setMode, colors, accent, setAccent, presets: ACCENT_PRESETS }),
-    [resolvedMode, mode, setMode, colors, accent, setAccent]
+    () => ({ mode: resolvedMode, preference: mode, setMode, colors, accent, setAccent, presets: ACCENT_PRESETS, loaded }),
+    [resolvedMode, mode, setMode, colors, accent, setAccent, loaded]
   );
 
   return (

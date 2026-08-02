@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -32,6 +32,8 @@ export default function AddFavoriteForm({
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
   const textAlign = isRTL ? 'right' : 'left';
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const trimmedPosterUrl = (posterUrl || '').trim();
 
   return (
     <View>
@@ -68,19 +70,49 @@ export default function AddFavoriteForm({
         />
       )}
 
-      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favTitleLabel')}</Text>
-      {!!posterUrl && (
-        <View style={[styles.posterPreviewRow, isRTL && { flexDirection: 'row-reverse' }]}>
-          <Image source={{ uri: posterUrl }} style={styles.posterThumb} resizeMode="cover" />
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favImageUrlLabel')}</Text>
+      <Text style={[styles.hint, { color: colors.textSecondary, textAlign }]}>{t('favImageUrlHint')}</Text>
+      <View style={[styles.imageRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        {!!trimmedPosterUrl && !imageLoadFailed && (
+          <Image
+            source={{ uri: trimmedPosterUrl }}
+            style={styles.posterThumb}
+            resizeMode="cover"
+            onError={() => setImageLoadFailed(true)}
+            onLoad={() => setImageLoadFailed(false)}
+          />
+        )}
+        <TextInput
+          value={posterUrl || ''}
+          onChangeText={(v) => {
+            onChangePosterUrl && onChangePosterUrl(v);
+            setImageLoadFailed(false);
+          }}
+          placeholder={t('favImageUrlPlaceholder')}
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={[
+            styles.input,
+            { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, textAlign },
+          ]}
+        />
+        {!!posterUrl && (
           <TouchableOpacity
-            onPress={() => onChangePosterUrl && onChangePosterUrl(null)}
-            style={[styles.removePosterBtn, { borderColor: colors.border }]}
+            onPress={() => onChangePosterUrl && onChangePosterUrl('')}
+            hitSlop={8}
+            style={styles.clearImageBtn}
           >
-            <Ionicons name="close" size={12} color={colors.textSecondary} />
-            <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>{t('tmdbRemovePoster')}</Text>
+            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
-        </View>
+        )}
+      </View>
+      {imageLoadFailed && !!trimmedPosterUrl && (
+        <Text style={[styles.error, { color: '#FF453A', textAlign }]}>{t('favImageUrlInvalid')}</Text>
       )}
+
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('favTitleLabel')}</Text>
       <TextInput
         value={title}
         onChangeText={onChangeTitle}
@@ -140,17 +172,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  posterPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  posterThumb: { width: 44, height: 66, borderRadius: 8 },
-  removePosterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
+  hint: { fontSize: 11.5, lineHeight: 16, marginBottom: 10, marginTop: -4 },
+  imageRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  posterThumb: { width: 46, height: 46, borderRadius: 10 },
+  clearImageBtn: { padding: 4 },
+  error: { fontSize: 12, fontWeight: '600', marginTop: 6 },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15 },
   textArea: { minHeight: 90, textAlignVertical: 'top' },
   starsRow: { flexDirection: 'row', gap: 10 },

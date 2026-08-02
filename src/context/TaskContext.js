@@ -25,10 +25,12 @@ export function TaskProvider({ children }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) setTasks(JSON.parse(raw));
-      setLoaded(true);
-    });
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (raw) setTasks(JSON.parse(raw));
+      })
+      .catch((e) => console.error('Error loading tasks:', e))
+      .finally(() => setLoaded(true));
   }, []);
 
   const persist = useCallback(async (next) => {

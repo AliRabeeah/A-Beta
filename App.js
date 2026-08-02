@@ -4,22 +4,23 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
 import { HabitProvider, useHabits } from './src/context/HabitContext';
-import { PlanningProvider } from './src/context/PlanningContext';
-import { TaskProvider } from './src/context/TaskContext';
-import { ChallengeProvider } from './src/context/ChallengeContext';
-import { NoteProvider } from './src/context/NoteContext';
-import { FavoriteProvider } from './src/context/FavoriteContext';
-import { WishlistProvider } from './src/context/WishlistContext';
-import { TabBarProvider } from './src/context/TabBarContext';
-import { SpeedDialProvider } from './src/context/SpeedDialContext';
+import { PlanningProvider, usePlanning } from './src/context/PlanningContext';
+import { TaskProvider, useTasks } from './src/context/TaskContext';
+import { ChallengeProvider, useChallenges } from './src/context/ChallengeContext';
+import { NoteProvider, useNotes } from './src/context/NoteContext';
+import { FavoriteProvider, useFavorites } from './src/context/FavoriteContext';
+import { WishlistProvider, useWishlist } from './src/context/WishlistContext';
+import { TabBarProvider, useTabBar } from './src/context/TabBarContext';
+import { SpeedDialProvider, useSpeedDial } from './src/context/SpeedDialContext';
 import { AppLockProvider, useAppLock } from './src/context/AppLockContext';
-import { MoodProvider } from './src/context/MoodContext';
-import { TrashProvider, purgeExpiredTrash } from './src/context/TrashContext';
+import { MoodProvider, useMood } from './src/context/MoodContext';
+import { TrashProvider, useTrash } from './src/context/TrashContext';
 import RootNavigator, { navigationRef, navigate } from './src/navigation';
 import AutoGithubBackup from './src/utils/AutoGithubBackup';
 import AutoQuoteScheduler from './src/utils/AutoQuoteScheduler';
@@ -28,6 +29,78 @@ import * as QuickActions from 'expo-quick-actions';
 import { setupAppShortcuts, handleQuickAction } from './src/utils/quickActions';
 import LockScreen from './src/screens/LockScreen';
 import UndoSnackbarHost from './src/components/UndoSnackbarHost';
+
+// Keep the native splash screen (logo on black, from app.json) on screen
+// past the default "JS bundle has rendered a first frame" point. We hide it
+// ourselves — from SplashGate below — only once every AsyncStorage-backed
+// context has finished loading its real data. This replaces any flash of
+// empty/default content with a flash of nothing (the splash stays put),
+// and it's driven by actual readiness rather than a guessed fixed delay.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/**
+ * Renders nothing — its only job is to watch every data context's `loaded`
+ * flag and hide the native splash screen the instant all of them are true.
+ * Kept as its own component (rather than logic inside Root) so its re-renders
+ * — which happen on every one of these contexts' updates — never cascade
+ * into NavigationContainer or the rest of the tree.
+ */
+function SplashGate() {
+  const { loaded: themeLoaded } = useTheme();
+  const { loaded: lockLoaded } = useAppLock();
+  const { loaded: habitsLoaded } = useHabits();
+  const { loaded: planningLoaded } = usePlanning();
+  const { loaded: tasksLoaded } = useTasks();
+  const { loaded: challengesLoaded } = useChallenges();
+  const { loaded: notesLoaded } = useNotes();
+  const { loaded: favoritesLoaded } = useFavorites();
+  const { loaded: wishlistLoaded } = useWishlist();
+  const { loaded: moodLoaded } = useMood();
+  const { loaded: trashLoaded } = useTrash();
+  const { loaded: tabBarLoaded } = useTabBar();
+  const { loaded: speedDialLoaded } = useSpeedDial();
+
+  const allLoaded =
+    themeLoaded &&
+    lockLoaded &&
+    habitsLoaded &&
+    planningLoaded &&
+    tasksLoaded &&
+    challengesLoaded &&
+    notesLoaded &&
+    favoritesLoaded &&
+    wishlistLoaded &&
+    moodLoaded &&
+    trashLoaded &&
+    tabBarLoaded &&
+    speedDialLoaded;
+
+  const hiddenRef = useRef(false);
+
+  useEffect(() => {
+    if (allLoaded && !hiddenRef.current) {
+      hiddenRef.current = true;
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [allLoaded]);
+
+  // Safety net only — the line above is what normally hides the splash,
+  // typically well under a second. This just guarantees that if any single
+  // context's stored data were ever corrupted in a way that stops its
+  // `loaded` flag from ever flipping true, the user still isn't stuck
+  // staring at the splash screen forever.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!hiddenRef.current) {
+        hiddenRef.current = true;
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    }, 6000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  return null;
+}
 
 function Root() {
   const { mode, colors } = useTheme();
@@ -128,11 +201,6 @@ function Root() {
     return () => sub.remove();
   }, [habits, setCompletionStatus]);
 
-  useEffect(() => {
-    // One-off cleanup of trash items older than 30 days on every cold start.
-    purgeExpiredTrash();
-  }, []);
-
   const showLock = lockConfigLoaded && lockEnabled && isLocked;
 
   return (
@@ -151,6 +219,7 @@ function Root() {
       }}
     >
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <SplashGate />
       <AutoGithubBackup />
       <AutoQuoteScheduler />
       {showLock ? <LockScreen onUnlock={() => setIsLocked(false)} /> : <RootNavigator />}

@@ -408,6 +408,10 @@ export const translations = {
     tmdbInvalidKey: 'That TMDb API key was rejected. Double-check it and try again.',
     tmdbNotFound: 'Couldn\u2019t find that title on TMDb.',
     tmdbNetworkError: 'Couldn\u2019t reach TMDb. Check your connection and try again.',
+    favImageUrlLabel: 'Image (optional)',
+    favImageUrlHint: 'Paste an image link instead of uploading a photo — keeps your backups small. Filled in automatically if you import from TMDb.',
+    favImageUrlPlaceholder: 'https://example.com/image.jpg',
+    favImageUrlInvalid: 'Couldn\u2019t load an image from that link.',
 
     // Wishlist
     wishlistTitle: 'Wishlist',
@@ -1083,6 +1087,10 @@ export const translations = {
     tmdbInvalidKey: 'تم رفض مفتاح TMDb API هذا. تحقق منه وحاول مرة أخرى.',
     tmdbNotFound: 'لم يتم العثور على هذا العنوان في TMDb.',
     tmdbNetworkError: 'تعذر الوصول إلى TMDb. تحقق من اتصالك وحاول مرة أخرى.',
+    favImageUrlLabel: 'صورة (اختياري)',
+    favImageUrlHint: 'ألصق رابط صورة بدل رفع صورة من الجهاز — يبقي النسخة الاحتياطية صغيرة. تُملأ تلقائيًا عند الاستيراد من TMDb.',
+    favImageUrlPlaceholder: 'https://example.com/image.jpg',
+    favImageUrlInvalid: 'تعذر تحميل صورة من هذا الرابط.',
 
     // Wishlist
     wishlistTitle: 'قائمة الأمنيات',

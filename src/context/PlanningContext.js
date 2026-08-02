@@ -15,10 +15,12 @@ export function PlanningProvider({ children }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) setPlanningItems(JSON.parse(raw));
-      setLoaded(true);
-    });
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        if (raw) setPlanningItems(JSON.parse(raw));
+      })
+      .catch((e) => console.error('Error loading planning items:', e))
+      .finally(() => setLoaded(true));
   }, []);
 
   const persist = useCallback(async (next) => {
