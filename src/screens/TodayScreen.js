@@ -494,6 +494,12 @@ export default function TodayScreen({ navigation, route }) {
         data={dateStrip}
         keyExtractor={(d) => toKey(d)}
         initialScrollIndex={DATE_RANGE_DAYS}
+        // FlatList's initialScrollIndex renders at offset 0 first, then
+        // snaps to the target index right after the first paint — that
+        // snap is a visible horizontal jump of the whole date strip. A
+        // matching contentOffset makes the very first frame already land
+        // in the right place, so there's nothing left to snap to.
+        contentOffset={{ x: 44 * DATE_RANGE_DAYS, y: 0 }}
         getItemLayout={(_, index) => ({ length: 44, offset: 44 * index, index })}
         onScrollToIndexFailed={() => {}}
         contentContainerStyle={{ paddingBottom: 8, gap: 6 }}
