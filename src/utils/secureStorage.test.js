@@ -70,7 +70,7 @@ describe('round trip', () => {
     const storage = loadFreshModule();
     await storage.setItem('k2', JSON.stringify({ secret: 'do not leak this' }));
     expect(mockAsyncStorageData['k2']).not.toContain('do not leak this');
-    expect(mockAsyncStorageData['k2'].startsWith('aslv1:')).toBe(true);
+    expect(mockAsyncStorageData['k2'].startsWith('aslv2:')).toBe(true);
   });
 
   test('getItem on a never-set key returns null', async () => {
@@ -108,11 +108,55 @@ describe('legacy plain-text migration', () => {
     await storage.getItem('legacy2');
     // Give the fire-and-forget upgrade a tick to complete.
     await new Promise((r) => setImmediate(r));
-    expect(mockAsyncStorageData['legacy2'].startsWith('aslv1:')).toBe(true);
+    expect(mockAsyncStorageData['legacy2'].startsWith('aslv2:')).toBe(true);
 
     // And it still reads back correctly now that it's encrypted.
     const again = await storage.getItem('legacy2');
     expect(JSON.parse(again)).toEqual({ x: 1 });
+  });
+});
+
+describe('legacy v1 (unauthenticated) ciphertext migration', () => {
+  test('reads a pre-existing v1 (no-MAC) ciphertext and upgrades it to v2', async () => {
+    // Write a real v1-format value using the same key material a real
+    // legacy install would have, by round-tripping through a version of
+    // encryptValue that predates the MAC. Simplest reliable way: encrypt
+    // via the current module first to seed the SecureStore key, then
+    // reconstruct what v1 output looked like for the same plaintext by
+    // stripping the tag segment off a v2 ciphertext computed with that key.
+    const storage = loadFreshModule();
+    const CryptoJS = require('crypto-js');
+    // Prime the device key.
+    await storage.setItem('seed', '"seed"');
+    const SecureStore = require('expo-secure-store');
+    const keyHex = Object.values(mockSecureStoreData)[0];
+    const key = CryptoJS.enc.Hex.parse(keyHex);
+    const iv = CryptoJS.enc.Hex.parse('00112233445566778899aabbccddeef'.slice(0, 32));
+    const plainText = JSON.stringify({ old: 'value' });
+    const encrypted = CryptoJS.AES.encrypt(plainText, key, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+    const ivHex = '00112233445566778899aabbccddeef'.slice(0, 32);
+    mockAsyncStorageData['v1key'] = `aslv1:${ivHex}:${encrypted.ciphertext.toString(CryptoJS.enc.Base64)}`;
+
+    const result = await storage.getItem('v1key');
+    expect(JSON.parse(result)).toEqual({ old: 'value' });
+
+    await new Promise((r) => setImmediate(r));
+    expect(mockAsyncStorageData['v1key'].startsWith('aslv2:')).toBe(true);
+  });
+});
+
+describe('v2 authentication (tamper detection)', () => {
+  test('returns null when the ciphertext has been modified after encryption', async () => {
+    const storage = loadFreshModule();
+    await storage.setItem('secure1', JSON.stringify({ y: 2 }));
+    const stored = mockAsyncStorageData['secure1'];
+    // Flip a character in the ciphertext segment without touching the tag.
+    const parts = stored.split(':');
+    parts[2] = parts[2].slice(0, -2) + (parts[2].slice(-2) === 'AA' ? 'BB' : 'AA');
+    mockAsyncStorageData['secure1'] = parts.join(':');
+
+    const result = await storage.getItem('secure1');
+    expect(result).toBeNull();
   });
 });
 

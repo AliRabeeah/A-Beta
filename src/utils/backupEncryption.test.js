@@ -57,4 +57,41 @@ describe('encryptPayloadWithPassword / decryptPayloadWithPassword', () => {
   test('throws when asked to encrypt with an empty password', async () => {
     await expect(encryptPayloadWithPassword(samplePayload, '')).rejects.toThrow();
   });
+
+  test('rejects a tampered ciphertext even with the correct password (MAC check)', async () => {
+    const envelope = await encryptPayloadWithPassword(samplePayload, 'right-password');
+    const tampered = { ...envelope, ciphertext: envelope.ciphertext.slice(0, -4) + 'abcd' };
+    await expect(decryptPayloadWithPassword(tampered, 'right-password')).rejects.toMatchObject({
+      code: 'WRONG_PASSWORD',
+    });
+  });
+
+  test('new backups are written as version 2 with a MAC tag', async () => {
+    const envelope = await encryptPayloadWithPassword(samplePayload, 'right-password');
+    expect(envelope.version).toBe(2);
+    expect(typeof envelope.tag).toBe('string');
+    expect(envelope.tag.length).toBeGreaterThan(0);
+  });
+
+  test('still restores a legacy version-1 backup (no MAC, single key)', async () => {
+    // Hand-built the way version-1 envelopes used to look, to make sure old
+    // exported backups aren't stranded after the upgrade.
+    const CryptoJS = require('crypto-js');
+    const salt = CryptoJS.enc.Hex.parse('00112233445566778899aabbccddeeff');
+    const iv = CryptoJS.enc.Hex.parse('102030405060708090a0b0c0d0e0f001');
+    const key = CryptoJS.PBKDF2('legacy-password', salt, { keySize: 256 / 32, iterations: 100000, hasher: CryptoJS.algo.SHA256 });
+    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(samplePayload), key, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+    const legacyEnvelope = {
+      app: 'A',
+      encrypted: true,
+      version: 1,
+      cipher: 'aes-256-cbc-pbkdf2',
+      iterations: 100000,
+      salt: '00112233445566778899aabbccddeeff',
+      iv: '102030405060708090a0b0c0d0e0f001'.slice(0, 32),
+      ciphertext: encrypted.ciphertext.toString(CryptoJS.enc.Base64),
+    };
+    const recovered = await decryptPayloadWithPassword(legacyEnvelope, 'legacy-password');
+    expect(recovered).toEqual(samplePayload);
+  });
 });
