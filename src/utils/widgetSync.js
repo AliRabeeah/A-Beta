@@ -1,5 +1,5 @@
 import React from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 import { requestWidgetUpdate } from 'react-native-android-widget';
 import TodayWidget from '../widgets/TodayWidget';
 import ProgressWidget from '../widgets/ProgressWidget';

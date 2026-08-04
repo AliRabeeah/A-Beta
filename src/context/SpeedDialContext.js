@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 import { TAB_BAR_POOL } from './TabBarContext';
 
 const STORAGE_KEY = 'a_speeddial_config_v1';

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const STORAGE_KEY = 'a_tabbar_config_v1';
 

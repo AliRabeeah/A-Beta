@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 import { addToTrash, removeFromTrash } from './TrashContext';
 import { emitUndo } from '../utils/undoBus';
 

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 import { QUOTE_CATEGORIES } from '../constants/quotes';
 
 const ENABLED_KEY = 'a_quote_notif_enabled';

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const KEY = 'a_pomodoro_widget_state';
 

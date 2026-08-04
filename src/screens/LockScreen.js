@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAppLock } from '../context/AppLockContext';
@@ -19,10 +20,18 @@ export default function LockScreen({ onUnlock }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { method, verifyPin } = useAppLock();
+  const { method, verifyPin, lockoutRemainingMs } = useAppLock();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [tryingBiometric, setTryingBiometric] = useState(false);
+  const [checkingPin, setCheckingPin] = useState(false);
+  const [lockoutMs, setLockoutMs] = useState(0);
+  const tickRef = useRef(null);
+
+  // Blocks screenshots and screen recording while sensitive PIN/biometric
+  // entry is on screen, and (on Android) also blanks this screen's
+  // thumbnail in the OS "Recent Apps" switcher.
+  usePreventScreenCapture('app-lock-screen');
 
   const tryBiometric = async () => {
     setTryingBiometric(true);
@@ -39,8 +48,37 @@ export default function LockScreen({ onUnlock }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Poll the lockout countdown once a second while it's active, so the
+  // "try again in N min" message and the disabled pad clear on their own.
+  useEffect(() => {
+    const check = () => {
+      const remaining = lockoutRemainingMs();
+      setLockoutMs(remaining);
+    };
+    check();
+    tickRef.current = setInterval(check, 1000);
+    return () => clearInterval(tickRef.current);
+  }, [lockoutRemainingMs]);
+
+  const isLockedOut = lockoutMs > 0;
+
+  const submitPin = async (candidate) => {
+    if (checkingPin || isLockedOut) return;
+    setCheckingPin(true);
+    const ok = await verifyPin(candidate);
+    setCheckingPin(false);
+    if (ok) {
+      onUnlock();
+    } else {
+      setError(true);
+      setPin('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setLockoutMs(lockoutRemainingMs());
+    }
+  };
+
   const handleKeyPress = (key) => {
-    if (key === '') return;
+    if (key === '' || isLockedOut || checkingPin) return;
     Haptics.selectionAsync();
     if (key === 'del') {
       setPin((p) => p.slice(0, -1));
@@ -49,24 +87,13 @@ export default function LockScreen({ onUnlock }) {
     const next = (pin + key).slice(0, 8);
     setPin(next);
     if (next.length >= 4) {
-      if (verifyPin(next)) {
-        onUnlock();
-      } else if (next.length === 8 || key === 'submit') {
-        setError(true);
-        setPin('');
-      }
+      submitPin(next);
     }
   };
 
-  const handleSubmitPin = () => {
-    if (verifyPin(pin)) {
-      onUnlock();
-    } else {
-      setError(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setPin('');
-    }
-  };
+  const handleSubmitPin = () => submitPin(pin);
+
+  const lockoutMinutes = Math.ceil(lockoutMs / 60000);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 40 }]}>
@@ -81,23 +108,31 @@ export default function LockScreen({ onUnlock }) {
           </TouchableOpacity>
         ) : (
           <>
-            <View style={styles.dotsRow}>
-              {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    {
-                      borderColor: error ? colors.danger : colors.border,
-                      backgroundColor: i < pin.length ? (error ? colors.danger : colors.primary) : 'transparent',
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-            {error && <Text style={{ color: colors.danger, marginTop: 8, fontSize: 13 }}>{t('wrongPinTryAgain')}</Text>}
+            {isLockedOut ? (
+              <Text style={{ color: colors.danger, marginBottom: 20, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 }}>
+                {t('tooManyAttempts', lockoutMinutes)}
+              </Text>
+            ) : (
+              <>
+                <View style={styles.dotsRow}>
+                  {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        {
+                          borderColor: error ? colors.danger : colors.border,
+                          backgroundColor: i < pin.length ? (error ? colors.danger : colors.primary) : 'transparent',
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                {error && <Text style={{ color: colors.danger, marginTop: 8, fontSize: 13 }}>{t('wrongPinTryAgain')}</Text>}
+              </>
+            )}
 
-            <View style={styles.pad}>
+            <View style={[styles.pad, isLockedOut && { opacity: 0.35 }]} pointerEvents={isLockedOut ? 'none' : 'auto'}>
               {PIN_PAD.map((key, i) => (
                 <TouchableOpacity
                   key={i}
@@ -114,7 +149,11 @@ export default function LockScreen({ onUnlock }) {
               ))}
             </View>
 
-            <TouchableOpacity onPress={handleSubmitPin} style={[styles.submitBtn, { backgroundColor: colors.primary }]}>
+            <TouchableOpacity
+              onPress={handleSubmitPin}
+              disabled={isLockedOut || checkingPin}
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: isLockedOut ? 0.4 : 1 }]}
+            >
               <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>{t('unlockWithPin')}</Text>
             </TouchableOpacity>
           </>

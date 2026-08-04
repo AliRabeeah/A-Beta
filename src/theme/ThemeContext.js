@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const MODE_KEY = 'a_theme_mode';
 const ACCENT_KEY = 'a_accent_color';

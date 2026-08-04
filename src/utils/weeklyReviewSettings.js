@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const ENABLED_KEY = 'a_weeklyreview_reminder_enabled_v1';
 const WEEKDAY_KEY = 'a_weeklyreview_reminder_weekday_v1'; // 1 (Sun) - 7 (Sat)

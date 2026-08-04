@@ -1,11 +1,12 @@
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import { encryptNotesForBackup } from './noteEncryption';
 
 const BACKUP_FILE_NAME = 'a-backup.json';
 export const BACKUP_VERSION = 1;
 
-export function buildBackupPayload({
+export async function buildBackupPayload({
   habits,
   tasks,
   challenges,
@@ -19,6 +20,11 @@ export function buildBackupPayload({
   mode,
   language,
 }) {
+  // Locked notes are encrypted here — the single point every export path
+  // (manual file export, GitHub auto-backup) funnels through — so their
+  // title/content never exists in plain text in the resulting payload.
+  const safeNotes = await encryptNotesForBackup(notes || []);
+
   return {
     app: 'A',
     version: BACKUP_VERSION,
@@ -29,7 +35,7 @@ export function buildBackupPayload({
       challenges: challenges || [],
       badges: badges || [],
       favorites: favorites || [],
-      notes: notes || [],
+      notes: safeNotes,
       planningItems: planningItems || [],
       wishlist: wishlist || [],
       wishlistTags: wishlistTags || [],
@@ -82,8 +88,15 @@ export async function importBackupFromFile() {
   });
 
   const parsed = JSON.parse(content);
+
+  // Whole-backup password-encrypted envelope (see backupEncryption.js) —
+  // there's no `.data` to validate yet, it needs a password first.
+  if (parsed?.encrypted === true) {
+    return { encrypted: true, envelope: parsed };
+  }
+
   if (!parsed?.data?.habits || !Array.isArray(parsed.data.habits)) {
     throw new Error('Invalid backup file format');
   }
-  return parsed.data;
+  return { encrypted: false, data: parsed.data };
 }

@@ -9,6 +9,8 @@ import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useWishlist } from '../context/WishlistContext';
 import { buildBackupPayload } from './backup';
+import { getBackupPassword } from './backupPassword';
+import { encryptPayloadWithPassword } from './backupEncryption';
 import { shouldRunAutoBackupToday, uploadBackupToGithub, getGithubConfig } from './githubBackup';
 
 /**
@@ -42,7 +44,7 @@ export default function AutoGithubBackup() {
       const due = await shouldRunAutoBackupToday();
       if (!due) return;
 
-      const payload = buildBackupPayload({
+      let payload = await buildBackupPayload({
         habits,
         tasks,
         challenges,
@@ -56,6 +58,14 @@ export default function AutoGithubBackup() {
         mode: preference,
         language,
       });
+
+      // If a whole-backup password is configured, everything (not just
+      // locked notes) gets encrypted before it ever leaves the device.
+      const backupPassword = await getBackupPassword();
+      if (backupPassword) {
+        payload = await encryptPayloadWithPassword(payload, backupPassword);
+      }
+
       await uploadBackupToGithub(payload);
     })();
   }, [

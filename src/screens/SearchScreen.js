@@ -58,17 +58,15 @@ export default function SearchScreen({ navigation }) {
       );
 
     notes
-      .filter(
-        (n) =>
-          contains(n.title, q) ||
-          contains(n.content, q) ||
-          (n.checklistItems || []).some((it) => contains(it.text, q))
-      )
+      .filter((n) => {
+        if (n.isLocked) return contains(n.title, q);
+        return contains(n.title, q) || contains(n.content, q) || (n.checklistItems || []).some((it) => contains(it.text, q));
+      })
       .forEach((n) =>
         out.push({
           id: `note_${n.id}`,
-          icon: 'document-text-outline',
-          title: n.title || t('untitledNote'),
+          icon: n.isLocked ? 'lock-closed-outline' : 'document-text-outline',
+          title: n.isLocked ? t('noteLockedTitle') : (n.title || t('untitledNote')),
           subtitle: t('notesTitle'),
           onPress: () => navigation.navigate('AddEditNote', { noteId: n.id }),
         })

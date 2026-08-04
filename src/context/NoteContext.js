@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 import { scheduleNoteReminder, cancelNoteReminder } from '../utils/notifications';
 import { addToTrash, removeFromTrash } from './TrashContext';
 import { emitUndo } from '../utils/undoBus';
@@ -130,6 +130,23 @@ export function NoteProvider({ children }) {
     [notes, persist]
   );
 
+  /**
+   * Toggles a note's `isLocked` flag. This flag is enforced by the note
+   * viewer/editor screen (AddEditNoteScreen), which gates rendering behind
+   * biometric/PIN auth whenever a note has isLocked === true — this
+   * function only flips the flag itself and does not perform any auth.
+   * Callers that let the user turn OFF an existing lock (i.e. reveal a
+   * previously-locked note without ever opening it) must authenticate
+   * BEFORE calling this — see NotesScreen's card menu.
+   */
+  const toggleNoteLock = useCallback(
+    async (id) => {
+      const next = notes.map((n) => (n.id === id ? { ...n, isLocked: !n.isLocked } : n));
+      await persist(next);
+    },
+    [notes, persist]
+  );
+
   /** Toggles a checklist item within a note. */
   const toggleChecklistItem = useCallback(
     async (noteId, itemId) => {
@@ -193,6 +210,7 @@ export function NoteProvider({ children }) {
       restoreNote,
       replaceAllNotes,
       toggleNoteFavorite,
+      toggleNoteLock,
       toggleChecklistItem,
       addChecklistItem,
       updateChecklistItemText,
@@ -207,6 +225,7 @@ export function NoteProvider({ children }) {
       restoreNote,
       replaceAllNotes,
       toggleNoteFavorite,
+      toggleNoteLock,
       toggleChecklistItem,
       addChecklistItem,
       updateChecklistItemText,

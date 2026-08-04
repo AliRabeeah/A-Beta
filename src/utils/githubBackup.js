@@ -1,10 +1,11 @@
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 
 // The GitHub token + repo settings are secrets -> SecureStore (Keychain / Keystore).
 const CONFIG_KEY = 'a_github_backup_config_v1';
-// Non-sensitive bookkeeping (last run date/result) -> plain AsyncStorage.
+// Non-sensitive bookkeeping (last run date/result) -> AsyncStorage (encrypted
+// at rest by secureStorage.js, see the import above).
 const STATUS_KEY = 'a_github_backup_status_v1';
 
 const TMP_FILE = FileSystem.cacheDirectory + 'a-github-backup-tmp.json';

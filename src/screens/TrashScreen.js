@@ -16,6 +16,7 @@ function labelFor(item, t) {
     case 'task':
       return item.data.title || t('trashType_task');
     case 'note':
+      if (item.data.isLocked) return t('noteLockedTitle');
       return item.data.title || item.data.content?.slice(0, 40) || t('trashType_note');
     case 'planning':
       return item.data.title || t('trashType_planning');

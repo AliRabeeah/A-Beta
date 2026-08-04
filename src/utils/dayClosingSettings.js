@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const ENABLED_KEY = 'a_dayclosing_reminder_enabled_v1';
 const TIME_KEY = 'a_dayclosing_reminder_time_v1';

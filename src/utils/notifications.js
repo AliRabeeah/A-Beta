@@ -296,8 +296,17 @@ export async function scheduleNoteReminder(note) {
     });
   }
 
-  const title = note.emoji ? `${note.emoji} ${note.title || 'Note'}` : (note.title || 'Note');
-  const body = (note.content || '').trim().slice(0, 120) || 'Note reminder';
+  // A push notification renders on the phone's OWN lock screen by default —
+  // outside the app and its auth entirely. Putting a locked note's real
+  // title/content in one would leak it to anyone glancing at the phone,
+  // bypassing both the note lock and the app lock. Use a generic label
+  // instead; the person still gets reminded, just not shown the contents.
+  const title = note.isLocked
+    ? '🔒 Locked note reminder'
+    : note.emoji ? `${note.emoji} ${note.title || 'Note'}` : (note.title || 'Note');
+  const body = note.isLocked
+    ? 'Open the app to view it'
+    : (note.content || '').trim().slice(0, 120) || 'Note reminder';
 
   const id = await Notifications.scheduleNotificationAsync({
     content: { title, body, sound: 'default' },

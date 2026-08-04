@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const OPACITY_KEY = 'a_widget_opacity';
 const DAY_OFFSET_KEY = 'a_widget_day_offset';

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useNotes } from '../context/NoteContext';
+import { authenticateWithBiometrics, isBiometricAvailable } from '../utils/biometricAuth';
 
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesSearchBar from '../components/notes/NotesSearchBar';
@@ -17,7 +18,7 @@ import { distributeMasonry } from '../utils/masonryLayout';
 export default function NotesScreen({ navigation }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const { notes, deleteNote, toggleNoteFavorite, toggleChecklistItem } = useNotes();
+  const { notes, deleteNote, toggleNoteFavorite, toggleNoteLock, toggleChecklistItem } = useNotes();
   const insets = useSafeAreaInsets();
 
   const [query, setQuery] = useState('');
@@ -51,12 +52,37 @@ export default function NotesScreen({ navigation }) {
     [deleteNote, t]
   );
 
+  // Locking a note is always allowed with no auth (you're already inside
+  // the unlocked app). UNLOCKING one from this quick menu — without ever
+  // opening it — must still prove identity first, otherwise this menu
+  // would be a bypass for the real gate in AddEditNoteScreen.
+  const handleToggleNoteLock = useCallback(
+    async (note) => {
+      if (!note.isLocked) {
+        await toggleNoteLock(note.id);
+        return;
+      }
+      const available = await isBiometricAvailable();
+      if (!available) {
+        Alert.alert(t('noteLockedTitle'), t('noteBiometricUnavailable'));
+        return;
+      }
+      const ok = await authenticateWithBiometrics();
+      if (ok) await toggleNoteLock(note.id);
+    },
+    [toggleNoteLock, t]
+  );
+
   // Search (title + content) -> tag/pinned filter -> pinned-first sort.
+  // Locked notes only match on title — matching their content/checklist
+  // text would let someone use the search box to probe what a locked
+  // note contains without ever authenticating.
   const filteredNotes = useMemo(() => {
     const q = query.trim().toLowerCase();
     let result = q
       ? notes.filter((n) => {
           const inTitle = (n.title || '').toLowerCase().includes(q);
+          if (n.isLocked) return inTitle;
           const inContent = (n.content || '').toLowerCase().includes(q);
           const inChecklist = (n.checklistItems || []).some((it) => (it.text || '').toLowerCase().includes(q));
           return inTitle || inContent || inChecklist;
@@ -107,6 +133,11 @@ export default function NotesScreen({ navigation }) {
           icon: cardActionsNote.isFavorite ? 'pin-outline' : 'pin',
           label: cardActionsNote.isFavorite ? t('unpinNote') : t('pinNote'),
           onPress: () => toggleNoteFavorite(cardActionsNote.id),
+        },
+        {
+          icon: cardActionsNote.isLocked ? 'lock-open-outline' : 'lock-closed',
+          label: cardActionsNote.isLocked ? t('unlockNoteAction') : t('lockNoteAction'),
+          onPress: () => handleToggleNoteLock(cardActionsNote),
         },
         {
           icon: 'trash',

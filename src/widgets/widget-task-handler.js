@@ -1,6 +1,6 @@
 import React from 'react';
 import { Linking } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 import {
   getWidgetOpacity,
   getWidgetDayOffset,

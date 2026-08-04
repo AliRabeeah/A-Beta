@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 
 const STORAGE_KEY = 'a_trash_v1';
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days

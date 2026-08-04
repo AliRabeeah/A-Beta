@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { preventScreenCaptureAsync, allowScreenCaptureAsync } from 'expo-screen-capture';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -23,6 +24,7 @@ import EmojiPickerSheet from '../components/notes/EmojiPickerSheet';
 import NoteColorPickerRow from '../components/notes/NoteColorPickerRow';
 import NoteTagPickerRow from '../components/notes/NoteTagPickerRow';
 import NoteReminderModal from '../components/notes/NoteReminderModal';
+import NoteUnlockGate from '../components/notes/NoteUnlockGate';
 
 const AUTOSAVE_DELAY_MS = 500;
 let blockIdSeed = 0;
@@ -47,6 +49,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
     updateNote,
     deleteNote,
     toggleNoteFavorite,
+    toggleNoteLock,
     addChecklistItem,
     removeChecklistItem,
     toggleChecklistItem,
@@ -55,6 +58,24 @@ export default function AddEditNoteScreen({ route, navigation }) {
 
   const routeNoteId = route.params?.noteId;
   const existing = useMemo(() => notes.find((n) => n.id === routeNoteId), [notes, routeNoteId]);
+
+  // If we're opening an existing note that's marked locked, nothing about
+  // its content renders until authentication succeeds — see NoteUnlockGate
+  // below. New notes and already-unlocked notes need no gate.
+  const [unlocked, setUnlocked] = useState(!existing?.isLocked);
+
+  // While viewing a locked note's content (even after unlocking it here),
+  // block screenshots/recording and blank this screen out of Android's
+  // "Recent Apps" thumbnail — the same protection the app-lock screen gets.
+  // Only active for locked notes; every other screen behaves as before.
+  useEffect(() => {
+    if (existing?.isLocked) {
+      preventScreenCaptureAsync('locked-note-editor');
+      return () => { allowScreenCaptureAsync('locked-note-editor'); };
+    }
+    return undefined;
+  }, [existing?.isLocked]);
+
 
   // A brand-new note is created as a draft immediately and autosaves as you
   // type. If it's abandoned completely empty, it's cleaned up on the way out.
@@ -194,6 +215,38 @@ export default function AddEditNoteScreen({ route, navigation }) {
 
   const iconBtnStyle = [styles.iconBtn, { backgroundColor: overlaySoft }];
 
+  // Enforcement point: an existing locked note renders NOTHING but the
+  // gate until the person authenticates. Cancelling just navigates back —
+  // it never reveals title/content, which only ever reach the JSX below.
+  if (existing?.isLocked && !unlocked) {
+    return (
+      <NoteUnlockGate
+        onUnlock={() => setUnlocked(true)}
+        onCancel={() => navigation.goBack()}
+      />
+    );
+  }
+
+  // Content was restored from a backup made on a different device install
+  // (see noteEncryption.js) — the on-device key needed to decrypt it isn't
+  // here, so there's genuinely nothing to show instead of a blank editor.
+  if (existing?.isLocked && existing?.decryptFailed) {
+    return (
+      <View style={[{ flex: 1 }, { backgroundColor: tone.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[iconBtnStyle, { position: 'absolute', left: 16, top: insets.top + 10 }]} hitSlop={8}>
+          <Ionicons name="chevron-back" size={20} color={tone.text} />
+        </TouchableOpacity>
+        <Ionicons name="lock-closed" size={32} color={tone.text} style={{ opacity: 0.6, marginBottom: 12 }} />
+        <Text style={{ color: tone.text, fontWeight: '800', fontSize: 17, marginBottom: 8, textAlign: 'center' }}>
+          {t('noteDecryptFailedTitle')}
+        </Text>
+        <Text style={{ color: tone.text, opacity: 0.75, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+          {t('noteDecryptFailedBody')}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: tone.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
@@ -202,6 +255,13 @@ export default function AddEditNoteScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={[styles.headerLabel, { color: tone.text }]}>{existing ? t('untitledNote') : t('newNote')}</Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => draftId && toggleNoteLock(draftId)}
+            style={[styles.iconBtn, { backgroundColor: note?.isLocked ? tone.tape : overlaySoft }]}
+            hitSlop={8}
+          >
+            <Ionicons name={note?.isLocked ? 'lock-closed' : 'lock-open-outline'} size={17} color={note?.isLocked ? '#fff' : tone.text} />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => draftId && toggleNoteFavorite(draftId)}
             style={[styles.iconBtn, { backgroundColor: note?.isFavorite ? tone.tape : overlaySoft }]}

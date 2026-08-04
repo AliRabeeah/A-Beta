@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 import { toKey } from '../utils/dateUtils';
 import { schedulePlanningReminder, cancelPlanningReminder } from '../utils/notifications';
 import { refreshTodayWidget } from '../utils/widgetSync';

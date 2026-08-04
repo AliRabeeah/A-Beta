@@ -52,6 +52,7 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
   const visibleChecklist = checklist.slice(0, 3);
   const extraChecklistCount = Math.max(0, checklist.length - visibleChecklist.length);
   const timestamp = formatCardDate(note.lastEdited || note.createdAt, locale);
+  const isLocked = !!note.isLocked;
 
   return (
     <AnimatedPressable
@@ -65,7 +66,7 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
       )}
 
       <View style={styles.topRow}>
-        <Text style={styles.emoji}>{note.emoji || DEFAULT_NOTE_EMOJI}</Text>
+        <Text style={styles.emoji}>{isLocked ? '\ud83d\udd12' : note.emoji || DEFAULT_NOTE_EMOJI}</Text>
         <TouchableOpacity
           onPress={() => {
             Haptics.selectionAsync();
@@ -83,60 +84,70 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
       </View>
 
       <Text style={[styles.title, { color: tone.text }]} numberOfLines={1}>
-        {note.title || t('untitledNote')}
+        {isLocked ? t('noteLockedTitle') : note.title || t('untitledNote')}
       </Text>
 
-      {!!snippet && (
+      {isLocked ? (
         <Text style={[styles.snippet, { color: tone.text }]} numberOfLines={2}>
-          {snippet}
+          {t('noteLockedSubtitle')}
         </Text>
-      )}
-
-      {visibleChecklist.length > 0 && (
-        <View style={styles.checklistWrap}>
-          {visibleChecklist.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.checklistRow}
-              hitSlop={4}
-              disabled={!onToggleChecklistItem}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onToggleChecklistItem && onToggleChecklistItem(item.id);
-              }}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    borderColor: tone.text,
-                    backgroundColor: item.isChecked ? tone.text : 'transparent',
-                  },
-                ]}
-              >
-                {item.isChecked && <Ionicons name="checkmark" size={9} color={tone.bg} />}
-              </View>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.checklistText,
-                  { color: tone.text, opacity: item.isChecked ? 0.55 : 0.92, textDecorationLine: item.isChecked ? 'line-through' : 'none' },
-                ]}
-              >
-                {item.text}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          {extraChecklistCount > 0 && (
-            <Text style={[styles.moreItems, { color: tone.text, opacity: 0.7 }]}>
-              {t('noteMoreItemsCount', extraChecklistCount)}
+      ) : (
+        <>
+          {!!snippet && (
+            <Text style={[styles.snippet, { color: tone.text }]} numberOfLines={2}>
+              {snippet}
             </Text>
           )}
-        </View>
+
+          {visibleChecklist.length > 0 && (
+            <View style={styles.checklistWrap}>
+              {visibleChecklist.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.checklistRow}
+                  hitSlop={4}
+                  disabled={!onToggleChecklistItem}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    onToggleChecklistItem && onToggleChecklistItem(item.id);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      {
+                        borderColor: tone.text,
+                        backgroundColor: item.isChecked ? tone.text : 'transparent',
+                      },
+                    ]}
+                  >
+                    {item.isChecked && <Ionicons name="checkmark" size={9} color={tone.bg} />}
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.checklistText,
+                      { color: tone.text, opacity: item.isChecked ? 0.55 : 0.92, textDecorationLine: item.isChecked ? 'line-through' : 'none' },
+                    ]}
+                  >
+                    {item.text}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {extraChecklistCount > 0 && (
+                <Text style={[styles.moreItems, { color: tone.text, opacity: 0.7 }]}>
+                  {t('noteMoreItemsCount', extraChecklistCount)}
+                </Text>
+              )}
+            </View>
+          )}
+        </>
       )}
 
       <View style={styles.footerRow}>
-        {tag ? (
+        {isLocked ? (
+          <Ionicons name="lock-closed" size={13} color={tone.text} style={{ opacity: 0.75 }} />
+        ) : tag ? (
           <View style={[styles.tagBadge, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
             <Text style={styles.tagEmoji}>{tag.emoji}</Text>
           </View>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -50,6 +50,9 @@ import {
   setWeeklyReviewWeekday,
 } from '../utils/weeklyReviewSettings';
 import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '../utils/backup';
+import { decryptNotesFromBackup } from '../utils/noteEncryption';
+import { getBackupPassword, hasBackupPassword, setBackupPassword, clearBackupPassword } from '../utils/backupPassword';
+import { encryptPayloadWithPassword, decryptPayloadWithPassword } from '../utils/backupEncryption';
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
 import { refreshTodayWidget } from '../utils/widgetSync';
@@ -126,6 +129,15 @@ export default function SettingsScreen({ navigation }) {
   const [pinDraft, setPinDraft] = useState('');
   const [pinConfirmDraft, setPinConfirmDraft] = useState('');
 
+  // Whole-backup password (encrypts EVERYTHING in a backup, not just
+  // locked notes) — see backupPassword.js / backupEncryption.js.
+  const [backupPasswordSet, setBackupPasswordSet] = useState(false);
+  const [bpModalMode, setBpModalMode] = useState(null); // null | 'set' | 'import'
+  const [bpDraft, setBpDraft] = useState('');
+  const [bpConfirmDraft, setBpConfirmDraft] = useState('');
+  const [pendingImportEnvelope, setPendingImportEnvelope] = useState(null);
+
+
   const [dayClosingReminderOn, setDayClosingReminderOn] = useState(false);
   const [dayClosingTime, setDayClosingTimeState] = useState(() => {
     const d = new Date();
@@ -145,6 +157,7 @@ export default function SettingsScreen({ navigation }) {
 
   useEffect(() => {
     isBiometricAvailable().then(setBiometricAvailable);
+    hasBackupPassword().then(setBackupPasswordSet);
     getDayClosingReminderEnabled().then(setDayClosingReminderOn);
     getDayClosingReminderTime().then((time) => {
       if (time) {
@@ -186,6 +199,37 @@ export default function SettingsScreen({ navigation }) {
     setPinModalMode(null);
     setPinDraft('');
     setPinConfirmDraft('');
+  };
+
+  const handleSaveBackupPassword = async () => {
+    if (bpDraft.length < 6) {
+      Alert.alert(t('errorLabel'), t('backupPasswordTooShort'));
+      return;
+    }
+    if (bpDraft !== bpConfirmDraft) {
+      Alert.alert(t('errorLabel'), t('backupPasswordMismatch'));
+      return;
+    }
+    await setBackupPassword(bpDraft);
+    setBackupPasswordSet(true);
+    setBpModalMode(null);
+    setBpDraft('');
+    setBpConfirmDraft('');
+    Alert.alert(t('backupPasswordSavedTitle'), t('backupPasswordSavedBody'));
+  };
+
+  const handleRemoveBackupPassword = () => {
+    Alert.alert(t('backupPasswordRemoveConfirmTitle'), t('backupPasswordRemoveConfirmBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          await clearBackupPassword();
+          setBackupPasswordSet(false);
+        },
+      },
+    ]);
   };
 
   const handleToggleDayClosingReminder = async (value) => {
@@ -296,7 +340,9 @@ export default function SettingsScreen({ navigation }) {
   const handleTestGithubBackup = async () => {
     setGhTesting(true);
     try {
-      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      const password = await getBackupPassword();
+      if (password) payload = await encryptPayloadWithPassword(payload, password);
       const result = await uploadBackupToGithub(payload);
       setGhLastStatus(await getLastBackupStatus());
       Alert.alert(result.ok ? t('githubBackupTestSuccess') : t('githubBackupTestFailed'), result.message);
@@ -365,7 +411,9 @@ export default function SettingsScreen({ navigation }) {
   const handleExport = async () => {
     setBusy('export');
     try {
-      const payload = buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      const password = await getBackupPassword();
+      if (password) payload = await encryptPayloadWithPassword(payload, password);
       await exportBackupToFile(payload);
     } catch (e) {
       Alert.alert(t('backupFailed'));
@@ -374,41 +422,69 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  /** Shared by both the plain-backup and password-decrypted-backup import paths. */
+  const confirmAndApplyImport = (data) => {
+    Alert.alert(t('confirmImportTitle'), t('confirmImportBody'), [
+      { text: t('cancel'), style: 'cancel', onPress: () => setBusy(null) },
+      {
+        text: t('replace'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await replaceAllHabits(data.habits);
+            if (data.tasks) await replaceAllTasks(data.tasks);
+            if (data.challenges) await replaceAllChallenges(data.challenges);
+            if (data.badges) await replaceAllBadges(data.badges);
+            if (data.favorites) await replaceAllFavorites(data.favorites);
+            if (data.notes) await replaceAllNotes(await decryptNotesFromBackup(data.notes));
+            if (data.planningItems) await replaceAllPlanningItems(data.planningItems);
+            if (data.wishlist) await replaceAllWishlist(data.wishlist, data.wishlistTags);
+            if (data.accent) await setAccent(data.accent);
+            if (data.mode) await setMode(data.mode);
+            if (data.language) await setLanguage(data.language);
+            Alert.alert(t('importSuccess'));
+          } catch (e) {
+            Alert.alert(t('importFailed'));
+          } finally {
+            setBusy(null);
+          }
+        },
+      },
+    ]);
+  };
+
   const handleImport = async () => {
     setBusy('import');
     try {
-      const data = await importBackupFromFile();
-      if (!data) { setBusy(null); return; } // user cancelled
-      Alert.alert(t('confirmImportTitle'), t('confirmImportBody'), [
-        { text: t('cancel'), style: 'cancel', onPress: () => setBusy(null) },
-        {
-          text: t('replace'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await replaceAllHabits(data.habits);
-              if (data.tasks) await replaceAllTasks(data.tasks);
-              if (data.challenges) await replaceAllChallenges(data.challenges);
-              if (data.badges) await replaceAllBadges(data.badges);
-              if (data.favorites) await replaceAllFavorites(data.favorites);
-              if (data.notes) await replaceAllNotes(data.notes);
-              if (data.planningItems) await replaceAllPlanningItems(data.planningItems);
-              if (data.wishlist) await replaceAllWishlist(data.wishlist, data.wishlistTags);
-              if (data.accent) await setAccent(data.accent);
-              if (data.mode) await setMode(data.mode);
-              if (data.language) await setLanguage(data.language);
-              Alert.alert(t('importSuccess'));
-            } catch (e) {
-              Alert.alert(t('importFailed'));
-            } finally {
-              setBusy(null);
-            }
-          },
-        },
-      ]);
+      const result = await importBackupFromFile();
+      if (!result) { setBusy(null); return; } // user cancelled
+
+      if (result.encrypted) {
+        // Whole-backup password-encrypted file — prompt for the password
+        // before there's anything to confirm/replace.
+        setPendingImportEnvelope(result.envelope);
+        setBpModalMode('import');
+        setBusy(null);
+        return;
+      }
+
+      confirmAndApplyImport(result.data);
     } catch (e) {
       Alert.alert(t('importFailed'));
       setBusy(null);
+    }
+  };
+
+  const handleSubmitImportPassword = async () => {
+    try {
+      const payload = await decryptPayloadWithPassword(pendingImportEnvelope, bpDraft);
+      setBpModalMode(null);
+      setBpDraft('');
+      setPendingImportEnvelope(null);
+      setBusy('import');
+      confirmAndApplyImport(payload.data);
+    } catch (e) {
+      Alert.alert(t('errorLabel'), t('backupWrongPassword'));
     }
   };
 
@@ -959,6 +1035,92 @@ export default function SettingsScreen({ navigation }) {
                 {openSection === 'backup' && (
                   <View style={{ paddingTop: 0 }}>
                     <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                    <View style={styles.row}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: 15 }}>{t('backupPasswordSection')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                          {backupPasswordSet ? t('backupPasswordSet') : t('backupPasswordNotSet')}
+                        </Text>
+                      </View>
+                      {backupPasswordSet ? (
+                        <View style={{ flexDirection: 'row', gap: 14 }}>
+                          <TouchableOpacity onPress={() => setBpModalMode('set')} hitSlop={8}>
+                            <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleRemoveBackupPassword} hitSlop={8}>
+                            <Ionicons name="trash-outline" size={19} color={colors.danger} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity onPress={() => setBpModalMode('set')}>
+                          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordSetAction')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {bpModalMode === 'set' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('backupPasswordSection')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 }}>
+                          {t('backupPasswordWarning')}
+                        </Text>
+                        <TextInput
+                          value={bpDraft}
+                          onChangeText={setBpDraft}
+                          placeholder={t('backupPasswordInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, marginTop: 4 }]}
+                        />
+                        <TextInput
+                          value={bpConfirmDraft}
+                          onChangeText={setBpConfirmDraft}
+                          placeholder={t('backupPasswordConfirmPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, marginTop: 8 }]}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity onPress={() => { setBpModalMode(null); setBpDraft(''); setBpConfirmDraft(''); }} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSaveBackupPassword} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('save')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {bpModalMode === 'import' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('backupPasswordEnterForImport')}</Text>
+                        <TextInput
+                          value={bpDraft}
+                          onChangeText={setBpDraft}
+                          placeholder={t('backupPasswordInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          autoFocus
+                          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface, marginTop: 8 }]}
+                        />
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity
+                            onPress={() => { setBpModalMode(null); setBpDraft(''); setPendingImportEnvelope(null); }}
+                            style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSubmitImportPassword} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordSubmitAction')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
                     <TouchableOpacity onPress={handleExport} style={styles.row} disabled={!!busy}>
                       <Text style={{ color: colors.text, fontSize: 15 }}>{t('exportBackup')}</Text>
                       {busy === 'export' ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="download-outline" size={18} color={colors.textSecondary} />}
@@ -1369,6 +1531,7 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14 },
   divider: { height: 1 },
+  sublabel: { fontSize: 13, fontWeight: '700' },
   pickerList: { maxHeight: 220 },
   pickerRow: { paddingVertical: 10 },
   tabBarRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
