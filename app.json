@@ -39,6 +39,18 @@
         }
       ],
       [
+        "@sefatunckanat/expo-dynamic-app-icon",
+        {
+          "navy": { "android": "./assets/app-icons/navy.png" },
+          "onyx": { "android": "./assets/app-icons/onyx.png" },
+          "espresso": { "android": "./assets/app-icons/espresso.png" },
+          "sage": { "android": "./assets/app-icons/sage.png" },
+          "cream": { "android": "./assets/app-icons/cream.png" },
+          "amber": { "android": "./assets/app-icons/amber.png" },
+          "infinity": { "android": "./assets/app-icons/infinity.png" }
+        }
+      ],
+      [
         "react-native-android-widget",
         {
           "widgets": [

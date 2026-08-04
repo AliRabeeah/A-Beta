@@ -14,6 +14,7 @@
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
+    "@sefatunckanat/expo-dynamic-app-icon": "^2.0.11",
     "expo": "~52.0.0",
     "expo-asset": "~11.0.0",
     "expo-blur": "~14.0.1",

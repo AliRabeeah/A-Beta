@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, Linking, TextInput, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
 import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -56,6 +56,7 @@ import { encryptPayloadWithPassword, decryptPayloadWithPassword } from '../utils
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
 import { refreshTodayWidget } from '../utils/widgetSync';
+import { APP_ICON_OPTIONS, isAppIconSwitchingAvailable, getCurrentAppIcon, setCurrentAppIcon } from '../utils/appIconSettings';
 
 const SWITCH_ON_COLOR = '#0A84FF';
 const SWITCH_OFF_THUMB = '#f4f3f4';
@@ -67,7 +68,7 @@ const SWITCH_OFF_THUMB = '#f4f3f4';
 // here so it survives app restarts.
 const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 const DEFAULT_SETTINGS_SECTION_ORDER = [
-  'language', 'appearance', 'accent', 'tabBar', 'speedDial', 'appLock',
+  'language', 'appearance', 'accent', 'appIcon', 'tabBar', 'speedDial', 'appLock',
   'notifications', 'widget', 'backup', 'trash', 'github', 'moodHistory',
   'dayClosing', 'weeklyReview', 'quoteSettings', 'about',
 ];
@@ -79,6 +80,7 @@ const SETTINGS_SECTION_META = {
   language: { icon: 'language-outline', labelKey: 'languageSection' },
   appearance: { icon: 'contrast-outline', labelKey: 'appearance' },
   accent: { icon: 'color-palette-outline', labelKey: 'accentColorSection' },
+  appIcon: { icon: 'apps-outline', labelKey: 'appIconSection' },
   tabBar: { icon: 'grid-outline', labelKey: 'tabBarCustomizeEntry' },
   speedDial: { icon: 'flash-outline', labelKey: 'speedDialCustomizeEntry' },
   appLock: { icon: 'lock-closed-outline', labelKey: 'appLockSection' },
@@ -293,6 +295,7 @@ export default function SettingsScreen({ navigation }) {
   // Accordion: only one foldable section is expanded at a time, so the
   // page doesn't turn into a long wall of open panels.
   const [openSection, setOpenSectionState] = useState(null);
+  const [selectedAppIcon, setSelectedAppIcon] = useState(() => getCurrentAppIcon());
   const setOpenSection = (id) => {
     animateLayout();
     setOpenSectionState((prev) => (prev === id ? null : id));
@@ -608,6 +611,66 @@ export default function SettingsScreen({ navigation }) {
                           {accent === p.value && <Ionicons name="checkmark" size={18} color={colors.onPrimary} />}
                         </TouchableOpacity>
                       ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+      ),
+    },
+    {
+      id: 'appIcon',
+      render: (drag, isActive) => (
+              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, isActive && { opacity: 0.6 }]}>
+                <TouchableOpacity onPress={() => setOpenSection('appIcon')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row} activeOpacity={0.7}>
+                  <View style={styles.rowLeft}>
+                    <Ionicons name="apps-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('appIconSection')}</Text>
+                  </View>
+                  <Ionicons name={openSection === 'appIcon' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                {openSection === 'appIcon' && (
+                  <View style={{ padding: 14, paddingTop: 0 }}>
+                    <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 12 }]} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 14 }}>
+                      {isAppIconSwitchingAvailable() ? t('appIconHint') : t('appIconUnavailableHint')}
+                    </Text>
+                    <View style={styles.iconGrid}>
+                      {APP_ICON_OPTIONS.map((opt) => {
+                        const isSelected = selectedAppIcon === opt.id;
+                        return (
+                          <TouchableOpacity
+                            key={opt.id ?? 'default'}
+                            style={styles.iconOption}
+                            activeOpacity={0.7}
+                            disabled={!isAppIconSwitchingAvailable()}
+                            onPress={async () => {
+                              const ok = await setCurrentAppIcon(opt.id);
+                              if (ok) {
+                                setSelectedAppIcon(opt.id);
+                                Haptics.selectionAsync();
+                              }
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.iconThumbWrap,
+                                { borderColor: isSelected ? colors.primary : colors.border, borderWidth: isSelected ? 3 : 1 },
+                              ]}
+                            >
+                              <Image source={opt.thumbnail} style={styles.iconThumb} />
+                              {isSelected && (
+                                <View style={[styles.iconCheck, { backgroundColor: colors.primary }]}>
+                                  <Ionicons name="checkmark" size={12} color={colors.onPrimary} />
+                                </View>
+                              )}
+                            </View>
+                            <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }} numberOfLines={1}>
+                              {t(opt.nameKey)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   </View>
                 )}
@@ -1528,6 +1591,11 @@ const styles = StyleSheet.create({
   rowLeft: { flexDirection: 'row', alignItems: 'center' },
   swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   swatch: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  iconOption: { width: 64, alignItems: 'center' },
+  iconThumbWrap: { width: 56, height: 56, borderRadius: 14, overflow: 'visible', alignItems: 'center', justifyContent: 'center' },
+  iconThumb: { width: 52, height: 52, borderRadius: 12 },
+  iconCheck: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   pill: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14 },
   divider: { height: 1 },
