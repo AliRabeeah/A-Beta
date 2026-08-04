@@ -26,7 +26,7 @@ import { usePlanning } from '../context/PlanningContext';
 import { useTabBar, MIN_TABS, MAX_TABS } from '../context/TabBarContext';
 import { useSpeedDial, MIN_SHORTCUTS, MAX_SHORTCUTS } from '../context/SpeedDialContext';
 import { useAppLock, AUTO_LOCK_OPTIONS } from '../context/AppLockContext';
-import { isBiometricAvailable } from '../utils/biometricAuth';
+import { isBiometricAvailable, authenticateWithBiometrics } from '../utils/biometricAuth';
 import {
   ensurePermission,
   getPermissionStatus,
@@ -51,7 +51,7 @@ import {
 } from '../utils/weeklyReviewSettings';
 import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '../utils/backup';
 import { decryptNotesFromBackup } from '../utils/noteEncryption';
-import { getBackupPassword, hasBackupPassword, setBackupPassword, clearBackupPassword } from '../utils/backupPassword';
+import { getBackupPassword, hasBackupPassword, setBackupPassword, setBackupPasswordWithRecovery, clearBackupPassword, getRecoveryEnvelope, recoverBackupPassword } from '../utils/backupPassword';
 import { encryptPayloadWithPassword, decryptPayloadWithPassword } from '../utils/backupEncryption';
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
@@ -122,6 +122,7 @@ export default function SettingsScreen({ navigation }) {
     setMethod: setLockMethod,
     setAutoLockMinutes,
     setPin,
+    verifyPin,
   } = useAppLock();
   const insets = useSafeAreaInsets();
 
@@ -134,10 +135,16 @@ export default function SettingsScreen({ navigation }) {
   // Whole-backup password (encrypts EVERYTHING in a backup, not just
   // locked notes) — see backupPassword.js / backupEncryption.js.
   const [backupPasswordSet, setBackupPasswordSet] = useState(false);
-  const [bpModalMode, setBpModalMode] = useState(null); // null | 'set' | 'import'
+  const [bpModalMode, setBpModalMode] = useState(null); // null | 'set' | 'import' | 'reveal'
   const [bpDraft, setBpDraft] = useState('');
   const [bpConfirmDraft, setBpConfirmDraft] = useState('');
   const [pendingImportEnvelope, setPendingImportEnvelope] = useState(null);
+  const [importUsingRecoveryKey, setImportUsingRecoveryKey] = useState(false);
+  const [bpRevealPinDraft, setBpRevealPinDraft] = useState('');
+  const [bpRevealPinError, setBpRevealPinError] = useState(false);
+  const [pendingRecoveryKey, setPendingRecoveryKey] = useState(''); // shown once after setting a password
+  const [recoveryKeyDraft, setRecoveryKeyDraft] = useState(''); // typed in during recovery
+  const [recoveryKeyError, setRecoveryKeyError] = useState(false);
 
 
   const [dayClosingReminderOn, setDayClosingReminderOn] = useState(false);
@@ -212,12 +219,12 @@ export default function SettingsScreen({ navigation }) {
       Alert.alert(t('errorLabel'), t('backupPasswordMismatch'));
       return;
     }
-    await setBackupPassword(bpDraft);
+    const recoveryKey = await setBackupPasswordWithRecovery(bpDraft);
     setBackupPasswordSet(true);
-    setBpModalMode(null);
     setBpDraft('');
     setBpConfirmDraft('');
-    Alert.alert(t('backupPasswordSavedTitle'), t('backupPasswordSavedBody'));
+    setPendingRecoveryKey(recoveryKey);
+    setBpModalMode('showRecoveryKey');
   };
 
   const handleRemoveBackupPassword = () => {
@@ -232,6 +239,72 @@ export default function SettingsScreen({ navigation }) {
         },
       },
     ]);
+  };
+
+  /**
+   * "Forgot backup password" — the password is already stored on this
+   * device (that's how unattended GitHub auto-backup encrypts without a
+   * prompt), so recovering it here just means showing it again, behind a
+   * re-authentication step so a stranger holding the phone can't casually
+   * read it. This only works on the SAME device/install the password was
+   * set on — there's no way to recover it for decrypting a backup on a
+   * different device, by design (see backupPasswordWarning copy).
+   */
+  const revealBackupPassword = async () => {
+    const password = await getBackupPassword();
+    if (!password) return;
+    Alert.alert(t('backupPasswordRevealTitle'), password, [{ text: t('close') }]);
+  };
+
+  const handleRevealBackupPassword = async () => {
+    const bioAvailable = await isBiometricAvailable();
+    if (bioAvailable) {
+      const ok = await authenticateWithBiometrics();
+      if (ok) revealBackupPassword();
+      return;
+    }
+    if (hasPin) {
+      setBpRevealPinDraft('');
+      setBpRevealPinError(false);
+      setBpModalMode('reveal');
+      return;
+    }
+    // No PIN and no biometrics set up anywhere in the app — nothing else
+    // guards this device, so just confirm intent and show it.
+    Alert.alert(t('backupPasswordRevealTitle'), t('backupPasswordRevealNoAuthConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('backupPasswordRevealAction'), onPress: revealBackupPassword },
+    ]);
+  };
+
+  const handleSubmitRevealPin = async () => {
+    const ok = await verifyPin(bpRevealPinDraft.trim());
+    if (!ok) {
+      setBpRevealPinError(true);
+      setBpRevealPinDraft('');
+      return;
+    }
+    setBpModalMode(null);
+    setBpRevealPinDraft('');
+    revealBackupPassword();
+  };
+
+  const handleOpenRecoverWithKey = () => {
+    setRecoveryKeyDraft('');
+    setRecoveryKeyError(false);
+    setBpModalMode('recoverWithKey');
+  };
+
+  const handleSubmitRecoveryKey = async () => {
+    const recovered = await recoverBackupPassword(recoveryKeyDraft);
+    if (!recovered) {
+      setRecoveryKeyError(true);
+      return;
+    }
+    setBackupPasswordSet(true);
+    setBpModalMode(null);
+    setRecoveryKeyDraft('');
+    Alert.alert(t('backupPasswordRevealTitle'), recovered, [{ text: t('close') }]);
   };
 
   const handleToggleDayClosingReminder = async (value) => {
@@ -345,7 +418,10 @@ export default function SettingsScreen({ navigation }) {
     try {
       let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
       const password = await getBackupPassword();
-      if (password) payload = await encryptPayloadWithPassword(payload, password);
+      if (password) {
+        const recoveryEnvelope = await getRecoveryEnvelope();
+        payload = await encryptPayloadWithPassword(payload, password, recoveryEnvelope);
+      }
       const result = await uploadBackupToGithub(payload);
       setGhLastStatus(await getLastBackupStatus());
       Alert.alert(result.ok ? t('githubBackupTestSuccess') : t('githubBackupTestFailed'), result.message);
@@ -416,7 +492,10 @@ export default function SettingsScreen({ navigation }) {
     try {
       let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
       const password = await getBackupPassword();
-      if (password) payload = await encryptPayloadWithPassword(payload, password);
+      if (password) {
+        const recoveryEnvelope = await getRecoveryEnvelope();
+        payload = await encryptPayloadWithPassword(payload, password, recoveryEnvelope);
+      }
       await exportBackupToFile(payload);
     } catch (e) {
       Alert.alert(t('backupFailed'));
@@ -466,6 +545,7 @@ export default function SettingsScreen({ navigation }) {
         // Whole-backup password-encrypted file — prompt for the password
         // before there's anything to confirm/replace.
         setPendingImportEnvelope(result.envelope);
+        setImportUsingRecoveryKey(false);
         setBpModalMode('import');
         setBusy(null);
         return;
@@ -488,6 +568,34 @@ export default function SettingsScreen({ navigation }) {
       confirmAndApplyImport(payload.data);
     } catch (e) {
       Alert.alert(t('errorLabel'), t('backupWrongPassword'));
+    }
+  };
+
+  /**
+   * Cross-device "forgot password" recovery: this backup file was made
+   * with a password we may never have had locally (fresh install), but if
+   * it carries a recovery-key-wrapped copy of that password (see
+   * backupEncryption.js), the recovery key alone is enough to unwrap it
+   * and decrypt the backup — no need to ever have set the password on
+   * this device.
+   */
+  const handleSubmitImportRecoveryKey = async () => {
+    const recovered = await recoverBackupPassword(recoveryKeyDraft, pendingImportEnvelope?.recoveryEnvelope);
+    if (!recovered) {
+      setRecoveryKeyError(true);
+      return;
+    }
+    try {
+      const payload = await decryptPayloadWithPassword(pendingImportEnvelope, recovered);
+      setBackupPasswordSet(true);
+      setBpModalMode(null);
+      setImportUsingRecoveryKey(false);
+      setRecoveryKeyDraft('');
+      setPendingImportEnvelope(null);
+      setBusy('import');
+      confirmAndApplyImport(payload.data);
+    } catch (e) {
+      setRecoveryKeyError(true);
     }
   };
 
@@ -1108,6 +1216,9 @@ export default function SettingsScreen({ navigation }) {
                       </View>
                       {backupPasswordSet ? (
                         <View style={{ flexDirection: 'row', gap: 14 }}>
+                          <TouchableOpacity onPress={handleRevealBackupPassword} hitSlop={8}>
+                            <Ionicons name="eye-outline" size={19} color={colors.textSecondary} />
+                          </TouchableOpacity>
                           <TouchableOpacity onPress={() => setBpModalMode('set')} hitSlop={8}>
                             <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
                           </TouchableOpacity>
@@ -1121,6 +1232,102 @@ export default function SettingsScreen({ navigation }) {
                         </TouchableOpacity>
                       )}
                     </View>
+
+                    <TouchableOpacity onPress={handleOpenRecoverWithKey} style={{ marginTop: 4, marginBottom: 8 }} hitSlop={8}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>{t('backupPasswordForgotLink')}</Text>
+                    </TouchableOpacity>
+
+                    {bpModalMode === 'showRecoveryKey' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('recoveryKeyTitle')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, marginBottom: 10, lineHeight: 17 }}>
+                          {t('recoveryKeyExplain')}
+                        </Text>
+                        <Text
+                          selectable
+                          style={{
+                            color: colors.text,
+                            fontSize: 16,
+                            fontWeight: '700',
+                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                            letterSpacing: 1,
+                            textAlign: 'center',
+                            padding: 12,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.surface,
+                          }}
+                        >
+                          {pendingRecoveryKey}
+                        </Text>
+                        <Text style={{ color: colors.danger, fontSize: 12, marginTop: 10, lineHeight: 17 }}>
+                          {t('recoveryKeyWarning')}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => { setBpModalMode(null); setPendingRecoveryKey(''); }}
+                          style={[styles.pill, { alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary, marginTop: 12 }]}
+                        >
+                          <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('recoveryKeySavedConfirm')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {bpModalMode === 'recoverWithKey' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('recoveryKeyRecoverPrompt')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 }}>
+                          {t('recoveryKeyRecoverExplain')}
+                        </Text>
+                        <TextInput
+                          value={recoveryKeyDraft}
+                          onChangeText={(v) => { setRecoveryKeyDraft(v); setRecoveryKeyError(false); }}
+                          placeholder={t('recoveryKeyInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          autoCapitalize="characters"
+                          autoCorrect={false}
+                          style={[styles.input, { color: colors.text, borderColor: recoveryKeyError ? colors.danger : colors.border, backgroundColor: colors.surface, marginTop: 4 }]}
+                        />
+                        {recoveryKeyError && (
+                          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 6 }}>{t('recoveryKeyIncorrect')}</Text>
+                        )}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity onPress={() => { setBpModalMode(null); setRecoveryKeyDraft(''); }} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSubmitRecoveryKey} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('recoveryKeyRecoverAction')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {bpModalMode === 'reveal' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('backupPasswordRevealPinPrompt')}</Text>
+                        <TextInput
+                          value={bpRevealPinDraft}
+                          onChangeText={(v) => { setBpRevealPinDraft(v); setBpRevealPinError(false); }}
+                          placeholder={t('pinInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          secureTextEntry
+                          keyboardType="number-pad"
+                          autoFocus
+                          style={[styles.input, { color: colors.text, borderColor: bpRevealPinError ? colors.danger : colors.border, backgroundColor: colors.surface, marginTop: 8 }]}
+                        />
+                        {bpRevealPinError && (
+                          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 6 }}>{t('wrongPinTryAgain')}</Text>
+                        )}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity onPress={() => { setBpModalMode(null); setBpRevealPinDraft(''); }} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSubmitRevealPin} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordSubmitAction')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
 
                     {bpModalMode === 'set' && (
                       <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
@@ -1157,7 +1364,7 @@ export default function SettingsScreen({ navigation }) {
                       </View>
                     )}
 
-                    {bpModalMode === 'import' && (
+                    {bpModalMode === 'import' && !importUsingRecoveryKey && (
                       <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
                         <Text style={[styles.sublabel, { color: colors.text }]}>{t('backupPasswordEnterForImport')}</Text>
                         <TextInput
@@ -1179,6 +1386,48 @@ export default function SettingsScreen({ navigation }) {
                           </TouchableOpacity>
                           <TouchableOpacity onPress={handleSubmitImportPassword} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
                             <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordSubmitAction')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {!!pendingImportEnvelope?.recoveryEnvelope && (
+                          <TouchableOpacity
+                            onPress={() => { setImportUsingRecoveryKey(true); setRecoveryKeyDraft(''); setRecoveryKeyError(false); }}
+                            style={{ marginTop: 12, alignSelf: 'center' }}
+                            hitSlop={8}
+                          >
+                            <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>{t('backupPasswordForgotUseRecoveryKey')}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+
+                    {bpModalMode === 'import' && importUsingRecoveryKey && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('recoveryKeyRecoverPrompt')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 }}>
+                          {t('recoveryKeyRecoverExplain')}
+                        </Text>
+                        <TextInput
+                          value={recoveryKeyDraft}
+                          onChangeText={(v) => { setRecoveryKeyDraft(v); setRecoveryKeyError(false); }}
+                          placeholder={t('recoveryKeyInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          autoCapitalize="characters"
+                          autoCorrect={false}
+                          autoFocus
+                          style={[styles.input, { color: colors.text, borderColor: recoveryKeyError ? colors.danger : colors.border, backgroundColor: colors.surface, marginTop: 4 }]}
+                        />
+                        {recoveryKeyError && (
+                          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 6 }}>{t('recoveryKeyIncorrect')}</Text>
+                        )}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity
+                            onPress={() => { setImportUsingRecoveryKey(false); setRecoveryKeyDraft(''); setRecoveryKeyError(false); }}
+                            style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordForgotUsePasswordInstead')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSubmitImportRecoveryKey} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('recoveryKeyRecoverAction')}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>

@@ -48,7 +48,7 @@ async function deriveKey(password, saltHex) {
  * recognized as "an A backup that needs a password" instead of looking
  * like garbage.
  */
-export async function encryptPayloadWithPassword(payload, password) {
+export async function encryptPayloadWithPassword(payload, password, recoveryEnvelope = null) {
   if (!password) throw new Error('encryptPayloadWithPassword requires a non-empty password');
 
   const saltBytes = await Crypto.getRandomBytesAsync(16);
@@ -76,6 +76,13 @@ export async function encryptPayloadWithPassword(payload, password) {
     salt: saltHex,
     iv: ivHex,
     ciphertext: encrypted.ciphertext.toString(CryptoJS.enc.Base64),
+    // The recovery-key-wrapped copy of the backup password, if one exists
+    // (see backupPasswordRecovery.js). Stored in plaintext alongside the
+    // other envelope metadata — deliberately, since it's only useful to
+    // someone who also has the recovery key. This is what makes "forgot
+    // password" recovery possible on a device that never had the password
+    // stored locally, e.g. a fresh install restoring from GitHub.
+    recoveryEnvelope: recoveryEnvelope || null,
   };
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, BackHandler, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -7,7 +7,7 @@ import { usePreventScreenCapture } from 'expo-screen-capture';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAppLock } from '../context/AppLockContext';
-import { authenticateWithBiometrics } from '../utils/biometricAuth';
+import { authenticateWithBiometrics, isBiometricAvailable } from '../utils/biometricAuth';
 
 const PIN_PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
 
@@ -20,13 +20,21 @@ export default function LockScreen({ onUnlock }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { method, verifyPin, lockoutRemainingMs } = useAppLock();
+  const { method, verifyPin, lockoutRemainingMs, resetAppLock } = useAppLock();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [tryingBiometric, setTryingBiometric] = useState(false);
   const [checkingPin, setCheckingPin] = useState(false);
   const [lockoutMs, setLockoutMs] = useState(0);
+  const [recoveryBiometricAvailable, setRecoveryBiometricAvailable] = useState(false);
   const tickRef = useRef(null);
+
+  useEffect(() => {
+    // Checked independently of `method` — someone using the PIN method may
+    // still have biometrics enrolled on the device, and that's a strong
+    // enough proof of identity to use as a "forgot PIN" fallback.
+    isBiometricAvailable().then(setRecoveryBiometricAvailable);
+  }, []);
 
   // Blocks screenshots and screen recording while sensitive PIN/biometric
   // entry is on screen, and (on Android) also blanks this screen's
@@ -95,6 +103,26 @@ export default function LockScreen({ onUnlock }) {
 
   const lockoutMinutes = Math.ceil(lockoutMs / 60000);
 
+  const doResetAppLock = async () => {
+    await resetAppLock();
+    onUnlock();
+  };
+
+  const handleForgotPin = () => {
+    if (recoveryBiometricAvailable) {
+      Alert.alert(t('forgotPinTitle'), t('forgotPinBodyWithBiometric'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('unlockWithBiometric'), onPress: tryBiometric },
+        { text: t('forgotPinResetAction'), style: 'destructive', onPress: doResetAppLock },
+      ]);
+    } else {
+      Alert.alert(t('forgotPinTitle'), t('forgotPinBodyNoBiometric'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('forgotPinResetAction'), style: 'destructive', onPress: doResetAppLock },
+      ]);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 40 }]}>
       <View style={styles.center}>
@@ -155,6 +183,10 @@ export default function LockScreen({ onUnlock }) {
               style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: isLockedOut ? 0.4 : 1 }]}
             >
               <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>{t('unlockWithPin')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleForgotPin} style={{ marginTop: 18 }} hitSlop={8}>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>{t('forgotPinLink')}</Text>
             </TouchableOpacity>
           </>
         )}

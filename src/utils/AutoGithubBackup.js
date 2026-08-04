@@ -9,7 +9,7 @@ import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useWishlist } from '../context/WishlistContext';
 import { buildBackupPayload } from './backup';
-import { getBackupPassword } from './backupPassword';
+import { getBackupPassword, getRecoveryEnvelope } from './backupPassword';
 import { encryptPayloadWithPassword } from './backupEncryption';
 import { shouldRunAutoBackupToday, uploadBackupToGithub, getGithubConfig } from './githubBackup';
 
@@ -63,7 +63,8 @@ export default function AutoGithubBackup() {
       // locked notes) gets encrypted before it ever leaves the device.
       const backupPassword = await getBackupPassword();
       if (backupPassword) {
-        payload = await encryptPayloadWithPassword(payload, backupPassword);
+        const recoveryEnvelope = await getRecoveryEnvelope();
+        payload = await encryptPayloadWithPassword(payload, backupPassword, recoveryEnvelope);
       }
 
       await uploadBackupToGithub(payload);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ export default function NoteUnlockGate({ onUnlock, onCancel }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { hasPin, verifyPin, lockoutRemainingMs } = useAppLock();
+  const { hasPin, verifyPin, lockoutRemainingMs, resetAppLock } = useAppLock();
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
@@ -93,6 +93,26 @@ export default function NoteUnlockGate({ onUnlock, onCancel }) {
   const lockoutMinutes = Math.ceil(lockoutMs / 60000);
   const noMethod = !biometricAvailable && !hasPin;
 
+  const doResetAppLock = async () => {
+    await resetAppLock();
+    onUnlock();
+  };
+
+  const handleForgotPin = () => {
+    if (biometricAvailable) {
+      Alert.alert(t('forgotPinTitle'), t('forgotPinBodyWithBiometric'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('unlockWithBiometric'), onPress: tryBiometric },
+        { text: t('forgotPinResetAction'), style: 'destructive', onPress: doResetAppLock },
+      ]);
+    } else {
+      Alert.alert(t('forgotPinTitle'), t('forgotPinBodyNoBiometric'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('forgotPinResetAction'), style: 'destructive', onPress: doResetAppLock },
+      ]);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 30 }]}>
       <TouchableOpacity onPress={onCancel} style={styles.backBtn} hitSlop={10}>
@@ -149,6 +169,9 @@ export default function NoteUnlockGate({ onUnlock, onCancel }) {
                         </TouchableOpacity>
                       ))}
                     </View>
+                    <TouchableOpacity onPress={handleForgotPin} style={{ marginTop: 14 }} hitSlop={8}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>{t('forgotPinLink')}</Text>
+                    </TouchableOpacity>
                   </>
                 )}
               </>

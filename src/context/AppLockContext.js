@@ -118,6 +118,21 @@ export function AppLockProvider({ children }) {
     setHasPin(false);
   }, []);
 
+  /**
+   * "Forgot PIN" recovery. The PIN never encrypts anything — it's purely a
+   * gate (see the comment on PIN_KEY above) — so clearing it loses no data.
+   * This wipes the PIN, turns App Lock off, and clears any lockout, giving
+   * a locked-out person a way back in without needing to remember anything
+   * else. They can set a fresh PIN and re-enable the lock from Settings
+   * afterward.
+   */
+  const resetAppLock = useCallback(async () => {
+    await SecureStore.deleteItemAsync(PIN_KEY).catch(() => {});
+    setHasPin(false);
+    await persistAttempts(DEFAULT_ATTEMPTS);
+    await persist({ ...DEFAULT_STATE });
+  }, [persist, persistAttempts]);
+
   /** How many ms remain before another PIN attempt is allowed (0 = not locked out). */
   const lockoutRemainingMs = useCallback(() => {
     return Math.max(0, attempts.lockedUntil - Date.now());
@@ -170,10 +185,11 @@ export function AppLockProvider({ children }) {
       setAutoLockMinutes,
       setPin,
       clearPin,
+      resetAppLock,
       verifyPin,
       lockoutRemainingMs,
     }),
-    [loaded, state, hasPin, setEnabled, setMethod, setAutoLockMinutes, setPin, clearPin, verifyPin, lockoutRemainingMs]
+    [loaded, state, hasPin, setEnabled, setMethod, setAutoLockMinutes, setPin, clearPin, resetAppLock, verifyPin, lockoutRemainingMs]
   );
 
   return (
