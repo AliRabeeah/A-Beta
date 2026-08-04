@@ -1,0 +1,25 @@
+diff --git a/node_modules/expo-modules-autolinking/scripts/android/autolinking_implementation.gradle b/node_modules/expo-modules-autolinking/scripts/android/autolinking_implementation.gradle
+index 98c404e..35a7c7a 100644
+--- a/node_modules/expo-modules-autolinking/scripts/android/autolinking_implementation.gradle
++++ b/node_modules/expo-modules-autolinking/scripts/android/autolinking_implementation.gradle
+@@ -329,8 +329,18 @@ if (rootProject instanceof ProjectDescriptor) {
+       }
+       for (module in modules) {
+         for (modulePlugin in module.plugins) {
+-          println " ${Emojis.INFORMATION}  ${Colors.YELLOW}Applying gradle plugin${Colors.RESET} '${Colors.GREEN}${modulePlugin.id}${Colors.RESET}' (${module.name}@${module.version})"
+-          project.plugins.apply(modulePlugin.id)
++          // Guard against applying a library-style gradle plugin to the app
++          // project, which conflicts with the already-applied
++          // com.android.application plugin.
++          // See: https://github.com/expo/expo/issues/41188
++          if (project == rootProject) {
++            logger.lifecycle("Skipping applying ${modulePlugin.id} to root project ${project.name}")
++          } else if (project.plugins.hasPlugin('com.android.application')) {
++            logger.lifecycle("Skipping applying ${modulePlugin.id} to ${project.path} because it already has com.android.application")
++          } else if (!project.plugins.hasPlugin(modulePlugin.id)) {
++            println " ${Emojis.INFORMATION}  ${Colors.YELLOW}Applying gradle plugin${Colors.RESET} '${Colors.GREEN}${modulePlugin.id}${Colors.RESET}' (${module.name}@${module.version})"
++            project.plugins.apply(modulePlugin.id)
++          }
+         }
+       }
+     }

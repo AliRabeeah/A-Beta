@@ -5,7 +5,9 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "test": "jest"
+    "test": "jest",
+    "ios": "expo run:ios",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
@@ -15,25 +17,25 @@
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
     "@sefatunckanat/expo-dynamic-app-icon": "^2.0.11",
+    "crypto-js": "^4.2.0",
     "expo": "~52.0.0",
     "expo-asset": "~11.0.0",
+    "expo-av": "~15.0.1",
     "expo-blur": "~14.0.1",
     "expo-constants": "~17.0.0",
+    "expo-crypto": "~14.0.0",
     "expo-device": "~7.0.0",
     "expo-document-picker": "~13.0.0",
     "expo-file-system": "~18.0.0",
     "expo-font": "~13.0.0",
-    "expo-av": "~15.0.1",
     "expo-haptics": "~14.0.0",
     "expo-linear-gradient": "~14.0.1",
-    "expo-navigation-bar": "~4.0.0",
-    "expo-quick-actions": "^4.0.2",
     "expo-local-authentication": "~14.0.0",
-    "expo-screen-capture": "~7.0.0",
-    "expo-crypto": "~14.0.0",
-    "crypto-js": "^4.2.0",
     "expo-localization": "~16.0.0",
+    "expo-navigation-bar": "~4.0.0",
     "expo-notifications": "~0.29.0",
+    "expo-quick-actions": "^4.0.2",
+    "expo-screen-capture": "~7.0.0",
     "expo-secure-store": "~14.0.0",
     "expo-sharing": "~13.0.0",
     "expo-splash-screen": "~0.29.0",
@@ -52,11 +54,16 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "jest-expo": "~52.0.0"
+    "jest-expo": "~52.0.0",
+    "patch-package": "^8.0.1"
   },
   "jest": {
     "preset": "jest-expo",
-    "testPathIgnorePatterns": ["/node_modules/", "/android/", "/ios/"]
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/",
+      "/ios/"
+    ]
   },
   "private": true,
   "description": "A minimal, AMOLED-black habit tracker built with Expo/React Native.",
