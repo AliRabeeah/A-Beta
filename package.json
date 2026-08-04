@@ -69,5 +69,8 @@
   "description": "A minimal, AMOLED-black habit tracker built with Expo/React Native.",
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "overrides": {
+    "expo-modules-core": "~2.2.3"
+  }
 }
