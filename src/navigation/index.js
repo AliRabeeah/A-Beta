@@ -50,6 +50,7 @@ import SearchScreen from '../screens/SearchScreen';
 import AgendaScreen from '../screens/AgendaScreen';
 import WeeklyReviewScreen from '../screens/WeeklyReviewScreen';
 import YearInPixelsScreen from '../screens/YearInPixelsScreen';
+import CompanionScreen from '../screens/CompanionScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -70,6 +71,7 @@ const TAB_SCREEN_COMPONENTS = {
   Favorites: FavoritesScreen,
   Planning: PlanningScreen,
   Timer: TimerScreen,
+  Companion: CompanionScreen,
 };
 
 function Tabs() {
@@ -179,6 +181,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Agenda" component={AgendaScreen} options={{ headerShown: false }} />
       <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
       <Stack.Screen name="YearInPixels" component={YearInPixelsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Companion" component={CompanionScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

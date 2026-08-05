@@ -61,6 +61,7 @@ export default function SideDrawer({ visible, onClose, navigation }) {
     { key: 'Favorites', icon: 'star-outline', label: t('favoritesTitle') },
     { key: 'Wishlist', icon: 'sparkles-outline', label: t('wishlistTitle') },
     { key: 'Timer', icon: 'timer-outline', label: t('timerTitle') },
+    { key: 'Companion', icon: 'paw-outline', label: t('companionTitle') },
     { key: 'Stats', icon: 'bar-chart-outline', label: t('statsTitle') },
     { key: 'WeeklyReview', icon: 'calendar-outline', label: t('weeklyReviewTitle') },
     { key: 'YearInPixels', icon: 'grid-outline', label: t('yearInPixelsTitle') },

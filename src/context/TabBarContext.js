@@ -17,6 +17,7 @@ export const TAB_BAR_POOL = [
   { id: 'Favorites', icon: 'heart-outline' },
   { id: 'Planning', icon: 'calendar-outline' },
   { id: 'Timer', icon: 'timer-outline' },
+  { id: 'Companion', icon: 'paw-outline' },
 ];
 
 // Default on first run = exactly today's fixed 5 tabs, in the same order,
