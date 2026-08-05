@@ -6,7 +6,7 @@ import Companion from './Companion';
 import { getSkyState, celestialPosition } from '../utils/companionWorldTime';
 
 const VB_W = 320;
-const VB_H = 200;
+const BASE_VB_H = 200;
 const REFRESH_MS = 5 * 60 * 1000; // recheck the clock every 5 minutes — a garden, not a stopwatch
 
 function Twinkle({ cx, cy, r, delay, children }) {
@@ -76,7 +76,7 @@ function FireflyOrButterfly({ night, x, y, color, delay }) {
   );
 }
 
-export default function CompanionWorld({ stage = 1, mood = 'content', accentColor = '#FF8A00', width }) {
+export default function CompanionWorld({ stage = 1, mood = 'content', accentColor = '#FF8A00', width, height, borderRadius = 20, catBottomOffset = 0.06, catSizeRatio = 0.4 }) {
   const [sky, setSky] = useState(() => getSkyState());
 
   useEffect(() => {
@@ -85,7 +85,13 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
   }, []);
 
   const w = width;
-  const h = (w * VB_H) / VB_W;
+  const h = height ?? (w * BASE_VB_H) / VB_W;
+  // When we're filling an arbitrary tall rect (fullscreen) rather than a
+  // fixed-aspect card, stretch the viewBox's vertical extent to match so
+  // the hill/ground still sits near the real bottom of the screen instead
+  // of floating mid-air with empty space below it. Every VB_H reference
+  // below now means "this scene's actual height", not the fixed 200.
+  const VB_H = (VB_W * h) / w;
   const night = sky.period === 'night';
   const pos = celestialPosition(sky.progress);
   const sunX = pos.x * VB_W;
@@ -135,7 +141,7 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
   const flutterCount = stage >= 6 ? 3 : stage >= 5 ? 2 : 1;
 
   return (
-    <View style={{ width: w, height: h, borderRadius: 20, overflow: 'hidden' }}>
+    <View style={{ width: w, height: h, borderRadius, overflow: 'hidden' }}>
       {/* sky */}
       <Svg width={w} height={h} viewBox={`0 0 ${VB_W} ${VB_H}`} style={{ position: 'absolute' }}>
         <Defs>
@@ -210,8 +216,8 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
         ))}
 
       {/* the cat, standing on the ground */}
-      <View style={{ position: 'absolute', bottom: h * 0.06, left: 0, right: 0, alignItems: 'center' }}>
-        <Companion stage={stage} mood={mood} accentColor={accentColor} size={Math.min(120, w * 0.4)} />
+      <View style={{ position: 'absolute', bottom: h * catBottomOffset, left: 0, right: 0, alignItems: 'center' }}>
+        <Companion stage={stage} mood={mood} accentColor={accentColor} size={Math.min(180, w * catSizeRatio)} />
       </View>
     </View>
   );
