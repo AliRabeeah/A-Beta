@@ -1,7 +1,16 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, useWindowDimensions, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, useWindowDimensions, StatusBar, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -12,13 +21,6 @@ import SideDrawer from '../components/SideDrawer';
 import CompanionWorld from '../components/CompanionWorld';
 import { computeCompanionState, xpEarnedToday } from '../utils/companionStats';
 import { getCompanionName, setCompanionName, DEFAULT_COMPANION_NAME } from '../utils/companionProfile';
-
-const MOOD_LABEL_KEY = {
-  happy: 'companionMoodHappy',
-  content: 'companionMoodContent',
-  sleepy: 'companionMoodSleepy',
-  new: 'companionMoodNew',
-};
 
 // A round, semi-transparent glass button for floating over the scene —
 // used for the menu and stats triggers so they read as controls, not chrome.
@@ -41,6 +43,78 @@ function GlassButton({ onPress, icon, size = 40, iconSize = 20, style }) {
     >
       <Ionicons name={icon} size={iconSize} color="#FFFFFF" />
     </TouchableOpacity>
+  );
+}
+
+// Renders text with a soft cartoon "sticker" outline by stacking a few
+// offset copies behind the main colored text — a cheap, dependency-free
+// stand-in for a proper stroked/comic font.
+function OutlinedText({ text, textStyle, color, outlineColor }) {
+  const offsets = [
+    [-1, -1], [1, -1], [-1, 1], [1, 1],
+    [0, -1.3], [0, 1.3], [-1.3, 0], [1.3, 0],
+  ];
+  return (
+    <View>
+      {offsets.map(([dx, dy], i) => (
+        <Text key={i} style={[textStyle, styles.badgeTextGhost, { left: dx, top: dy, color: outlineColor }]}>
+          {text}
+        </Text>
+      ))}
+      <Text style={[textStyle, { color }]} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+// A small floating name tag for the companion, styled like a hand-lettered
+// sticker rather than a plain UI pill. Lives up top, out of the way of the
+// scene, bobs and tilts gently, and opens the same stats sheet the old
+// bottom bar used to (tap or long-press).
+function NameBadge({ name, accent, onOpen }) {
+  const float = useSharedValue(0);
+  const press = useSharedValue(1);
+
+  useEffect(() => {
+    float.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1700, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 1700, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const floatStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: float.value * -3 },
+      { rotate: `${-3 + float.value * 6}deg` },
+      { scale: press.value },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.nameBadgeWrap, floatStyle]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onOpen}
+        onLongPress={onOpen}
+        onPressIn={() => {
+          press.value = withTiming(0.92, { duration: 90 });
+        }}
+        onPressOut={() => {
+          press.value = withSpring(1, { damping: 12, stiffness: 220 });
+        }}
+        style={[styles.nameBadge, { backgroundColor: accent }]}
+      >
+        {/* little "knot" nub at the top, like a hanging tag */}
+        <View style={[styles.nameBadgeNub, { backgroundColor: accent }]} />
+        <Ionicons name="paw" size={11} color="rgba(255,255,255,0.92)" style={{ marginRight: 4 }} />
+        <OutlinedText text={name} textStyle={styles.nameBadgeText} color="#FFFFFF" outlineColor="rgba(0,0,0,0.28)" />
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -110,18 +184,11 @@ export default function CompanionScreen({ navigation }) {
         <GlassButton icon="stats-chart" onPress={openStats} />
       </View>
 
-      {/* name + mood, tucked low and unobtrusive, tap to open the stats sheet */}
-      <TouchableOpacity
-        onPress={openStats}
-        activeOpacity={0.8}
-        style={[styles.namePill, { bottom: insets.bottom + 18 }]}
-      >
-        <Text style={styles.namePillName}>{name}</Text>
-        <View style={styles.namePillDot} />
-        <Text style={styles.namePillMood} numberOfLines={1}>
-          {t(MOOD_LABEL_KEY[state.mood])}
-        </Text>
-      </TouchableOpacity>
+      {/* the name tag floats centered in that same top band, independent of
+          the two side buttons, so it never crowds the scene or the cat */}
+      <View pointerEvents="box-none" style={[styles.nameBadgeRow, { top: insets.top + 6 }]}>
+        <NameBadge name={name} accent={accent} onOpen={openStats} />
+      </View>
 
       {/* stats bottom sheet — everything that used to live on-screen now lives here */}
       <Modal visible={statsOpen} transparent animationType="slide" onRequestClose={() => setStatsOpen(false)}>
@@ -206,20 +273,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  namePill: {
+  nameBadgeRow: {
     position: 'absolute',
-    alignSelf: 'center',
-    maxWidth: '80%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    // sits above the two glass buttons visually but never intercepts touches
+    // outside the tag itself, thanks to pointerEvents="box-none" above
+    zIndex: 5,
+  },
+  nameBadgeWrap: {
+    maxWidth: '54%',
+  },
+  nameBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(20,22,30,0.4)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    // a soft drop shadow so the tag lifts off the scene like a sticker
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 5,
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  namePillName: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  namePillDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.6)', marginHorizontal: 7 },
-  namePillMood: { color: 'rgba(255,255,255,0.85)', fontSize: 12, flexShrink: 1 },
+  nameBadgeNub: {
+    position: 'absolute',
+    top: -5,
+    left: '50%',
+    marginLeft: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  nameBadgeText: {
+    fontSize: 15,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    letterSpacing: 0.3,
+    fontFamily: Platform.select({ ios: 'Marker Felt', android: 'sans-serif-condensed', default: undefined }),
+  },
+  badgeTextGhost: {
+    position: 'absolute',
+  },
 
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10, maxHeight: '70%' },
