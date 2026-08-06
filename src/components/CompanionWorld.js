@@ -13,7 +13,7 @@ import {
   vec,
 } from '@shopify/react-native-skia';
 import { useSharedValue, useDerivedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import Companion from './Companion';
+import Companion from './CompanionExpressions'; // was './Companion' (Skia) or './CompanionLottie' — swap back to revert
 import { getSkyState, celestialPosition } from '../utils/companionWorldTime';
 
 const VB_W = 320;
@@ -372,8 +372,11 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
         </Group>
       </Canvas>
 
-      {/* the cat, standing on the ground — kept as its own Canvas (see
-          Companion.js) so it can be reused standalone elsewhere in the app */}
+      {/* the cat, standing on the ground — a separate overlay View (not part
+          of the Skia Canvas above) so the character implementation can be
+          swapped freely; currently CompanionExpressions.js (static image
+          per mood + code-driven breathing), see its file header and
+          src/assets/companion-expressions/README.md */}
       <View style={{ position: 'absolute', bottom: h * catBottomOffset, left: 0, right: 0, alignItems: 'center' }}>
         <Companion stage={stage} mood={mood} accentColor={accentColor} size={Math.min(180, w * catSizeRatio)} />
       </View>

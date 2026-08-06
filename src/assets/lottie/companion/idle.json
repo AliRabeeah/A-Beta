@@ -1,0 +1,13 @@
+{
+  "v": "5.9.6",
+  "fr": 30,
+  "ip": 0,
+  "op": 60,
+  "w": 200,
+  "h": 200,
+  "nm": "companion-idle-placeholder",
+  "ddd": 0,
+  "assets": [],
+  "layers": [],
+  "__README": "This is a deliberately EMPTY placeholder so the app builds before a real animation is added. Download a free cat Lottie animation and REPLACE this exact file (keep the filename idle.json) — see src/assets/lottie/companion/README.md for where to get one and what to check before replacing."
+}

@@ -200,22 +200,35 @@ export default function CompanionScreen({ navigation }) {
     setEditingName(false);
   }, [renameDraft]);
 
+  const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
+  const handleContainerLayout = useCallback((e) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    setScreenSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
+  }, []);
+
   if (!loaded) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={handleContainerLayout}>
       <StatusBar barStyle="light-content" />
 
-      {/* the world fills the ENTIRE screen, edge to edge, behind everything else —
-          extended by insets.bottom so the ground reaches the true bottom of the
-          display instead of stopping short and leaving the container's own
-          background exposed above the system nav bar */}
+      {/* the world fills the ENTIRE screen, edge to edge, behind everything else.
+          Sized from this container's own measured onLayout box rather than
+          useWindowDimensions() + insets.bottom: under Android's enforced
+          edge-to-edge layout, useWindowDimensions() can under-report the
+          real drawable height (it's meant to reflect the app's usable
+          window, not the true edge-to-edge canvas), so adding insets.bottom
+          to it still fell short and left a strip of the container's own
+          background exposed above the nav bar. onLayout reports exactly
+          how tall this full-bleed container was actually drawn, so the
+          canvas always reaches the true bottom pixel, whatever that is on
+          a given device. */}
       <CompanionWorld
         stage={state.stage}
         mood={state.mood}
         accentColor={accent}
-        width={width}
-        height={height + insets.bottom}
+        width={screenSize.width || width}
+        height={screenSize.height || height + insets.bottom}
         borderRadius={0}
         catBottomOffset={0.22}
         catSizeRatio={0.55}
