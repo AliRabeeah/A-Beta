@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, useWindowDimensions, StatusBar, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as NavigationBar from 'expo-navigation-bar';
+import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,6 +23,18 @@ import SideDrawer from '../components/SideDrawer';
 import CompanionWorld from '../components/CompanionWorld';
 import { computeCompanionState, xpEarnedToday } from '../utils/companionStats';
 import { getCompanionName, setCompanionName, DEFAULT_COMPANION_NAME } from '../utils/companionProfile';
+import { getSkyState } from '../utils/companionWorldTime';
+
+// Same formula CompanionWorld.js uses for its ground's bottom-most (shade)
+// color — kept in sync here so the system nav bar can match the exact pixel
+// color the scene ends on, in every time-of-day state, not just light/dark
+// theme. Duplicated rather than imported from CompanionWorld because that
+// file computes it from local render state; this is the one piece of it a
+// screen-level effect actually needs.
+function groundShadeColorFor(sky) {
+  const night = sky.period === 'night';
+  return night ? '#293450' : sky.period === 'day' ? '#68AE5E' : '#79A159';
+}
 
 // A round, semi-transparent glass button for floating over the scene —
 // used for the menu and stats triggers so they read as controls, not chrome.
@@ -121,7 +135,7 @@ function NameBadge({ name, accent, onOpen, maxWidth }) {
 }
 
 export default function CompanionScreen({ navigation }) {
-  const { colors, accent } = useTheme();
+  const { colors, accent, mode } = useTheme();
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -129,6 +143,30 @@ export default function CompanionScreen({ navigation }) {
   const { habits, loaded: habitsLoaded } = useHabits();
   const { tasks, loaded: tasksLoaded } = useTasks();
   const { challenges, loaded: challengesLoaded } = useChallenges();
+
+  // While EvoCat is the focused screen, blend the system nav bar into the
+  // scene's own ground color (it changes with time of day) instead of
+  // leaving it on the app's plain theme background — that's what read as a
+  // mismatched black/white strip cutting across the garden. Restore the
+  // normal theme-based bar (same values App.js sets globally) the moment
+  // this screen loses focus, so every other screen is unaffected.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return undefined;
+      const applyGroundNavBar = () => {
+        const shade = groundShadeColorFor(getSkyState());
+        NavigationBar.setBackgroundColorAsync(shade).catch(() => {});
+        NavigationBar.setButtonStyleAsync('light').catch(() => {});
+      };
+      applyGroundNavBar();
+      const id = setInterval(applyGroundNavBar, 5 * 60 * 1000);
+      return () => {
+        clearInterval(id);
+        NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
+        NavigationBar.setButtonStyleAsync(mode === 'dark' ? 'light' : 'dark').catch(() => {});
+      };
+    }, [colors.background, mode])
+  );
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -168,13 +206,16 @@ export default function CompanionScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* the world fills the ENTIRE screen, edge to edge, behind everything else */}
+      {/* the world fills the ENTIRE screen, edge to edge, behind everything else —
+          extended by insets.bottom so the ground reaches the true bottom of the
+          display instead of stopping short and leaving the container's own
+          background exposed above the system nav bar */}
       <CompanionWorld
         stage={state.stage}
         mood={state.mood}
         accentColor={accent}
         width={width}
-        height={height}
+        height={height + insets.bottom}
         borderRadius={0}
         catBottomOffset={0.22}
         catSizeRatio={0.55}
