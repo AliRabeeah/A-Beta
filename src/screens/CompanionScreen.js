@@ -24,10 +24,12 @@ import { getCompanionName, setCompanionName, DEFAULT_COMPANION_NAME } from '../u
 
 // A round, semi-transparent glass button for floating over the scene —
 // used for the menu and stats triggers so they read as controls, not chrome.
-function GlassButton({ onPress, icon, size = 40, iconSize = 20, style }) {
+function GlassButton({ onPress, onLongPress, delayLongPress, icon, size = 40, iconSize = 20, style }) {
   return (
     <TouchableOpacity
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={delayLongPress}
       activeOpacity={0.75}
       style={[
         {
@@ -180,7 +182,15 @@ export default function CompanionScreen({ navigation }) {
 
       {/* floating controls, overlaid on top of the scene */}
       <View style={[styles.topRow, { top: insets.top + 10 }, isRTL && { flexDirection: 'row-reverse' }]}>
-        <GlassButton icon="menu" onPress={() => setDrawerVisible(true)} />
+        <GlassButton
+          icon="menu"
+          onPress={() => setDrawerVisible(true)}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.navigate('Today');
+          }}
+          delayLongPress={450}
+        />
         <GlassButton icon="stats-chart" onPress={openStats} />
       </View>
 

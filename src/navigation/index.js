@@ -87,7 +87,11 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: {
+        // EvoCat is a full-bleed scene (its own floating menu button and no
+        // bottom chrome) even when the person has pinned it as one of their
+        // active tabs, so unlike the other tabs its bar is always hidden
+        // rather than only when reached via a stack push from the drawer.
+        tabBarStyle: route.name === 'Companion' ? { display: 'none' } : {
           backgroundColor: colors.background,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
