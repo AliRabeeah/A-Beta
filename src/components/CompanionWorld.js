@@ -11,9 +11,8 @@ import {
   LinearGradient,
   BlurMask,
   vec,
-  useLoop,
-  useComputedValue,
 } from '@shopify/react-native-skia';
+import { useSharedValue, useDerivedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import Companion from './Companion';
 import { getSkyState, celestialPosition } from '../utils/companionWorldTime';
 
@@ -46,12 +45,15 @@ function ellipseRect(cx, cy, rx, ry) {
 function Star({ cx, cy, r, delay }) {
   // a slow 0->1->0 shimmer, phase-shifted per star via `delay` so they don't
   // all twinkle in lockstep
-  const loop = useLoop({ duration: 3000 });
-  const opacity = useComputedValue(() => {
-    const t = (loop.current + delay) % 1;
+  const loop = useSharedValue(0);
+  useEffect(() => {
+    loop.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
+  }, [loop]);
+  const opacity = useDerivedValue(() => {
+    const t = (loop.value + delay) % 1;
     const wave = t < 0.5 ? t * 2 : (1 - t) * 2;
     return 0.25 + wave * 0.75;
-  }, [loop]);
+  });
   return (
     <Group opacity={opacity}>
       <Circle cx={cx} cy={cy} r={r} color="#FFFFFF" />
@@ -63,8 +65,11 @@ function Star({ cx, cy, r, delay }) {
 }
 
 function Cloud({ x, y, scale, duration, seed }) {
-  const loop = useLoop({ duration });
-  const transform = useComputedValue(() => [{ translateX: (loop.current - 0.5) * 60 }, { scale }], [loop]);
+  const loop = useSharedValue(0);
+  useEffect(() => {
+    loop.value = withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false);
+  }, [loop, duration]);
+  const transform = useDerivedValue(() => [{ translateX: (loop.value - 0.5) * 60 }, { scale }]);
   return (
     <Group transform={[{ translateX: x, translateY: y }]}>
       <Group transform={transform}>
@@ -120,18 +125,21 @@ function GrassTuft({ x, y, color, scale = 1 }) {
 }
 
 function FireflyOrButterfly({ night, x, y, color, delay, duration = 4200 }) {
-  const loop = useLoop({ duration });
-  const transform = useComputedValue(() => {
-    const t = (loop.current + delay) % 1;
+  const loop = useSharedValue(0);
+  useEffect(() => {
+    loop.value = withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false);
+  }, [loop, duration]);
+  const transform = useDerivedValue(() => {
+    const t = (loop.value + delay) % 1;
     return [
       { translateX: (t - 0.5) * 26 },
       { translateY: Math.sin(t * Math.PI * 2) * -10 },
     ];
-  }, [loop]);
-  const opacity = useComputedValue(() => {
-    const t = (loop.current + delay) % 1;
+  });
+  const opacity = useDerivedValue(() => {
+    const t = (loop.value + delay) % 1;
     return night ? 0.5 + t * 0.5 : 1;
-  }, [loop]);
+  });
 
   return (
     <Group transform={[{ translateX: x, translateY: y }]}>

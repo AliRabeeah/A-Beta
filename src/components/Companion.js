@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import {
   Canvas,
@@ -10,10 +10,8 @@ import {
   LinearGradient,
   BlurMask,
   vec,
-  useValue,
-  useLoop,
-  useComputedValue,
 } from '@shopify/react-native-skia';
+import { useSharedValue, useDerivedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 
 // A small round Scottish Fold kitten companion — light grey coat with cream
 // markings, she/female (a small bow accessory unlocks at the final growth
@@ -134,8 +132,11 @@ export default function Companion({ stage = 1, mood = 'content', accentColor = '
   // bob, computed on the UI thread. Translation stays in real px (not the
   // 0-100 design space) so the amplitude looks the same at any `size`,
   // matching how the old Animated.View-wrapped-around-the-Svg version bobbed.
-  const loop = useLoop({ duration: 1400 });
-  const bobTransform = useComputedValue(() => [{ translateY: -4 * loop.current }], [loop]);
+  const loop = useSharedValue(0);
+  useEffect(() => {
+    loop.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [loop]);
+  const bobTransform = useDerivedValue(() => [{ translateY: -4 * loop.value }]);
 
   const clampedStage = Math.max(1, Math.min(6, stage));
   const bodyScale = 0.72 + clampedStage * 0.05;

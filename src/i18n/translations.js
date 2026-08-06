@@ -330,7 +330,7 @@ export const translations = {
     // Timer
     timerTitle: 'Timer',
     tabScreen_Companion: 'EvoCat',
-    companionTitle: "My EvoCat",
+    companionTitle: "EvoCat",
     companionMoodHappy: 'Happy — she got to play with you today!',
     companionMoodContent: 'Content — everything is calm and cozy.',
     companionMoodSleepy: "Sleepy — she's missed you the last couple of days.",
