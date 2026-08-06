@@ -132,3 +132,129 @@ export async function uploadBackupToGithub(payload) {
     return { ok: false, message };
   }
 }
+
+/**
+ * Lists every backup file present in the configured GitHub folder, newest
+ * first. Filenames are `backup-YYYY-MM-DD_HH-MM-SS.json` (see
+ * timestampForFilename above), which sorts lexicographically in the same
+ * order as chronologically, so no need to parse dates or hit the commits
+ * API. Returns { ok, backups } or { ok: false, message }.
+ */
+export async function listGithubBackups() {
+  const config = await getGithubConfig();
+  if (!config || !config.token || !config.owner || !config.repo) {
+    return { ok: false, message: 'GitHub backup is not configured yet.' };
+  }
+
+  const branch = config.branch || 'main';
+  const folder = (config.folder || 'backups').replace(/^\/+|\/+$/g, '');
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${folder}?ref=${encodeURIComponent(branch)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }
+    );
+
+    if (response.status === 404) {
+      // Folder doesn't exist yet -> no backups have ever been uploaded.
+      return { ok: true, backups: [] };
+    }
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return { ok: false, message: `GitHub API error ${response.status}: ${errBody.message || 'unknown error'}` };
+    }
+
+    const files = await response.json();
+    const backups = (Array.isArray(files) ? files : [])
+      .filter((f) => f && f.type === 'file' && /^backup-.*\.json$/.test(f.name))
+      .sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0));
+
+    return { ok: true, backups };
+  } catch (e) {
+    return { ok: false, message: `Network/unexpected error: ${e.message || e}` };
+  }
+}
+
+/**
+ * Base64 (as returned by the GitHub Contents API, which may contain
+ * embedded newlines) -> UTF-8 text, via the same temp-file round-trip
+ * utf8JsonToBase64 uses in the other direction (RN has no reliable
+ * built-in atob() for non-latin1 content).
+ */
+async function base64ToUtf8Text(base64) {
+  const clean = base64.replace(/\n/g, '');
+  await FileSystem.writeAsStringAsync(TMP_FILE, clean, { encoding: FileSystem.EncodingType.Base64 });
+  const text = await FileSystem.readAsStringAsync(TMP_FILE, { encoding: FileSystem.EncodingType.UTF8 });
+  FileSystem.deleteAsync(TMP_FILE, { idempotent: true }).catch(() => {});
+  return text;
+}
+
+/**
+ * Downloads and parses the most recent backup file from the configured
+ * GitHub repo/folder. Returns { ok: true, payload, name, path } — payload
+ * is the raw parsed JSON (still password-encrypted if it was uploaded that
+ * way; the caller handles decryption same as a locally-imported file).
+ * Returns { ok: false, message } on any failure, including "no backups
+ * found yet".
+ */
+export async function downloadLatestBackupFromGithub() {
+  const listResult = await listGithubBackups();
+  if (!listResult.ok) return listResult;
+  if (!listResult.backups.length) {
+    return { ok: false, message: 'No backups were found in the configured GitHub folder yet.' };
+  }
+
+  const latest = listResult.backups[0];
+  const config = await getGithubConfig();
+  const branch = config.branch || 'main';
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${latest.path}?ref=${encodeURIComponent(branch)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return { ok: false, message: `GitHub API error ${response.status}: ${errBody.message || 'unknown error'}` };
+    }
+
+    const fileData = await response.json();
+    let jsonString;
+
+    if (fileData.content) {
+      // Normal case: file is small enough that the Contents API inlines it.
+      jsonString = await base64ToUtf8Text(fileData.content);
+    } else if (fileData.download_url) {
+      // The Contents API omits `content` for files over ~1MB; fall back to
+      // fetching the raw file directly in that case.
+      const rawResponse = await fetch(fileData.download_url, {
+        headers: { Authorization: `Bearer ${config.token}` },
+      });
+      if (!rawResponse.ok) {
+        return { ok: false, message: `GitHub API error ${rawResponse.status}: could not download backup file.` };
+      }
+      jsonString = await rawResponse.text();
+    } else {
+      return { ok: false, message: 'Unexpected response from GitHub while downloading the backup.' };
+    }
+
+    const payload = JSON.parse(jsonString);
+    return { ok: true, payload, name: latest.name, path: latest.path };
+  } catch (e) {
+    return { ok: false, message: `Network/unexpected error: ${e.message || e}` };
+  }
+}

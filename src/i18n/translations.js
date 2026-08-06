@@ -313,6 +313,10 @@ export const translations = {
     githubBackupTestFailed: 'Backup failed',
     githubLastBackupOk: 'Last successful backup:',
     githubLastBackupFailed: 'Last backup failed:',
+    githubRestoreNow: 'Restore latest backup',
+    githubRestoreHint: 'Downloads the most recent backup from your GitHub repo and restores it to this device — including tab bar order, speed-dial order, Settings section order, and widget picks, not just your data.',
+    githubRestoreConfirmBody: 'This will download the latest backup from GitHub and replace everything currently on this device (data, layout, and settings). This cannot be undone.',
+    githubRestoreFailed: 'Restore failed',
     backupHealthNotSet: 'Not set up',
     backupHealthNever: 'Never backed up',
     backupHealthToday: 'Backed up today',
@@ -325,8 +329,8 @@ export const translations = {
 
     // Timer
     timerTitle: 'Timer',
-    tabScreen_Companion: 'Companion',
-    companionTitle: "My Companion",
+    tabScreen_Companion: 'EvoCat',
+    companionTitle: "My EvoCat",
     companionMoodHappy: 'Happy — she got to play with you today!',
     companionMoodContent: 'Content — everything is calm and cozy.',
     companionMoodSleepy: "Sleepy — she's missed you the last couple of days.",
@@ -1050,6 +1054,10 @@ export const translations = {
     githubBackupTestFailed: 'فشل النسخ الاحتياطي',
     githubLastBackupOk: 'آخر نسخة احتياطية ناجحة:',
     githubLastBackupFailed: 'فشلت آخر عملية نسخ:',
+    githubRestoreNow: 'استعادة آخر نسخة احتياطية',
+    githubRestoreHint: 'يُنزّل آخر نسخة احتياطية من مستودع GitHub الخاص بك ويستعيدها على هذا الجهاز — بما في ذلك ترتيب شريط التبويبات، وترتيب الأزرار السريعة، وترتيب أقسام الإعدادات، واختيارات الودجت، وليس بياناتك فقط.',
+    githubRestoreConfirmBody: 'سيؤدي هذا إلى تنزيل آخر نسخة احتياطية من GitHub واستبدال كل ما هو موجود حاليًا على هذا الجهاز (البيانات والتخطيط والإعدادات). لا يمكن التراجع عن هذا.',
+    githubRestoreFailed: 'فشلت الاستعادة',
     backupHealthNotSet: 'غير مُفعّل',
     backupHealthNever: 'لم يتم النسخ بعد',
     backupHealthToday: 'تم النسخ اليوم',
@@ -1061,8 +1069,8 @@ export const translations = {
 
     // Timer
     timerTitle: 'المؤقت',
-    tabScreen_Companion: 'الرفيقة',
-    companionTitle: 'رفيقتي',
+    tabScreen_Companion: 'EvoCat',
+    companionTitle: 'EvoCat',
     companionMoodHappy: 'سعيدة — لعبت معاك اليوم!',
     companionMoodContent: 'مرتاحة — كل شي هادئ ومريح.',
     companionMoodSleepy: 'نعسانة — تشتاقلك من يومين.',

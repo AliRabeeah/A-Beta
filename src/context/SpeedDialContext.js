@@ -99,9 +99,20 @@ export function SpeedDialProvider({ children }) {
     await persist(DEFAULT_SPEED_DIAL);
   }, [persist]);
 
+  // Unlike reorderItems (which only accepts a permutation of the CURRENT
+  // items, for the drag-to-reorder gesture), this accepts any valid item
+  // set/order wholesale — used when restoring a backup, where the
+  // incoming config may differ from whatever's on this device right now.
+  const replaceItems = useCallback(async (nextItems) => {
+    const valid = Array.isArray(nextItems) && nextItems.every((id) => SPEED_DIAL_POOL.some((s) => s.id === id));
+    if (!valid || nextItems.length < MIN_SHORTCUTS || nextItems.length > MAX_SHORTCUTS) return false;
+    await persist(nextItems);
+    return true;
+  }, [persist]);
+
   const value = useMemo(
-    () => ({ items, loaded, toggleItem, moveItem, reorderItems, resetToDefault, pool: SPEED_DIAL_POOL }),
-    [items, loaded, toggleItem, moveItem, reorderItems, resetToDefault]
+    () => ({ items, loaded, toggleItem, moveItem, reorderItems, resetToDefault, replaceItems, pool: SPEED_DIAL_POOL }),
+    [items, loaded, toggleItem, moveItem, reorderItems, resetToDefault, replaceItems]
   );
 
   return (

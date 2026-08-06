@@ -4,7 +4,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import { encryptNotesForBackup } from './noteEncryption';
 
 const BACKUP_FILE_NAME = 'a-backup.json';
-export const BACKUP_VERSION = 1;
+// v1 -> v2: added tabBarConfig, speedDialConfig, settingsSectionOrder, and
+// widgetSettings/appIcon, so a restore recreates the exact layout (tab bar
+// order, FAB speed-dial order, Settings section order, home-screen widget
+// picks) the person had, not just their data. Old (v1) backup files are
+// still importable — the extra fields are simply absent/undefined on them,
+// and every restore step below is a no-op when its field is missing.
+export const BACKUP_VERSION = 2;
 
 export async function buildBackupPayload({
   habits,
@@ -19,6 +25,11 @@ export async function buildBackupPayload({
   accent,
   mode,
   language,
+  tabBarConfig,
+  speedDialConfig,
+  settingsSectionOrder,
+  widgetSettings,
+  appIcon,
 }) {
   // Locked notes are encrypted here — the single point every export path
   // (manual file export, GitHub auto-backup) funnels through — so their
@@ -42,6 +53,12 @@ export async function buildBackupPayload({
       accent,
       mode,
       language,
+      // Layout/order & settings — see note above.
+      tabBarConfig: tabBarConfig || undefined,
+      speedDialConfig: speedDialConfig || undefined,
+      settingsSectionOrder: settingsSectionOrder || undefined,
+      widgetSettings: widgetSettings || undefined,
+      appIcon: appIcon === undefined ? undefined : appIcon,
     },
   };
 }

@@ -101,9 +101,20 @@ export function TabBarProvider({ children }) {
     await persist(DEFAULT_TAB_CONFIG);
   }, [persist]);
 
+  // Unlike reorderTabs (which only accepts a permutation of the CURRENT
+  // tabs, for the drag-to-reorder gesture), this accepts any valid tab
+  // set/order wholesale — used when restoring a backup, where the
+  // incoming config may differ from whatever's on this device right now.
+  const replaceTabs = useCallback(async (nextTabs) => {
+    const valid = Array.isArray(nextTabs) && nextTabs.every((id) => TAB_BAR_POOL.some((s) => s.id === id));
+    if (!valid || nextTabs.length < MIN_TABS || nextTabs.length > MAX_TABS) return false;
+    await persist(nextTabs);
+    return true;
+  }, [persist]);
+
   const value = useMemo(
-    () => ({ tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault, pool: TAB_BAR_POOL }),
-    [tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault]
+    () => ({ tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault, replaceTabs, pool: TAB_BAR_POOL }),
+    [tabs, loaded, toggleTab, moveTab, reorderTabs, resetToDefault, replaceTabs]
   );
 
   return (

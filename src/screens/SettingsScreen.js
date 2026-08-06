@@ -53,7 +53,8 @@ import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '..
 import { decryptNotesFromBackup } from '../utils/noteEncryption';
 import { getBackupPassword, hasBackupPassword, setBackupPassword, clearBackupPassword } from '../utils/backupPassword';
 import { encryptPayloadWithPassword, decryptPayloadWithPassword } from '../utils/backupEncryption';
-import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus } from '../utils/githubBackup';
+import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus, downloadLatestBackupFromGithub } from '../utils/githubBackup';
+import { SETTINGS_SECTION_ORDER_KEY, DEFAULT_SETTINGS_SECTION_ORDER, setSettingsSectionOrder } from '../utils/settingsSectionOrder';
 import { getWidgetOpacity, setWidgetOpacity, getFocusHabitId, setFocusHabitId, getHeatmapHabitId, setHeatmapHabitId } from '../utils/widgetSettings';
 import { refreshTodayWidget } from '../utils/widgetSync';
 import { APP_ICON_OPTIONS, isAppIconSwitchingAvailable, getCurrentAppIcon, setCurrentAppIcon } from '../utils/appIconSettings';
@@ -66,18 +67,11 @@ const SWITCH_OFF_THUMB = '#f4f3f4';
 // reorder (react-native-draggable-flatlist — same mechanism already used
 // on the Today screen and the side drawer). The chosen order is persisted
 // here so it survives app restarts.
-const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 const isValidHexColor = (value) => /^[0-9a-fA-F]{6}$/.test(value) || /^[0-9a-fA-F]{3}$/.test(value);
 const normalizeHexColor = (value) => {
   const v = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
   return `#${v.toUpperCase()}`;
 };
-
-const DEFAULT_SETTINGS_SECTION_ORDER = [
-  'language', 'appearance', 'accent', 'appIcon', 'tabBar', 'speedDial', 'appLock',
-  'notifications', 'widget', 'backup', 'trash', 'github', 'moodHistory',
-  'dayClosing', 'weeklyReview', 'quoteSettings', 'about',
-];
 
 // Icon + label per section, used only by the compact "Edit order" list —
 // kept separate from each section's full render() so that list stays tiny
@@ -112,11 +106,12 @@ export default function SettingsScreen({ navigation }) {
   const { items: wishlist, customTags: wishlistTags, replaceAllWishlist } = useWishlist();
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
-  const { tabs: activeTabIds, toggleTab, reorderTabs, pool: tabPool } = useTabBar();
+  const { tabs: activeTabIds, toggleTab, reorderTabs, replaceTabs, pool: tabPool } = useTabBar();
   const {
     items: activeSpeedDialIds,
     toggleItem: toggleSpeedDialItem,
     reorderItems: reorderSpeedDialItems,
+    replaceItems: replaceSpeedDialItems,
     pool: speedDialPool,
   } = useSpeedDial();
   const {
@@ -296,6 +291,7 @@ export default function SettingsScreen({ navigation }) {
   const [ghFolder, setGhFolder] = useState('backups');
   const [ghSaving, setGhSaving] = useState(false);
   const [ghTesting, setGhTesting] = useState(false);
+  const [ghRestoring, setGhRestoring] = useState(false);
   const [ghLastStatus, setGhLastStatus] = useState(null);
   const [ghConfigured, setGhConfigured] = useState(false);
   // Accordion: only one foldable section is expanded at a time, so the
@@ -352,7 +348,8 @@ export default function SettingsScreen({ navigation }) {
   const handleTestGithubBackup = async () => {
     setGhTesting(true);
     try {
-      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      const layout = await gatherLayoutForBackup();
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
       if (password) payload = await encryptPayloadWithPassword(payload, password);
       const result = await uploadBackupToGithub(payload);
@@ -360,6 +357,45 @@ export default function SettingsScreen({ navigation }) {
       Alert.alert(result.ok ? t('githubBackupTestSuccess') : t('githubBackupTestFailed'), result.message);
     } finally {
       setGhTesting(false);
+    }
+  };
+
+  /**
+   * Fetches the most recent backup directly from the configured GitHub
+   * repo/folder (no file picker needed) and feeds it into the exact same
+   * confirm + apply flow as importing a local file — including the
+   * password prompt when the backup was uploaded encrypted.
+   */
+  const handleRestoreFromGithub = async () => {
+    setGhRestoring(true);
+    try {
+      const result = await downloadLatestBackupFromGithub();
+      if (!result.ok) {
+        Alert.alert(t('githubRestoreFailed'), result.message);
+        return;
+      }
+
+      const payload = result.payload;
+
+      if (payload?.encrypted === true) {
+        // Same password-prompt path handleImport uses for an encrypted
+        // local file — handleSubmitImportPassword below calls
+        // confirmAndApplyImport() once the password checks out.
+        setPendingImportEnvelope(payload);
+        setBpModalMode('import');
+        return;
+      }
+
+      if (!payload?.data?.habits || !Array.isArray(payload.data.habits)) {
+        Alert.alert(t('githubRestoreFailed'), t('importFailed'));
+        return;
+      }
+
+      confirmAndApplyImport(payload.data);
+    } catch (e) {
+      Alert.alert(t('githubRestoreFailed'));
+    } finally {
+      setGhRestoring(false);
     }
   };
 
@@ -420,10 +456,39 @@ export default function SettingsScreen({ navigation }) {
     { v: 'ar', l: t('arabic') },
   ];
 
+  // Shared by manual export, the GitHub "Backup now" test button, and the
+  // (once-a-day) auto-backup, so every backup — wherever it's triggered
+  // from — captures the same full picture: not just the data lists but
+  // the tab bar order, speed-dial order, Settings' own section order, and
+  // the home-screen widget/app-icon picks, so a restore recreates the
+  // layout exactly, not just the content.
+  const gatherLayoutForBackup = useCallback(async () => {
+    const [storedSectionOrder, opacity, focusId, heatmapId] = await Promise.all([
+      AsyncStorage.getItem(SETTINGS_SECTION_ORDER_KEY),
+      getWidgetOpacity(),
+      getFocusHabitId(),
+      getHeatmapHabitId(),
+    ]);
+    let settingsSectionOrderForBackup;
+    try {
+      settingsSectionOrderForBackup = storedSectionOrder ? JSON.parse(storedSectionOrder) : undefined;
+    } catch (e) {
+      settingsSectionOrderForBackup = undefined;
+    }
+    return {
+      tabBarConfig: activeTabIds,
+      speedDialConfig: activeSpeedDialIds,
+      settingsSectionOrder: settingsSectionOrderForBackup,
+      widgetSettings: { opacity, focusHabitId: focusId || null, heatmapHabitId: heatmapId || null },
+      appIcon: getCurrentAppIcon(),
+    };
+  }, [activeTabIds, activeSpeedDialIds]);
+
   const handleExport = async () => {
     setBusy('export');
     try {
-      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language });
+      const layout = await gatherLayoutForBackup();
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
       if (password) payload = await encryptPayloadWithPassword(payload, password);
       await exportBackupToFile(payload);
@@ -454,6 +519,38 @@ export default function SettingsScreen({ navigation }) {
             if (data.accent) await setAccent(data.accent);
             if (data.mode) await setMode(data.mode);
             if (data.language) await setLanguage(data.language);
+            // Layout/order & settings — absent on older (pre-v2) backup
+            // files, so every one of these is skipped harmlessly if the
+            // field isn't present rather than clearing the current setup.
+            if (data.tabBarConfig) await replaceTabs(data.tabBarConfig);
+            if (data.speedDialConfig) await replaceSpeedDialItems(data.speedDialConfig);
+            if (Array.isArray(data.settingsSectionOrder) && data.settingsSectionOrder.length) {
+              const known = data.settingsSectionOrder.filter((id) => DEFAULT_SETTINGS_SECTION_ORDER.includes(id));
+              const missing = DEFAULT_SETTINGS_SECTION_ORDER.filter((id) => !known.includes(id));
+              const restoredOrder = [...known, ...missing];
+              setSectionOrder(restoredOrder);
+              await setSettingsSectionOrder(restoredOrder);
+            }
+            if (data.widgetSettings) {
+              const { opacity, focusHabitId: fId, heatmapHabitId: hId } = data.widgetSettings;
+              if (opacity != null) {
+                setWidgetOpacityState(opacity);
+                await setWidgetOpacity(opacity);
+              }
+              if (fId !== undefined) {
+                setFocusHabitIdState(fId);
+                await setFocusHabitId(fId);
+              }
+              if (hId !== undefined) {
+                setHeatmapHabitIdState(hId);
+                await setHeatmapHabitId(hId);
+              }
+              refreshTodayWidget(data.habits || habits);
+            }
+            if (data.appIcon !== undefined && isAppIconSwitchingAvailable()) {
+              const ok = await setCurrentAppIcon(data.appIcon);
+              if (ok) setSelectedAppIcon(data.appIcon);
+            }
             Alert.alert(t('importSuccess'));
           } catch (e) {
             Alert.alert(t('importFailed'));
@@ -1384,6 +1481,33 @@ export default function SettingsScreen({ navigation }) {
                         )}
                       </TouchableOpacity>
                     </View>
+
+                    <TouchableOpacity
+                      onPress={() =>
+                        Alert.alert(t('confirmImportTitle'), t('githubRestoreConfirmBody'), [
+                          { text: t('cancel'), style: 'cancel' },
+                          { text: t('githubRestoreNow'), style: 'destructive', onPress: handleRestoreFromGithub },
+                        ])
+                      }
+                      disabled={ghRestoring || !ghConfigured}
+                      style={[
+                        styles.pill,
+                        {
+                          marginTop: 10,
+                          alignItems: 'center',
+                          backgroundColor: colors.surfaceElevated,
+                          borderColor: colors.border,
+                          opacity: !ghConfigured ? 0.5 : 1,
+                        },
+                      ]}
+                    >
+                      {ghRestoring ? <ActivityIndicator color={colors.primary} /> : (
+                        <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('githubRestoreNow')}</Text>
+                      )}
+                    </TouchableOpacity>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 6, lineHeight: 15 }}>
+                      {t('githubRestoreHint')}
+                    </Text>
         
                     {ghLastStatus && (
                       <Text style={{ color: ghLastStatus.ok ? colors.primary : '#FF6B6B', fontSize: 12, marginTop: 10 }}>
