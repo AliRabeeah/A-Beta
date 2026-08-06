@@ -1,7 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Circle, Ellipse, Path, G } from 'react-native-svg';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay, Easing } from 'react-native-reanimated';
+import {
+  Canvas,
+  Group,
+  Circle,
+  Oval,
+  Rect,
+  Path,
+  RadialGradient,
+  LinearGradient,
+  BlurMask,
+  vec,
+  useLoop,
+  useComputedValue,
+} from '@shopify/react-native-skia';
 import Companion from './Companion';
 import { getSkyState, celestialPosition } from '../utils/companionWorldTime';
 
@@ -9,9 +21,13 @@ const VB_W = 320;
 const BASE_VB_H = 200;
 const REFRESH_MS = 5 * 60 * 1000; // recheck the clock every 5 minutes — a garden, not a stopwatch
 
-// Lightens (positive amount) or darkens (negative amount) a hex color by a
-// flat per-channel offset — used to build gradient stops (highlight/shadow)
-// from the single base colors companionWorldTime hands us.
+// Rewritten on React Native Skia (was react-native-svg + Animated.View
+// overlays). Everything — sky, ground, clouds, stars, fireflies — now
+// lives in one Canvas instead of an SVG layer plus a stack of separate
+// Animated.Views on top of it, which is both the correct way to do this in
+// Skia and what lets the cloud/star/firefly motion share the same GPU
+// surface as the painted scene instead of compositing separate layers.
+
 function lightenHex(hex, amount) {
   if (!hex || hex[0] !== '#') return hex;
   const h = hex.replace('#', '');
@@ -23,129 +39,119 @@ function lightenHex(hex, amount) {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-function Twinkle({ cx, cy, r, delay, children }) {
-  const opacity = useSharedValue(0.25);
-  useEffect(() => {
-    opacity.value = withDelay(
-      delay,
-      withRepeat(withSequence(withTiming(1, { duration: 1500 }), withTiming(0.25, { duration: 1500 })), -1, true)
-    );
-  }, []);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return <Animated.View style={[{ position: 'absolute', left: cx - r, top: cy - r }, style]}>{children}</Animated.View>;
+function ellipseRect(cx, cy, rx, ry) {
+  return { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 };
 }
 
-function Cloud({ startX, y, scale, duration, id }) {
-  const x = useSharedValue(startX);
-  useEffect(() => {
-    x.value = withRepeat(withTiming(startX + 60, { duration, easing: Easing.inOut(Easing.sin) }), -1, true);
-  }, []);
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value - startX }] }));
-  const gradId = `cloudShade-${id}`;
+function Star({ cx, cy, r, delay }) {
+  // a slow 0->1->0 shimmer, phase-shifted per star via `delay` so they don't
+  // all twinkle in lockstep
+  const loop = useLoop({ duration: 3000 });
+  const opacity = useComputedValue(() => {
+    const t = (loop.current + delay) % 1;
+    const wave = t < 0.5 ? t * 2 : (1 - t) * 2;
+    return 0.25 + wave * 0.75;
+  }, [loop]);
   return (
-    <Animated.View style={[{ position: 'absolute', left: startX, top: y }, style]}>
-      <Svg width={64 * scale} height={30 * scale} viewBox="0 0 64 30">
-        <Defs>
-          {/* soft top-lit / bottom-shaded gradient so clouds read as puffy volume, not flat blobs */}
-          <LinearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.98} />
-            <Stop offset="65%" stopColor="#FFFFFF" stopOpacity={0.9} />
-            <Stop offset="100%" stopColor="#DCE6F0" stopOpacity={0.8} />
-          </LinearGradient>
-        </Defs>
-        {/* underlying soft haze so edges don't look cut out */}
-        <Ellipse cx="30" cy="18" rx="28" ry="9" fill="#FFFFFF" opacity={0.18} />
-        <Ellipse cx="16" cy="17" rx="14" ry="8.5" fill={`url(#${gradId})`} />
-        <Ellipse cx="27" cy="12" rx="12" ry="9" fill={`url(#${gradId})`} />
-        <Ellipse cx="39" cy="15" rx="13" ry="8" fill={`url(#${gradId})`} />
-        <Ellipse cx="50" cy="18" rx="10" ry="6.5" fill={`url(#${gradId})`} />
-        {/* underside shading for depth */}
-        <Ellipse cx="30" cy="22" rx="22" ry="4.5" fill="#C7D6E4" opacity={0.35} />
-      </Svg>
-    </Animated.View>
+    <Group opacity={opacity}>
+      <Circle cx={cx} cy={cy} r={r} color="#FFFFFF" />
+      <Circle cx={cx} cy={cy} r={r * 2.2} color="#FFFFFF" opacity={0.25}>
+        <BlurMask blur={r} style="normal" />
+      </Circle>
+    </Group>
+  );
+}
+
+function Cloud({ x, y, scale, duration, seed }) {
+  const loop = useLoop({ duration });
+  const transform = useComputedValue(() => [{ translateX: (loop.current - 0.5) * 60 }, { scale }], [loop]);
+  return (
+    <Group transform={[{ translateX: x, translateY: y }]}>
+      <Group transform={transform}>
+        <Oval {...ellipseRect(30, 18, 28, 9)} color="#FFFFFF" opacity={0.18}>
+          <BlurMask blur={4} style="normal" />
+        </Oval>
+        <Group>
+          <Oval {...ellipseRect(16, 17, 14, 8.5)} color="#FFFFFF">
+            <LinearGradient start={vec(16, 8.5)} end={vec(16, 25.5)} colors={['#FFFFFF', '#DCE6F0']} />
+          </Oval>
+          <Oval {...ellipseRect(27, 12, 12, 9)} color="#FFFFFF">
+            <LinearGradient start={vec(27, 3)} end={vec(27, 21)} colors={['#FFFFFF', '#DCE6F0']} />
+          </Oval>
+          <Oval {...ellipseRect(39, 15, 13, 8)} color="#FFFFFF">
+            <LinearGradient start={vec(39, 7)} end={vec(39, 23)} colors={['#FFFFFF', '#DCE6F0']} />
+          </Oval>
+          <Oval {...ellipseRect(50, 18, 10, 6.5)} color="#FFFFFF">
+            <LinearGradient start={vec(50, 11.5)} end={vec(50, 24.5)} colors={['#FFFFFF', '#DCE6F0']} />
+          </Oval>
+        </Group>
+        <Oval {...ellipseRect(30, 22, 22, 4.5)} color="#C7D6E4" opacity={0.35} />
+      </Group>
+    </Group>
   );
 }
 
 function Flower({ x, y, color, scale = 1, lean = 0 }) {
   return (
-    <G transform={`translate(${x}, ${y}) scale(${scale}) rotate(${lean})`}>
-      {/* soft contact shadow so the flower feels grounded rather than pasted on */}
-      <Ellipse cx={0} cy={6.4} rx={2.6} ry={0.8} fill="#000000" opacity={0.12} />
-      {/* slightly curved stem instead of a straight line, plus a small leaf */}
-      <Path d="M 0 0 Q -0.8 3.5 0 6.2" stroke="#4C7A3E" strokeWidth={1.2} strokeLinecap="round" fill="none" />
-      <Path d="M -0.3 3.2 Q -3.2 3 -3.6 1.4 Q -1 0.6 -0.1 2.6 Z" fill="#5C8A4E" />
+    <Group transform={[{ translateX: x, translateY: y }, { rotate: (lean * Math.PI) / 180 }, { scale }]}>
+      <Oval {...ellipseRect(0, 6.4, 2.6, 0.8)} color="#000000" opacity={0.12} />
+      <Path path="M 0 0 Q -0.8 3.5 0 6.2" color="#4C7A3E" style="stroke" strokeWidth={1.2} strokeCap="round" />
+      <Path path="M -0.3 3.2 Q -3.2 3 -3.6 1.4 Q -1 0.6 -0.1 2.6 Z" color="#5C8A4E" />
       {[0, 72, 144, 216, 288].map((deg) => (
-        <Ellipse
-          key={deg}
-          cx={0}
-          cy={-4}
-          rx={2.1}
-          ry={3.2}
-          fill={color}
-          opacity={0.95}
-          transform={`rotate(${deg})`}
-        />
+        <Group key={deg} transform={[{ rotate: (deg * Math.PI) / 180 }]}>
+          <Oval {...ellipseRect(0, -4, 2.1, 3.2)} color={color} opacity={0.95} />
+        </Group>
       ))}
-      {/* darker inner ring under the highlight for a touch of petal shading */}
-      <Circle cx={0} cy={0} r={2.2} fill={color} opacity={0.35} />
-      <Circle cx={0} cy={0} r={1.5} fill="#FFE9A8" />
-      <Circle cx={-0.4} cy={-0.4} r={0.5} fill="#FFF6DE" />
-    </G>
+      <Circle cx={0} cy={0} r={2.2} color={color} opacity={0.35} />
+      <Circle cx={0} cy={0} r={1.5} color="#FFE9A8" />
+      <Circle cx={-0.4} cy={-0.4} r={0.5} color="#FFF6DE" />
+    </Group>
   );
 }
 
-function FireflyOrButterfly({ night, x, y, color, delay }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withDelay(delay, withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true));
-  }, []);
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: (t.value - 0.5) * 26 },
-      { translateY: Math.sin(t.value * Math.PI * 2) * -10 },
-    ],
-    opacity: night ? 0.5 + t.value * 0.5 : 1,
-  }));
-  return (
-    <Animated.View style={[{ position: 'absolute', left: x, top: y }, style]}>
-      {night ? (
-        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          {/* soft halo behind the glowing body so it reads as light, not a flat dot */}
-          <View
-            style={{
-              position: 'absolute',
-              width: 14,
-              height: 14,
-              borderRadius: 7,
-              backgroundColor: '#FFE49A',
-              opacity: 0.28,
-            }}
-          />
-          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF3C4' }} />
-        </View>
-      ) : (
-        <Svg width={11} height={9} viewBox="0 0 11 9">
-          {/* wings with a subtle vein line and a slightly darker trailing edge for depth */}
-          <Path d="M 5.5 4.5 q -5.2 -6.4 -5.2 0.2 q 5.2 4.2 5.2 -0.2 z" fill={color} opacity={0.92} />
-          <Path d="M 5.5 4.5 q 5.2 -6.4 5.2 0.2 q -5.2 4.2 -5.2 -0.2 z" fill={color} opacity={0.92} />
-          <Path d="M 5.5 4.5 q -3.2 -3 -3.6 0.4" stroke="#00000030" strokeWidth={0.35} fill="none" />
-          <Path d="M 5.5 4.5 q 3.2 -3 3.6 0.4" stroke="#00000030" strokeWidth={0.35} fill="none" />
-          <Path d="M 5.5 1.6 Q 5.5 4.5 5.5 8" stroke="#4A3A2E" strokeWidth={0.7} strokeLinecap="round" />
-        </Svg>
-      )}
-    </Animated.View>
-  );
-}
-
-// A small tuft of grass — scattered across the hill so the ground has texture
-// instead of reading as one flat green shape.
 function GrassTuft({ x, y, color, scale = 1 }) {
   return (
-    <G transform={`translate(${x}, ${y}) scale(${scale})`}>
-      <Path d="M 0 0 Q -2.4 -4.5 -1 -7.5" stroke={color} strokeWidth={0.8} strokeLinecap="round" fill="none" opacity={0.85} />
-      <Path d="M 0 0 Q 0.2 -5.5 0.3 -8.5" stroke={color} strokeWidth={0.9} strokeLinecap="round" fill="none" opacity={0.9} />
-      <Path d="M 0 0 Q 2.6 -4 1.4 -7" stroke={color} strokeWidth={0.8} strokeLinecap="round" fill="none" opacity={0.85} />
-    </G>
+    <Group transform={[{ translateX: x, translateY: y }, { scale }]}>
+      <Path path="M 0 0 Q -2.4 -4.5 -1 -7.5" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
+      <Path path="M 0 0 Q 0.2 -5.5 0.3 -8.5" color={color} style="stroke" strokeWidth={0.9} strokeCap="round" opacity={0.9} />
+      <Path path="M 0 0 Q 2.6 -4 1.4 -7" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
+    </Group>
+  );
+}
+
+function FireflyOrButterfly({ night, x, y, color, delay, duration = 4200 }) {
+  const loop = useLoop({ duration });
+  const transform = useComputedValue(() => {
+    const t = (loop.current + delay) % 1;
+    return [
+      { translateX: (t - 0.5) * 26 },
+      { translateY: Math.sin(t * Math.PI * 2) * -10 },
+    ];
+  }, [loop]);
+  const opacity = useComputedValue(() => {
+    const t = (loop.current + delay) % 1;
+    return night ? 0.5 + t * 0.5 : 1;
+  }, [loop]);
+
+  return (
+    <Group transform={[{ translateX: x, translateY: y }]}>
+      <Group transform={transform} opacity={opacity}>
+        {night ? (
+          <Group>
+            <Circle cx={0} cy={0} r={7} color="#FFE49A" opacity={0.28}>
+              <BlurMask blur={4} style="normal" />
+            </Circle>
+            <Circle cx={0} cy={0} r={2} color="#FFF3C4" />
+          </Group>
+        ) : (
+          <Group>
+            <Path path="M 0 0 q -5.2 -6.4 -5.2 0.2 q 5.2 4.2 5.2 -0.2 z" color={color} opacity={0.92} />
+            <Path path="M 0 0 q 5.2 -6.4 5.2 0.2 q -5.2 4.2 -5.2 -0.2 z" color={color} opacity={0.92} />
+            <Path path="M 0 -2.9 Q 0 0 0 3.5" color="#4A3A2E" style="stroke" strokeWidth={0.7} strokeCap="round" />
+          </Group>
+        )}
+      </Group>
+    </Group>
   );
 }
 
@@ -159,16 +165,11 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
 
   const w = width;
   const h = height ?? (w * BASE_VB_H) / VB_W;
-  // When we're filling an arbitrary tall rect (fullscreen) rather than a
-  // fixed-aspect card, stretch the viewBox's vertical extent to match so
-  // the hill/ground still sits near the real bottom of the screen instead
-  // of floating mid-air with empty space below it. Every VB_H reference
-  // below now means "this scene's actual height", not the fixed 200.
   const VB_H = (VB_W * h) / w;
   const night = sky.period === 'night';
   const pos = celestialPosition(sky.progress);
   const sunX = pos.x * VB_W;
-  const sunY = pos.y * VB_H * 0.62; // keep the arc within the sky band, above the hill
+  const sunY = pos.y * VB_H * 0.62;
 
   const groundColor = night ? '#33415C' : sky.period === 'day' ? '#7CC576' : '#8FB56B';
   const groundShadeColor = night ? '#293450' : sky.period === 'day' ? '#68AE5E' : '#79A159';
@@ -179,17 +180,17 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
         cx: ((i * 37 + 13) % (VB_W - 10)) + 5,
         cy: ((i * 53 + 7) % (VB_H * 0.55)) + 6,
         r: 1 + (i % 3) * 0.5,
-        delay: (i % 5) * 300,
+        delay: (i % 5) / 5,
       })),
-    []
+    [VB_H]
   );
 
   const clouds = useMemo(
     () => [
-      { startX: VB_W * 0.08, y: VB_H * 0.12, scale: 0.9, duration: 14000 },
-      { startX: VB_W * 0.55, y: VB_H * 0.06, scale: 0.7, duration: 18000 },
+      { x: VB_W * 0.08, y: VB_H * 0.12, scale: 0.9, duration: 14000 },
+      { x: VB_W * 0.55, y: VB_H * 0.06, scale: 0.7, duration: 18000 },
     ],
-    []
+    [VB_H]
   );
 
   const flowerColors = ['#F08FB0', '#FFD166', '#F0866E', '#B48EE0'];
@@ -202,13 +203,10 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
       { x: VB_W * 0.62, y: VB_H * 0.93 },
       { x: VB_W * 0.38, y: VB_H * 0.94 },
     ],
-    []
+    [VB_H]
   );
-  const visibleFlowerCount = Math.min(flowerSpots.length, stage); // more blooms as she grows
+  const visibleFlowerCount = Math.min(flowerSpots.length, stage);
 
-  // scattered grass tufts give the hill actual texture instead of a flat
-  // green fill — deterministic pseudo-random placement so it doesn't
-  // reshuffle on every re-render
   const grassTufts = useMemo(
     () =>
       Array.from({ length: 22 }).map((_, i) => ({
@@ -226,201 +224,148 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
   const showFlutter = stage >= 4;
   const flutterCount = stage >= 6 ? 3 : stage >= 5 ? 2 : 1;
 
+  const sx = w / VB_W; // design-space -> screen-space scale, so every layer (Canvas shapes and the Companion overlay) shares one source of truth
+
   return (
     <View style={{ width: w, height: h, borderRadius, overflow: 'hidden' }}>
-      {/* sky */}
-      <Svg width={w} height={h} viewBox={`0 0 ${VB_W} ${VB_H}`} style={{ position: 'absolute' }}>
-        <Defs>
-          <LinearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={sky.colors.top} />
-            <Stop offset="55%" stopColor={sky.colors.top} stopOpacity={0.55} />
-            <Stop offset="100%" stopColor={sky.colors.bottom} />
-          </LinearGradient>
-          {/* radial haze around the sun/moon instead of a flat translucent disc */}
-          <RadialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={sky.colors.glow} stopOpacity={0.55} />
-            <Stop offset="60%" stopColor={sky.colors.glow} stopOpacity={0.22} />
-            <Stop offset="100%" stopColor={sky.colors.glow} stopOpacity={0} />
-          </RadialGradient>
-          {/* sun/moon disc gets its own subtle shading so it isn't a flat coin */}
-          <RadialGradient id="sunBody" cx="38%" cy="35%" r="65%">
-            <Stop offset="0%" stopColor={lightenHex(sky.colors.sunColor, 30)} />
-            <Stop offset="70%" stopColor={sky.colors.sunColor} />
-            <Stop offset="100%" stopColor={lightenHex(sky.colors.sunColor, -25)} />
-          </RadialGradient>
-          {/* ground: brighter crest fading to a richer, shadowed low grass tone */}
-          <LinearGradient id="ground" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={lightenHex(groundColor, 14)} />
-            <Stop offset="45%" stopColor={groundColor} />
-            <Stop offset="100%" stopColor={groundShadeColor} />
-          </LinearGradient>
-          <LinearGradient id="groundShade" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={groundShadeColor} />
-            <Stop offset="100%" stopColor={lightenHex(groundShadeColor, -12)} />
-          </LinearGradient>
-          {/* pond: light rim, deep center, so water reads as a surface with depth */}
-          <RadialGradient id="pond" cx="50%" cy="35%" r="65%">
-            <Stop offset="0%" stopColor={night ? '#3E5A86' : '#BFEFF5'} />
-            <Stop offset="55%" stopColor={night ? '#26385E' : '#8FD6E8'} />
-            <Stop offset="100%" stopColor={night ? '#1C2C4C' : '#5BB6CE'} />
-          </RadialGradient>
-          {/* foliage clusters: light top, shaded underside, on both bush and tree */}
-          <RadialGradient id="foliage" cx="38%" cy="30%" r="70%">
-            <Stop offset="0%" stopColor={lightenHex(night ? '#2E5A3C' : '#5CAE64', 22)} />
-            <Stop offset="55%" stopColor={night ? '#2E5A3C' : '#4E9457'} />
-            <Stop offset="100%" stopColor={night ? '#1E3E28' : '#377240'} />
-          </RadialGradient>
-          <LinearGradient id="trunk" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#8D6B45" />
-            <Stop offset="55%" stopColor="#7A5A3A" />
-            <Stop offset="100%" stopColor="#5E4227" />
-          </LinearGradient>
-        </Defs>
-        <Rect x={0} y={0} width={VB_W} height={VB_H} fill="url(#sky)" />
+      <Canvas style={{ width: w, height: h }}>
+        <Group transform={[{ scale: sx }]}>
+          {/* sky */}
+          <Rect x={0} y={0} width={VB_W} height={VB_H} color={sky.colors.top}>
+            <LinearGradient start={vec(0, 0)} end={vec(0, VB_H)} colors={[sky.colors.top, sky.colors.top, sky.colors.bottom]} positions={[0, 0.55, 1]} />
+          </Rect>
+          <Rect x={0} y={VB_H * 0.55} width={VB_W} height={VB_H * 0.3} color={sky.colors.bottom} opacity={0.25} />
 
-        {/* subtle horizon-band color (warm near sunrise/sunset, cool blue at night) so the sky isn't one flat gradient top to bottom */}
-        <Rect x={0} y={VB_H * 0.55} width={VB_W} height={VB_H * 0.3} fill={sky.colors.bottom} opacity={0.25} />
+          {/* glow + sun/moon */}
+          <Circle cx={sunX} cy={sunY} r={30} color={sky.colors.glow} opacity={0.4}>
+            <BlurMask blur={10} style="normal" />
+          </Circle>
+          <Circle cx={sunX} cy={sunY} r={12} color={sky.colors.sunColor}>
+            <RadialGradient c={vec(sunX - 12 * 0.24, sunY - 12 * 0.3)} r={12 * 1.2} colors={[lightenHex(sky.colors.sunColor, 30), sky.colors.sunColor, lightenHex(sky.colors.sunColor, -25)]} />
+          </Circle>
+          {night && <Circle cx={sunX + 4.5} cy={sunY - 2} r={10} color={sky.colors.top} />}
+          {night && (
+            <Circle cx={sunX - 1.5} cy={sunY - 1} r={11.2} color="transparent" style="stroke" strokeWidth={0.6}>
+              {/* rendered as a plain stroke ring — kept as a separate Circle so it never fills */}
+            </Circle>
+          )}
 
-        {/* glow + sun/moon */}
-        <Circle cx={sunX} cy={sunY} r={30} fill="url(#sunGlow)" />
-        <Circle cx={sunX} cy={sunY} r={12} fill="url(#sunBody)" />
-        {night && <Circle cx={sunX + 4.5} cy={sunY - 2} r={10} fill={sky.colors.top} />}
-        {/* crescent terminator gives the moon a touch of roundness */}
-        {night && <Circle cx={sunX - 1.5} cy={sunY - 1} r={11.2} fill="none" stroke="#00000018" strokeWidth={0.6} />}
+          {/* hill / ground */}
+          <Path
+            path={`M 0 ${VB_H * 0.82} Q ${VB_W * 0.25} ${VB_H * 0.72} ${VB_W * 0.5} ${VB_H * 0.8} T ${VB_W} ${VB_H * 0.78} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
+            color={groundColor}
+          >
+            <LinearGradient start={vec(0, VB_H * 0.72)} end={vec(0, VB_H)} colors={[lightenHex(groundColor, 14), groundColor, groundShadeColor]} positions={[0, 0.45, 1]} />
+          </Path>
+          <Path
+            path={`M 0 ${VB_H * 0.9} Q ${VB_W * 0.3} ${VB_H * 0.84} ${VB_W * 0.6} ${VB_H * 0.9} T ${VB_W} ${VB_H * 0.88} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
+            color={groundShadeColor}
+          >
+            <LinearGradient start={vec(0, VB_H * 0.84)} end={vec(0, VB_H)} colors={[groundShadeColor, lightenHex(groundShadeColor, -12)]} />
+          </Path>
+          <Path
+            path={`M 0 ${VB_H * 0.82} Q ${VB_W * 0.25} ${VB_H * 0.72} ${VB_W * 0.5} ${VB_H * 0.8} T ${VB_W} ${VB_H * 0.78}`}
+            color={groundShadeColor}
+            style="stroke"
+            strokeWidth={1}
+            opacity={0.35}
+          />
 
-        {/* hill / ground — gradient-filled with a texture layer underneath */}
-        <Path
-          d={`M 0 ${VB_H * 0.82} Q ${VB_W * 0.25} ${VB_H * 0.72} ${VB_W * 0.5} ${VB_H * 0.8} T ${VB_W} ${VB_H * 0.78} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
-          fill="url(#ground)"
-        />
-        <Path
-          d={`M 0 ${VB_H * 0.9} Q ${VB_W * 0.3} ${VB_H * 0.84} ${VB_W * 0.6} ${VB_H * 0.9} T ${VB_W} ${VB_H * 0.88} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
-          fill="url(#groundShade)"
-        />
-        {/* thin darker seam right along the hill crest for a bit of contour shading */}
-        <Path
-          d={`M 0 ${VB_H * 0.82} Q ${VB_W * 0.25} ${VB_H * 0.72} ${VB_W * 0.5} ${VB_H * 0.8} T ${VB_W} ${VB_H * 0.78}`}
-          fill="none"
-          stroke={groundShadeColor}
-          strokeWidth={1}
-          opacity={0.35}
-        />
+          {showPond && (
+            <Group>
+              <Oval {...ellipseRect(VB_W * 0.5, VB_H * 0.945, 30, 8.5)} color="#000000" opacity={0.08} />
+              <Oval {...ellipseRect(VB_W * 0.5, VB_H * 0.93, 26, 7)} color={night ? '#26385E' : '#8FD6E8'}>
+                <RadialGradient c={vec(VB_W * 0.5, VB_H * 0.93 - 2)} r={26} colors={night ? ['#3E5A86', '#26385E', '#1C2C4C'] : ['#BFEFF5', '#8FD6E8', '#5BB6CE']} />
+              </Oval>
+              <Oval {...ellipseRect(VB_W * 0.5, VB_H * 0.93, 26, 7)} color="transparent" style="stroke" strokeWidth={1} />
+              <Oval {...ellipseRect(VB_W * 0.44, VB_H * 0.925, 7, 2)} color={night ? '#5A7CB0' : '#FFFFFF'} style="stroke" strokeWidth={0.7} opacity={0.5} />
+              <Oval {...ellipseRect(VB_W * 0.58, VB_H * 0.935, 5, 1.4)} color={night ? '#5A7CB0' : '#FFFFFF'} style="stroke" strokeWidth={0.6} opacity={0.4} />
+              {!night && <Oval {...ellipseRect(VB_W * 0.46, VB_H * 0.918, 9, 1.6)} color="#FFFFFF" opacity={0.35} />}
+              <Oval {...ellipseRect(VB_W * 0.61, VB_H * 0.935, 3.4, 1.6)} color={night ? '#274A34' : '#3E8A4C'} opacity={0.9} />
+              <Oval {...ellipseRect(VB_W * 0.4, VB_H * 0.94, 2.6, 1.2)} color={night ? '#274A34' : '#3E8A4C'} opacity={0.85} />
+            </Group>
+          )}
 
-        {showPond && (
-          <G>
-            {/* soft shadow the pond casts into the grass around it */}
-            <Ellipse cx={VB_W * 0.5} cy={VB_H * 0.945} rx={30} ry={8.5} fill="#000000" opacity={0.08} />
-            <Ellipse cx={VB_W * 0.5} cy={VB_H * 0.93} rx={26} ry={7} fill="url(#pond)" />
-            <Ellipse cx={VB_W * 0.5} cy={VB_H * 0.93} rx={26} ry={7} fill="none" stroke={night ? '#3C5580' : '#6FBFD4'} strokeWidth={1} />
-            {/* ripple rings + a highlight streak so the surface looks liquid, not a flat oval */}
-            <Ellipse cx={VB_W * 0.44} cy={VB_H * 0.925} rx={7} ry={2} fill="none" stroke={night ? '#5A7CB0' : '#FFFFFF'} strokeWidth={0.7} opacity={0.5} />
-            <Ellipse cx={VB_W * 0.58} cy={VB_H * 0.935} rx={5} ry={1.4} fill="none" stroke={night ? '#5A7CB0' : '#FFFFFF'} strokeWidth={0.6} opacity={0.4} />
-            {!night && <Ellipse cx={VB_W * 0.46} cy={VB_H * 0.918} rx={9} ry={1.6} fill="#FFFFFF" opacity={0.35} />}
-            {/* a couple of lily pads for extra naturalism */}
-            <Ellipse cx={VB_W * 0.61} cy={VB_H * 0.935} rx={3.4} ry={1.6} fill={night ? '#274A34' : '#3E8A4C'} opacity={0.9} />
-            <Ellipse cx={VB_W * 0.4} cy={VB_H * 0.94} rx={2.6} ry={1.2} fill={night ? '#274A34' : '#3E8A4C'} opacity={0.85} />
-          </G>
-        )}
+          {showBush && (
+            <Group>
+              <Oval {...ellipseRect(VB_W * 0.12, VB_H * 0.845, 15, 5)} color="#000000" opacity={0.1} />
+              <Oval {...ellipseRect(VB_W * 0.12, VB_H * 0.82, 14, 10)} color={night ? '#2E5A3C' : '#4E9457'}>
+                <RadialGradient c={vec(VB_W * 0.12 - 3, VB_H * 0.82 - 4)} r={16} colors={night ? ['#3E7250', '#2E5A3C', '#1E3E28'] : ['#71C679', '#4E9457', '#377240']} />
+              </Oval>
+              <Circle cx={VB_W * 0.12 - 6} cy={VB_H * 0.82 - 4} r={6} color={night ? '#2E5A3C' : '#4E9457'} opacity={0.9} />
+              <Circle cx={VB_W * 0.12 + 7} cy={VB_H * 0.82 - 2} r={6.5} color={night ? '#2E5A3C' : '#4E9457'} opacity={0.9} />
+              {!night && <Circle cx={VB_W * 0.12 - 4} cy={VB_H * 0.82 - 7} r={1.6} color="#FFFFFF" opacity={0.25} />}
+            </Group>
+          )}
 
-        {showBush && (
-          <G>
-            <Ellipse cx={VB_W * 0.12} cy={VB_H * 0.845} rx={15} ry={5} fill="#000000" opacity={0.1} />
-            <Ellipse cx={VB_W * 0.12} cy={VB_H * 0.82} rx={14} ry={10} fill="url(#foliage)" />
-            <Circle cx={VB_W * 0.12 - 6} cy={VB_H * 0.82 - 4} r={6} fill="url(#foliage)" opacity={0.9} />
-            <Circle cx={VB_W * 0.12 + 7} cy={VB_H * 0.82 - 2} r={6.5} fill="url(#foliage)" opacity={0.9} />
-            {!night && <Circle cx={VB_W * 0.12 - 4} cy={VB_H * 0.82 - 7} r={1.6} fill="#FFFFFF" opacity={0.25} />}
-          </G>
-        )}
-
-        {showTree && (
-          <G>
-            {/* ground shadow anchors the tree to the hill */}
-            <Ellipse cx={VB_W * 0.88} cy={VB_H * 0.885} rx={bigTree ? 15 : 9} ry={3.4} fill="#000000" opacity={0.12} />
-            {/* trunk with a touch of bark texture instead of a flat stroke */}
-            <Path
-              d={`M ${VB_W * 0.88} ${VB_H * 0.88} l 0 ${bigTree ? -22 : -14}`}
-              stroke="url(#trunk)"
-              strokeWidth={bigTree ? 4.2 : 3.2}
-              strokeLinecap="round"
-            />
-            <Path
-              d={`M ${VB_W * 0.88 - 0.6} ${VB_H * 0.88 - 3} l 0 ${bigTree ? -14 : -8}`}
-              stroke="#5E4227"
-              strokeWidth={0.6}
-              strokeLinecap="round"
-              opacity={0.5}
-            />
-            {/* layered, overlapping foliage clusters read as a real canopy rather than one circle */}
-            <G>
-              <Circle cx={VB_W * 0.88} cy={VB_H * 0.88 - (bigTree ? 26 : 16)} r={bigTree ? 16 : 11} fill="url(#foliage)" />
-              <Circle
-                cx={VB_W * 0.88 - (bigTree ? 9 : 6)}
-                cy={VB_H * 0.88 - (bigTree ? 20 : 12)}
-                r={bigTree ? 10 : 6.5}
-                fill="url(#foliage)"
-                opacity={0.95}
+          {showTree && (
+            <Group>
+              <Oval {...ellipseRect(VB_W * 0.88, VB_H * 0.885, bigTree ? 15 : 9, 3.4)} color="#000000" opacity={0.12} />
+              <Path
+                path={`M ${VB_W * 0.88} ${VB_H * 0.88} l 0 ${bigTree ? -22 : -14}`}
+                color="#7A5A3A"
+                style="stroke"
+                strokeWidth={bigTree ? 4.2 : 3.2}
+                strokeCap="round"
               />
-              <Circle
-                cx={VB_W * 0.88 + (bigTree ? 10 : 6.5)}
-                cy={VB_H * 0.88 - (bigTree ? 22 : 13)}
-                r={bigTree ? 9.5 : 6}
-                fill="url(#foliage)"
-                opacity={0.95}
+              <Path
+                path={`M ${VB_W * 0.88 - 0.6} ${VB_H * 0.88 - 3} l 0 ${bigTree ? -14 : -8}`}
+                color="#5E4227"
+                style="stroke"
+                strokeWidth={0.6}
+                strokeCap="round"
+                opacity={0.5}
               />
-              {bigTree && <Circle cx={VB_W * 0.88 + 2} cy={VB_H * 0.88 - 36} r={9} fill="url(#foliage)" opacity={0.95} />}
-              {/* sunlit highlight on the canopy's top-left */}
-              {!night && (
-                <Circle
-                  cx={VB_W * 0.88 - (bigTree ? 6 : 4)}
-                  cy={VB_H * 0.88 - (bigTree ? 32 : 20)}
-                  r={bigTree ? 4.5 : 3}
-                  fill="#FFFFFF"
-                  opacity={0.18}
-                />
+              <Group>
+                <Circle cx={VB_W * 0.88} cy={VB_H * 0.88 - (bigTree ? 26 : 16)} r={bigTree ? 16 : 11} color={night ? '#2E5A3C' : '#4E9457'}>
+                  <RadialGradient c={vec(VB_W * 0.88 - (bigTree ? 6 : 4), VB_H * 0.88 - (bigTree ? 26 : 16) - 4)} r={bigTree ? 20 : 14} colors={night ? ['#3E7250', '#2E5A3C', '#1E3E28'] : ['#71C679', '#4E9457', '#377240']} />
+                </Circle>
+                <Circle cx={VB_W * 0.88 - (bigTree ? 9 : 6)} cy={VB_H * 0.88 - (bigTree ? 20 : 12)} r={bigTree ? 10 : 6.5} color={night ? '#2E5A3C' : '#4E9457'} opacity={0.95} />
+                <Circle cx={VB_W * 0.88 + (bigTree ? 10 : 6.5)} cy={VB_H * 0.88 - (bigTree ? 22 : 13)} r={bigTree ? 9.5 : 6} color={night ? '#2E5A3C' : '#4E9457'} opacity={0.95} />
+                {bigTree && <Circle cx={VB_W * 0.88 + 2} cy={VB_H * 0.88 - 36} r={9} color={night ? '#2E5A3C' : '#4E9457'} opacity={0.95} />}
+                {!night && (
+                  <Circle cx={VB_W * 0.88 - (bigTree ? 6 : 4)} cy={VB_H * 0.88 - (bigTree ? 32 : 20)} r={bigTree ? 4.5 : 3} color="#FFFFFF" opacity={0.18} />
+                )}
+              </Group>
+              {bigTree && !night && (
+                <Group>
+                  <Circle cx={VB_W * 0.88 - 5} cy={VB_H * 0.88 - 20} r={3} color="#FFE49A" opacity={0.9} />
+                  <Circle cx={VB_W * 0.88 + 6} cy={VB_H * 0.88 - 30} r={3} color="#FFE49A" opacity={0.9} />
+                </Group>
               )}
-            </G>
-            {bigTree && !night && (
-              <>
-                <Circle cx={VB_W * 0.88 - 5} cy={VB_H * 0.88 - 20} r={3} fill="#FFE49A" opacity={0.9} />
-                <Circle cx={VB_W * 0.88 + 6} cy={VB_H * 0.88 - 30} r={3} fill="#FFE49A" opacity={0.9} />
-              </>
-            )}
-          </G>
-        )}
+            </Group>
+          )}
 
-        {grassTufts
-          .filter((g) => !(showPond && g.y > VB_H * 0.88 && Math.abs(g.x - VB_W * 0.5) < 30))
-          .map((g, i) => (
-            <GrassTuft key={i} x={g.x} y={g.y} color={i % 3 === 0 ? groundShadeColor : groundColor} scale={g.scale} />
+          {grassTufts
+            .filter((g) => !(showPond && g.y > VB_H * 0.88 && Math.abs(g.x - VB_W * 0.5) < 30))
+            .map((g, i) => (
+              <GrassTuft key={i} x={g.x} y={g.y} color={i % 3 === 0 ? groundShadeColor : groundColor} scale={g.scale} />
+            ))}
+
+          {flowerSpots.slice(0, visibleFlowerCount).map((spot, i) => (
+            <Flower key={i} x={spot.x} y={spot.y} color={flowerColors[i % flowerColors.length]} lean={(i % 2 === 0 ? 1 : -1) * (4 + (i % 3) * 3)} />
           ))}
 
-        {flowerSpots.slice(0, visibleFlowerCount).map((spot, i) => (
-          <Flower key={i} x={spot.x} y={spot.y} color={flowerColors[i % flowerColors.length]} lean={(i % 2 === 0 ? 1 : -1) * (4 + (i % 3) * 3)} />
-        ))}
-      </Svg>
+          {night
+            ? stars.map((s, i) => <Star key={i} cx={s.cx} cy={s.cy} r={s.r} delay={s.delay} />)
+            : clouds.map((c, i) => <Cloud key={i} x={c.x} y={c.y} scale={c.scale} duration={c.duration} seed={i} />)}
 
-      {/* animated overlay layers (clouds/stars/fireflies use Animated.View, so they sit above the static Svg) */}
-      {night
-        ? stars.map((s, i) => (
-            <Twinkle key={i} cx={(s.cx / VB_W) * w} cy={(s.cy / VB_H) * h} r={s.r} delay={s.delay}>
-              <View style={{ width: s.r * 2, height: s.r * 2, borderRadius: s.r, backgroundColor: '#FFFFFF' }} />
-            </Twinkle>
-          ))
-        : clouds.map((c, i) => <Cloud key={i} id={i} startX={(c.startX / VB_W) * w} y={(c.y / VB_H) * h} scale={c.scale} duration={c.duration} />)}
+          {showFlutter &&
+            Array.from({ length: flutterCount }).map((_, i) => (
+              <FireflyOrButterfly
+                key={i}
+                night={night}
+                x={VB_W * (0.3 + i * 0.18)}
+                y={VB_H * (0.62 + (i % 2) * 0.08)}
+                color={flowerColors[i % flowerColors.length]}
+                delay={i * 0.17}
+              />
+            ))}
+        </Group>
+      </Canvas>
 
-      {showFlutter &&
-        Array.from({ length: flutterCount }).map((_, i) => (
-          <FireflyOrButterfly
-            key={i}
-            night={night}
-            x={w * (0.3 + i * 0.18)}
-            y={h * (0.62 + (i % 2) * 0.08)}
-            color={flowerColors[i % flowerColors.length]}
-            delay={i * 700}
-          />
-        ))}
-
-      {/* the cat, standing on the ground */}
+      {/* the cat, standing on the ground — kept as its own Canvas (see
+          Companion.js) so it can be reused standalone elsewhere in the app */}
       <View style={{ position: 'absolute', bottom: h * catBottomOffset, left: 0, right: 0, alignItems: 'center' }}>
         <Companion stage={stage} mood={mood} accentColor={accentColor} size={Math.min(180, w * catSizeRatio)} />
       </View>

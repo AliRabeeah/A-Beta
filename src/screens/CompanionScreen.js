@@ -184,9 +184,10 @@ export default function CompanionScreen({ navigation }) {
         <GlassButton icon="stats-chart" onPress={openStats} />
       </View>
 
-      {/* the name tag floats centered in that same top band, independent of
-          the two side buttons, so it never crowds the scene or the cat */}
-      <View pointerEvents="box-none" style={[styles.nameBadgeRow, { top: insets.top + 6 }]}>
+      {/* the name tag floats in the top-right corner, sitting below the two
+          glass buttons rather than between them — clear of both the button
+          row and the cat/scene below */}
+      <View pointerEvents="box-none" style={[styles.nameBadgeRow, { top: insets.top + 58 }]}>
         <NameBadge name={name} accent={accent} onOpen={openStats} />
       </View>
 
@@ -275,11 +276,12 @@ const styles = StyleSheet.create({
   },
   nameBadgeRow: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    // sits above the two glass buttons visually but never intercepts touches
-    // outside the tag itself, thanks to pointerEvents="box-none" above
+    right: 16,
+    alignItems: 'flex-end',
+    // pinned to the right edge, below the button row — never overlaps the
+    // menu/stats buttons above it or the cat lower in the scene, and never
+    // intercepts touches outside the tag itself thanks to
+    // pointerEvents="box-none" above
     zIndex: 5,
   },
   nameBadgeWrap: {
