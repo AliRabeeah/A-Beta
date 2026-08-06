@@ -57,7 +57,7 @@ function OutlinedText({ text, textStyle, color, outlineColor }) {
   return (
     <View>
       {offsets.map(([dx, dy], i) => (
-        <Text key={i} style={[textStyle, styles.badgeTextGhost, { left: dx, top: dy, color: outlineColor }]}>
+        <Text key={i} numberOfLines={1} style={[textStyle, styles.badgeTextGhost, { left: dx, top: dy, color: outlineColor }]}>
           {text}
         </Text>
       ))}
@@ -72,7 +72,7 @@ function OutlinedText({ text, textStyle, color, outlineColor }) {
 // sticker rather than a plain UI pill. Lives up top, out of the way of the
 // scene, bobs and tilts gently, and opens the same stats sheet the old
 // bottom bar used to (tap or long-press).
-function NameBadge({ name, accent, onOpen }) {
+function NameBadge({ name, accent, onOpen, maxWidth }) {
   const float = useSharedValue(0);
   const press = useSharedValue(1);
 
@@ -96,7 +96,7 @@ function NameBadge({ name, accent, onOpen }) {
   }));
 
   return (
-    <Animated.View style={[styles.nameBadgeWrap, floatStyle]}>
+    <Animated.View style={[styles.nameBadgeWrap, maxWidth ? { maxWidth } : null, floatStyle]}>
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={onOpen}
@@ -188,7 +188,7 @@ export default function CompanionScreen({ navigation }) {
           glass buttons rather than between them — clear of both the button
           row and the cat/scene below */}
       <View pointerEvents="box-none" style={[styles.nameBadgeRow, { top: insets.top + 58 }]}>
-        <NameBadge name={name} accent={accent} onOpen={openStats} />
+        <NameBadge name={name} accent={accent} onOpen={openStats} maxWidth={width * 0.54} />
       </View>
 
       {/* stats bottom sheet — everything that used to live on-screen now lives here */}
@@ -285,7 +285,15 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   nameBadgeWrap: {
-    maxWidth: '54%',
+    // Fallback only — CompanionScreen always passes an explicit pixel
+    // maxWidth (54% of the real screen width) as an inline style instead.
+    // A percentage here is unreliable: this wrap sits inside nameBadgeRow,
+    // which is absolutely positioned with only `right` set (no `left`/
+    // width), so it sizes to hug its content. Yoga can't resolve a `%`
+    // maxWidth against a parent whose own width isn't yet resolved, and
+    // was collapsing it to ~0 — squeezing the name down to one letter
+    // per wrapped line instead of a single horizontal row.
+    maxWidth: 220,
   },
   nameBadge: {
     flexDirection: 'row',

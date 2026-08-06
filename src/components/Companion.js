@@ -35,16 +35,16 @@ import { useSharedValue, useDerivedValue, withRepeat, withTiming, Easing } from 
 //  - accentColor: used only for the small bow accessory at max stage
 //  - size: render size in px
 
-const COAT_GREY = '#A6ABB3';
-const COAT_GREY_SHADE = '#848993';
-const COAT_GREY_LIGHT = '#C3C7CE';
+const COAT_GREY = '#B0B0B0';
+const COAT_GREY_SHADE = '#8A8A8A';
+const COAT_GREY_LIGHT = '#CFCFCF';
 const COAT_CREAM = '#F5EAD6';
 const COAT_CREAM_SHADE = '#E4D4B8';
-const NOSE_PINK = '#EFB0BE';
+const NOSE_BROWN = '#7A5E4A';
 const EAR_INNER_PINK = '#E9A8AE';
 const BLUSH_PINK = '#F0A6B3';
-const IRIS_OUTER = '#5C7A3E'; // deeper hazel-green rim for a real iris ring
-const IRIS_INNER = '#B7CE84'; // sunlit hazel-green center
+const IRIS_OUTER = '#C79A1E'; // deeper amber-gold rim
+const IRIS_INNER = '#F6D641'; // bright golden center, as requested
 const EYE_LINE = '#3A3A3A';
 
 function lighten(hex, amount) {
@@ -309,8 +309,8 @@ export default function Companion({ stage = 1, mood = 'content', accentColor = '
             )}
 
             {/* small heart-leaning nose instead of a flat triangle — softer, more realistic */}
-            <Path path={`M ${cx - 2.6} ${headCy + 5} q -0.6 -1.6 1.3 -1.6 q 1.3 0 1.3 1.2 q 0 -1.2 1.3 -1.2 q 1.9 0 1.3 1.6 q -0.6 1.6 -2.6 3.2 q -2 -1.6 -2.6 -3.2 z`} color={NOSE_PINK}>
-              <RadialGradient c={vec(cx - 1, headCy + 4.4)} r={4} colors={[lighten(NOSE_PINK, 15), NOSE_PINK]} />
+            <Path path={`M ${cx - 2.6} ${headCy + 5} q -0.6 -1.6 1.3 -1.6 q 1.3 0 1.3 1.2 q 0 -1.2 1.3 -1.2 q 1.9 0 1.3 1.6 q -0.6 1.6 -2.6 3.2 q -2 -1.6 -2.6 -3.2 z`} color={NOSE_BROWN}>
+              <RadialGradient c={vec(cx - 1, headCy + 4.4)} r={4} colors={[lighten(NOSE_BROWN, 25), NOSE_BROWN]} />
             </Path>
             <Circle cx={cx - 1} cy={headCy + 5.4} r={0.5} color="#FFFFFF" opacity={0.6} />
             <Path path={`M ${cx} ${headCy + 8} l 0 2.2`} color="#8B8B8B" style="stroke" strokeWidth={0.5} strokeCap="round" opacity={0.4} />
