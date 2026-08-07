@@ -96,30 +96,143 @@ function Cloud({ x, y, scale, duration, seed }) {
   );
 }
 
-function Flower({ x, y, color, scale = 1, lean = 0 }) {
+function Flower({ x, y, color, scale = 1, lean = 0, phase = 0 }) {
+  // gentle wind sway layered on top of the static per-flower lean, pivoting
+  // at the stem base so it reads as bending in a breeze rather than
+  // spinning in place
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(withTiming(1, { duration: 2800 + (phase % 4) * 260, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [t, phase]);
+  const sway = useDerivedValue(() => [{ rotate: (t.value - 0.5) * 0.12 }]);
   return (
     <Group transform={[{ translateX: x, translateY: y }, { rotate: (lean * Math.PI) / 180 }, { scale }]}>
-      <Oval {...ellipseRect(0, 6.4, 2.6, 0.8)} color="#000000" opacity={0.12} />
-      <Path path="M 0 0 Q -0.8 3.5 0 6.2" color="#4C7A3E" style="stroke" strokeWidth={1.2} strokeCap="round" />
-      <Path path="M -0.3 3.2 Q -3.2 3 -3.6 1.4 Q -1 0.6 -0.1 2.6 Z" color="#5C8A4E" />
-      {[0, 72, 144, 216, 288].map((deg) => (
-        <Group key={deg} transform={[{ rotate: (deg * Math.PI) / 180 }]}>
-          <Oval {...ellipseRect(0, -4, 2.1, 3.2)} color={color} opacity={0.95} />
-        </Group>
-      ))}
-      <Circle cx={0} cy={0} r={2.2} color={color} opacity={0.35} />
-      <Circle cx={0} cy={0} r={1.5} color="#FFE9A8" />
-      <Circle cx={-0.4} cy={-0.4} r={0.5} color="#FFF6DE" />
+      <Group transform={sway} origin={vec(0, 6.2)}>
+        <Oval {...ellipseRect(0, 6.4, 2.6, 0.8)} color="#000000" opacity={0.12} />
+        <Path path="M 0 0 Q -0.8 3.5 0 6.2" color="#4C7A3E" style="stroke" strokeWidth={1.2} strokeCap="round" />
+        <Path path="M -0.3 3.2 Q -3.2 3 -3.6 1.4 Q -1 0.6 -0.1 2.6 Z" color="#5C8A4E" />
+        {[0, 72, 144, 216, 288].map((deg) => (
+          <Group key={deg} transform={[{ rotate: (deg * Math.PI) / 180 }]}>
+            <Oval {...ellipseRect(0, -4, 2.1, 3.2)} color={color} opacity={0.95} />
+          </Group>
+        ))}
+        <Circle cx={0} cy={0} r={2.2} color={color} opacity={0.35} />
+        <Circle cx={0} cy={0} r={1.5} color="#FFE9A8" />
+        <Circle cx={-0.4} cy={-0.4} r={0.5} color="#FFF6DE" />
+      </Group>
     </Group>
   );
 }
 
-function GrassTuft({ x, y, color, scale = 1 }) {
+function GrassTuft({ x, y, color, scale = 1, phase = 0 }) {
+  // small wind wobble, phase-shifted per tuft (via the index passed in as
+  // `phase`) so a whole row of grass doesn't sway in perfect unison
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(withTiming(1, { duration: 2400 + (phase % 6) * 200, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [t, phase]);
+  const sway = useDerivedValue(() => [{ rotate: (t.value - 0.5) * 0.16 }]);
   return (
     <Group transform={[{ translateX: x, translateY: y }, { scale }]}>
-      <Path path="M 0 0 Q -2.4 -4.5 -1 -7.5" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
-      <Path path="M 0 0 Q 0.2 -5.5 0.3 -8.5" color={color} style="stroke" strokeWidth={0.9} strokeCap="round" opacity={0.9} />
-      <Path path="M 0 0 Q 2.6 -4 1.4 -7" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
+      <Group transform={sway}>
+        <Path path="M 0 0 Q -2.4 -4.5 -1 -7.5" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
+        <Path path="M 0 0 Q 0.2 -5.5 0.3 -8.5" color={color} style="stroke" strokeWidth={0.9} strokeCap="round" opacity={0.9} />
+        <Path path="M 0 0 Q 2.6 -4 1.4 -7" color={color} style="stroke" strokeWidth={0.8} strokeCap="round" opacity={0.85} />
+      </Group>
+    </Group>
+  );
+}
+
+// A soft particle drifting slowly across a small patch of sky — falling
+// petals by day, faint floating dust/motes by night. Purely ambient (not
+// gated by growth stage), so the scene has some motion even at stage 1.
+function DriftParticle({ x, y, size, color, duration, delay, travelX = 16, travelY = 38, blur = 0 }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false);
+  }, [t, duration]);
+  const transform = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    return [
+      { translateX: (tt - 0.5) * travelX },
+      { translateY: tt * travelY - travelY / 2 },
+      { rotate: tt * Math.PI * 1.4 },
+    ];
+  });
+  const opacity = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    const fade = tt < 0.15 ? tt / 0.15 : tt > 0.85 ? (1 - tt) / 0.15 : 1;
+    return Math.max(0, Math.min(1, fade)) * 0.75;
+  });
+  return (
+    <Group transform={[{ translateX: x, translateY: y }]}>
+      <Group transform={transform} opacity={opacity}>
+        <Oval {...ellipseRect(0, 0, size, size * 0.62)} color={color}>
+          {blur > 0 && <BlurMask blur={blur} style="normal" />}
+        </Oval>
+      </Group>
+    </Group>
+  );
+}
+
+// Two thin wing strokes that flap while the whole bird glides left-to-right
+// across the sky — day only, unconditional (not stage-gated) for a bit of
+// unmistakable, always-visible motion.
+function Bird({ y, duration, delay, scale = 1, color = '#4A4A5E' }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false);
+  }, [t, duration]);
+  const flightTransform = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    return [
+      { translateX: -24 + tt * (VB_W + 48) },
+      { translateY: Math.sin(tt * Math.PI * 8) * 3 },
+      { scale },
+    ];
+  });
+  const flightOpacity = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    const fade = tt < 0.06 ? tt / 0.06 : tt > 0.94 ? (1 - tt) / 0.06 : 1;
+    return Math.max(0, Math.min(1, fade));
+  });
+  const leftWing = useDerivedValue(() => [{ rotate: Math.sin(((t.value + delay) % 1) * Math.PI * 18) * 0.6 }]);
+  const rightWing = useDerivedValue(() => [{ rotate: -Math.sin(((t.value + delay) % 1) * Math.PI * 18) * 0.6 }]);
+  return (
+    <Group transform={[{ translateY: y }]}>
+      <Group transform={flightTransform} opacity={flightOpacity}>
+        <Group transform={leftWing} origin={vec(0, 0)}>
+          <Path path="M 0 0 Q -4 -3 -7.5 -0.3" color={color} style="stroke" strokeWidth={1.1} strokeCap="round" />
+        </Group>
+        <Group transform={rightWing} origin={vec(0, 0)}>
+          <Path path="M 0 0 Q 4 -3 7.5 -0.3" color={color} style="stroke" strokeWidth={1.1} strokeCap="round" />
+        </Group>
+      </Group>
+    </Group>
+  );
+}
+
+// A slow expanding, fading ring on the pond's surface, standing in for a
+// gentle ripple — a couple of these staggered by `delay` keeps the water
+// from looking static.
+function PondRipple({ cx, cy, rx, ry, color, delay = 0, duration = 3600 }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withRepeat(withTiming(1, { duration, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [t]);
+  const rippleTransform = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    return [{ scale: 0.25 + tt * 0.85 }];
+  });
+  const rippleOpacity = useDerivedValue(() => {
+    const tt = (t.value + delay) % 1;
+    return Math.max(0, 0.32 * (1 - tt));
+  });
+  return (
+    <Group transform={[{ translateX: cx, translateY: cy }]}>
+      <Group transform={rippleTransform} opacity={rippleOpacity}>
+        <Oval {...ellipseRect(0, 0, rx, ry)} color={color} style="stroke" strokeWidth={0.9} />
+      </Group>
     </Group>
   );
 }
@@ -182,6 +295,14 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
   const groundColor = night ? '#33415C' : sky.period === 'day' ? '#7CC576' : '#8FB56B';
   const groundShadeColor = night ? '#293450' : sky.period === 'day' ? '#68AE5E' : '#79A159';
 
+  // slow breathing glow around the sun/moon so it doesn't sit dead-still
+  const glowPulse = useSharedValue(0);
+  useEffect(() => {
+    glowPulse.value = withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [glowPulse]);
+  const glowR = useDerivedValue(() => 28 + glowPulse.value * 6);
+  const glowOpacity = useDerivedValue(() => 0.34 + glowPulse.value * 0.14);
+
   const stars = useMemo(
     () =>
       Array.from({ length: 14 }).map((_, i) => ({
@@ -198,6 +319,28 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
       { x: VB_W * 0.08, y: VB_H * 0.12, scale: 0.9, duration: 14000 },
       { x: VB_W * 0.55, y: VB_H * 0.06, scale: 0.7, duration: 18000 },
     ],
+    [VB_H]
+  );
+
+  // day-only birds gliding across the sky, and small ambient drift
+  // particles (petals by day, soft dust by night) — both unconditional on
+  // growth stage so the scene has some life even at stage 1
+  const birds = useMemo(
+    () => [
+      { y: VB_H * 0.18, duration: 9000, delay: 0, scale: 0.8 },
+      { y: VB_H * 0.28, duration: 12000, delay: 0.45, scale: 0.6 },
+    ],
+    [VB_H]
+  );
+  const driftParticles = useMemo(
+    () =>
+      Array.from({ length: 6 }).map((_, i) => ({
+        x: ((i * 53 + 20) % VB_W),
+        y: VB_H * (0.1 + ((i * 17) % 40) / 100),
+        size: 1.6 + (i % 3) * 0.5,
+        duration: 6000 + (i % 4) * 1400,
+        delay: (i % 6) / 6,
+      })),
     [VB_H]
   );
 
@@ -245,7 +388,7 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
           <Rect x={0} y={VB_H * 0.55} width={VB_W} height={VB_H * 0.3} color={sky.colors.bottom} opacity={0.25} />
 
           {/* glow + sun/moon */}
-          <Circle cx={sunX} cy={sunY} r={30} color={sky.colors.glow} opacity={0.4}>
+          <Circle cx={sunX} cy={sunY} r={glowR} color={sky.colors.glow} opacity={glowOpacity}>
             <BlurMask blur={10} style="normal" />
           </Circle>
           <Circle cx={sunX} cy={sunY} r={12} color={sky.colors.sunColor}>
@@ -286,6 +429,8 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
                 <RadialGradient c={vec(VB_W * 0.5, VB_H * 0.93 - 2)} r={26} colors={night ? ['#3E5A86', '#26385E', '#1C2C4C'] : ['#BFEFF5', '#8FD6E8', '#5BB6CE']} />
               </Oval>
               <Oval {...ellipseRect(VB_W * 0.5, VB_H * 0.93, 26, 7)} color="transparent" style="stroke" strokeWidth={1} />
+              <PondRipple cx={VB_W * 0.46} cy={VB_H * 0.93} rx={6} ry={1.8} color={night ? '#7FA6D6' : '#FFFFFF'} delay={0} />
+              <PondRipple cx={VB_W * 0.56} cy={VB_H * 0.928} rx={5} ry={1.5} color={night ? '#7FA6D6' : '#FFFFFF'} delay={0.5} duration={4200} />
               <Oval {...ellipseRect(VB_W * 0.44, VB_H * 0.925, 7, 2)} color={night ? '#5A7CB0' : '#FFFFFF'} style="stroke" strokeWidth={0.7} opacity={0.5} />
               <Oval {...ellipseRect(VB_W * 0.58, VB_H * 0.935, 5, 1.4)} color={night ? '#5A7CB0' : '#FFFFFF'} style="stroke" strokeWidth={0.6} opacity={0.4} />
               {!night && <Oval {...ellipseRect(VB_W * 0.46, VB_H * 0.918, 9, 1.6)} color="#FFFFFF" opacity={0.35} />}
@@ -347,16 +492,32 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
           {grassTufts
             .filter((g) => !(showPond && g.y > VB_H * 0.88 && Math.abs(g.x - VB_W * 0.5) < 30))
             .map((g, i) => (
-              <GrassTuft key={i} x={g.x} y={g.y} color={i % 3 === 0 ? groundShadeColor : groundColor} scale={g.scale} />
+              <GrassTuft key={i} x={g.x} y={g.y} color={i % 3 === 0 ? groundShadeColor : groundColor} scale={g.scale} phase={i} />
             ))}
 
           {flowerSpots.slice(0, visibleFlowerCount).map((spot, i) => (
-            <Flower key={i} x={spot.x} y={spot.y} color={flowerColors[i % flowerColors.length]} lean={(i % 2 === 0 ? 1 : -1) * (4 + (i % 3) * 3)} />
+            <Flower key={i} x={spot.x} y={spot.y} color={flowerColors[i % flowerColors.length]} lean={(i % 2 === 0 ? 1 : -1) * (4 + (i % 3) * 3)} phase={i} />
           ))}
 
           {night
             ? stars.map((s, i) => <Star key={i} cx={s.cx} cy={s.cy} r={s.r} delay={s.delay} />)
             : clouds.map((c, i) => <Cloud key={i} x={c.x} y={c.y} scale={c.scale} duration={c.duration} seed={i} />)}
+
+          {!night && birds.map((b, i) => <Bird key={i} y={b.y} duration={b.duration} delay={b.delay} scale={b.scale} />)}
+
+          {driftParticles.map((p, i) => (
+            <DriftParticle
+              key={i}
+              x={p.x}
+              y={p.y}
+              size={p.size}
+              duration={p.duration}
+              delay={p.delay}
+              color={night ? '#FFF3C4' : flowerColors[i % flowerColors.length]}
+              blur={night ? 1.5 : 0}
+              travelY={night ? 20 : 38}
+            />
+          ))}
 
           {showFlutter &&
             Array.from({ length: flutterCount }).map((_, i) => (

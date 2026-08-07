@@ -13,9 +13,9 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, w
 // driving the name badge float and the sky's stars/clouds elsewhere in this
 // screen. That means any flat expression image works, animated or not.
 //
-// Each image is currently a generated placeholder (a labelled dashed
-// circle) — see src/assets/companion-expressions/README.md for where to
-// download free replacements and the exact filenames to save them as.
+// Each image is real artwork (background removed, mapped per mood) — see
+// src/assets/companion-expressions/README.md for the mapping and how to
+// swap any of them later.
 const EXPRESSIONS = {
   happy: require('../assets/companion-expressions/happy.png'),
   content: require('../assets/companion-expressions/content.png'),
@@ -57,10 +57,32 @@ export default function Companion({ stage = 1, mood = 'content', accentColor, si
     ],
   }));
 
+  // a soft contact shadow that shrinks slightly as the cat lifts on the
+  // in-breath, and grows back as it settles — ties the character to the
+  // ground instead of looking like it's floating over the now-livelier
+  // scene behind it
+  const shadowStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: 1 - t.value * 0.08 }],
+    opacity: 0.22 - t.value * 0.05,
+  }));
+
   const source = EXPRESSIONS[mood] || EXPRESSIONS.content;
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'flex-end' }}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            bottom: size * 0.02,
+            width: animatedSize * 0.62,
+            height: animatedSize * 0.14,
+            borderRadius: 999,
+            backgroundColor: '#000000',
+          },
+          shadowStyle,
+        ]}
+      />
       <Animated.Image
         source={source}
         resizeMode="contain"
