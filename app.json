@@ -16,7 +16,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "permissions": ["SCHEDULE_EXACT_ALARM", "RECEIVE_BOOT_COMPLETED", "POST_NOTIFICATIONS"]
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       [
@@ -24,9 +28,14 @@
         {
           "android": {
             "packagingOptions": {
-              "pickFirst": ["**/libc++_shared.so"]
+              "pickFirst": [
+                "**/libc++_shared.so"
+              ]
             },
-            "reactNativeArchitectures": ["armeabi-v7a", "arm64-v8a"]
+            "reactNativeArchitectures": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ]
           }
         }
       ],
@@ -52,13 +61,27 @@
       [
         "@sefatunckanat/expo-dynamic-app-icon",
         {
-          "navy": { "android": "./assets/app-icons/navy.png" },
-          "onyx": { "android": "./assets/app-icons/onyx.png" },
-          "espresso": { "android": "./assets/app-icons/espresso.png" },
-          "sage": { "android": "./assets/app-icons/sage.png" },
-          "cream": { "android": "./assets/app-icons/cream.png" },
-          "amber": { "android": "./assets/app-icons/amber.png" },
-          "infinity": { "android": "./assets/app-icons/infinity.png" }
+          "navy": {
+            "android": "./assets/app-icons/navy.png"
+          },
+          "onyx": {
+            "android": "./assets/app-icons/onyx.png"
+          },
+          "espresso": {
+            "android": "./assets/app-icons/espresso.png"
+          },
+          "sage": {
+            "android": "./assets/app-icons/sage.png"
+          },
+          "cream": {
+            "android": "./assets/app-icons/cream.png"
+          },
+          "amber": {
+            "android": "./assets/app-icons/amber.png"
+          },
+          "infinity": {
+            "android": "./assets/app-icons/infinity.png"
+          }
         }
       ],
       [
@@ -66,74 +89,41 @@
         {
           "widgets": [
             {
-              "name": "TodayHabits",
-              "label": "A — Today",
-              "minWidth": "110dp",
+              "name": "FocusList",
+              "label": "A \u2014 Focus List",
+              "minWidth": "140dp",
               "minHeight": "110dp",
               "targetCellWidth": 4,
               "targetCellHeight": 3,
-              "description": "Shows today's habits, tasks, and plans with Done/Skip buttons",
+              "description": "Today's due habits and tasks, tap to complete \u2014 fully customizable colors, size, and position",
               "updatePeriodMillis": 1800000,
               "resizeMode": "horizontal|vertical"
             },
             {
-              "name": "ProgressRing",
-              "label": "A — Progress",
+              "name": "Stats",
+              "label": "A \u2014 Stats",
               "minWidth": "110dp",
               "minHeight": "110dp",
               "targetCellWidth": 2,
               "targetCellHeight": 2,
-              "description": "Shows how much of today's habits are done",
-              "updatePeriodMillis": 1800000,
-              "resizeMode": "horizontal|vertical"
-            },
-            {
-              "name": "HabitFocus",
-              "label": "A — Focus Habit",
-              "minWidth": "110dp",
-              "minHeight": "110dp",
-              "targetCellWidth": 2,
-              "targetCellHeight": 2,
-              "description": "Pin one habit with a big Done button",
-              "updatePeriodMillis": 1800000,
-              "resizeMode": "horizontal|vertical"
-            },
-            {
-              "name": "WeeklyHeatmap",
-              "label": "A — Weekly Heatmap",
-              "minWidth": "180dp",
-              "minHeight": "80dp",
-              "targetCellWidth": 3,
-              "targetCellHeight": 1,
-              "description": "7-day strip for one habit",
+              "description": "Today's completion bar and best current streak \u2014 fully customizable colors, size, and position",
               "updatePeriodMillis": 1800000,
               "resizeMode": "horizontal|vertical"
             },
             {
               "name": "QuickAdd",
-              "label": "A — Quick Add",
+              "label": "A \u2014 Quick Add",
               "minWidth": "60dp",
               "minHeight": "60dp",
               "targetCellWidth": 1,
               "targetCellHeight": 1,
-              "description": "One tap to open A and add something",
-              "updatePeriodMillis": 1800000,
-              "resizeMode": "horizontal|vertical"
-            },
-            {
-              "name": "PomodoroTimer",
-              "label": "A — Pomodoro",
-              "minWidth": "110dp",
-              "minHeight": "110dp",
-              "targetCellWidth": 2,
-              "targetCellHeight": 2,
-              "description": "Shows your last-known Pomodoro phase and time",
+              "description": "One tap to open A and add something \u2014 fully customizable colors, size, and position",
               "updatePeriodMillis": 1800000,
               "resizeMode": "horizontal|vertical"
             },
             {
               "name": "QuoteWidget",
-              "label": "A — Quote",
+              "label": "A \u2014 Quote",
               "minWidth": "225dp",
               "minHeight": "80dp",
               "targetCellWidth": 5,

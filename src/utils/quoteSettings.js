@@ -51,6 +51,12 @@ export const WIDGET_FIT_OPTIONS = [
   { id: 'roomy', ratio: 0.7 },
   { id: 'balanced', ratio: 0.8 },
   { id: 'snug', ratio: 0.9 },
+  // Tighter than 'snug' — reserves the least margin of the four presets.
+  // Text sits closer to the widget's true edges (more centered, less dead
+  // space) at the cost of a slightly higher risk of clipping on the rare
+  // launchers that over-report widget size (see estimateQuoteFontSize's
+  // comment for why the margin exists at all).
+  { id: 'tightest', ratio: 0.96 },
 ];
 
 async function getBool(key, fallback) {

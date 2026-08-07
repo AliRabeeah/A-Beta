@@ -1,14 +1,11 @@
 import React from 'react';
 import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureStorage.js
 import { requestWidgetUpdate } from 'react-native-android-widget';
-import TodayWidget from '../widgets/TodayWidget';
-import ProgressWidget from '../widgets/ProgressWidget';
-import HabitFocusWidget from '../widgets/HabitFocusWidget';
-import WeeklyHeatmapWidget from '../widgets/WeeklyHeatmapWidget';
-import PomodoroWidget from '../widgets/PomodoroWidget';
+import FocusListWidget from '../widgets/FocusListWidget';
+import StatsWidget from '../widgets/StatsWidget';
+import QuickAddWidget from '../widgets/QuickAddWidget';
 import QuoteWidget from '../widgets/QuoteWidget';
-import { getWidgetOpacity, getWidgetDayOffset, getFocusHabitId, getHeatmapHabitId } from './widgetSettings';
-import { loadPomodoroWidgetState } from './pomodoroWidgetState';
+import { getWidgetCustomization } from './widgetCustomization';
 import { pickRandomQuote, emojiForQuoteId, findQuoteById } from './quotePicker';
 import {
   getWidgetTextColor,
@@ -19,12 +16,13 @@ import {
   getQuoteEmojiEnabled,
   getCurrentWidgetQuoteId,
   setCurrentWidgetQuoteId,
+  getWidgetFitRatio,
+  getWidgetOffsets,
 } from './quoteSettings';
 
 const LANGUAGE_KEY = 'a_language';
 const HABITS_KEY = 'a_habits_v1';
 const TASKS_KEY = 'a_tasks_v1';
-const PLANNING_KEY = 'a_planning_v1';
 
 async function loadJson(key) {
   const raw = await AsyncStorage.getItem(key);
@@ -32,56 +30,56 @@ async function loadJson(key) {
 }
 
 /**
- * Called after every habit/task/planning add/update/delete/status-change
- * so every driven home-screen widget updates immediately instead of
- * waiting for Android's periodic refresh interval. Safe to call even
- * if the widget library isn't fully linked yet or the user hasn't
- * added any of these widgets — each update is wrapped so one missing
- * widget instance doesn't stop the others from refreshing.
+ * Called after every habit/task add/update/delete/status-change so the
+ * FocusList and Stats widgets update immediately instead of waiting for
+ * Android's periodic refresh interval. Safe to call even if the widget
+ * library isn't fully linked yet or the user hasn't added either widget —
+ * each update is wrapped so one missing widget instance doesn't stop the
+ * other from refreshing.
  *
  * `habitsOverride` lets a caller that already has the freshest in-memory
- * habits array (HabitContext) skip an extra storage read; tasks and
- * planning items are always read fresh from storage since this is also
- * called from TaskContext/PlanningContext, which don't carry habits.
+ * habits array (HabitContext) skip an extra storage read; tasks are
+ * always read fresh from storage since this is also called from
+ * TaskContext, which doesn't carry habits, and from PlanningContext,
+ * which carries neither (planning items no longer feed either widget).
  */
 export async function refreshTodayWidget(habitsOverride) {
-  const [habits, tasks, planningItems, opacity, dayOffset, storedLang, focusId, heatmapId] = await Promise.all([
+  const [habits, tasks, storedLang, listCustom, statsCustom] = await Promise.all([
     habitsOverride || loadJson(HABITS_KEY),
     loadJson(TASKS_KEY),
-    loadJson(PLANNING_KEY),
-    getWidgetOpacity(),
-    getWidgetDayOffset(),
     AsyncStorage.getItem(LANGUAGE_KEY),
-    getFocusHabitId(),
-    getHeatmapHabitId(),
+    getWidgetCustomization('list'),
+    getWidgetCustomization('stats'),
   ]);
   const language = storedLang === 'ar' ? 'ar' : 'en';
 
   const updates = [
     requestWidgetUpdate({
-      widgetName: 'TodayHabits',
+      widgetName: 'FocusList',
       renderWidget: () => (
-        <TodayWidget
+        <FocusListWidget
           habits={habits}
           tasks={tasks}
-          planningItems={planningItems}
-          dayOffset={dayOffset}
-          opacity={opacity}
           language={language}
+          accentColor={listCustom.accentColor}
+          style={listCustom.style}
+          size={listCustom.size}
+          offset={listCustom.offset}
         />
       ),
     }),
     requestWidgetUpdate({
-      widgetName: 'ProgressRing',
-      renderWidget: () => <ProgressWidget habits={habits} opacity={opacity} />,
-    }),
-    requestWidgetUpdate({
-      widgetName: 'HabitFocus',
-      renderWidget: () => <HabitFocusWidget habit={habits.find((h) => h.id === focusId && !h.archived) || null} opacity={opacity} />,
-    }),
-    requestWidgetUpdate({
-      widgetName: 'WeeklyHeatmap',
-      renderWidget: () => <WeeklyHeatmapWidget habit={habits.find((h) => h.id === heatmapId && !h.archived) || null} opacity={opacity} />,
+      widgetName: 'Stats',
+      renderWidget: () => (
+        <StatsWidget
+          habits={habits}
+          language={language}
+          accentColor={statsCustom.accentColor}
+          style={statsCustom.style}
+          size={statsCustom.size}
+          offset={statsCustom.offset}
+        />
+      ),
     }),
   ];
 
@@ -95,24 +93,43 @@ export async function refreshTodayWidget(habitsOverride) {
   }
 }
 
-/** Called from the Timer screen whenever the Pomodoro state changes. */
-export async function refreshPomodoroWidget() {
+/**
+ * Kept as a safe no-op — the Pomodoro widget was removed. Calls from
+ * TimerScreen are harmless to leave in place rather than touching that
+ * screen just to strip them out.
+ */
+export async function refreshPomodoroWidget() {}
+
+/**
+ * Called from the Widgets settings screen whenever a customization
+ * setting changes (color, size, style, position) for the List, Stats, or
+ * Quick Add widget, so the home-screen instance reflects it immediately.
+ */
+export async function refreshCustomWidget(widgetKey) {
   try {
-    const [state, opacity] = await Promise.all([loadPomodoroWidgetState(), getWidgetOpacity()]);
-    await requestWidgetUpdate({
-      widgetName: 'PomodoroTimer',
-      renderWidget: () => <PomodoroWidget state={state} opacity={opacity} />,
-    });
+    if (widgetKey === 'list' || widgetKey === 'stats') {
+      await refreshTodayWidget();
+    } else if (widgetKey === 'quickAdd') {
+      const [storedLang, custom] = await Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), getWidgetCustomization('quickAdd')]);
+      const language = storedLang === 'ar' ? 'ar' : 'en';
+      await requestWidgetUpdate({
+        widgetName: 'QuickAdd',
+        renderWidget: () => (
+          <QuickAddWidget language={language} accentColor={custom.accentColor} style={custom.style} size={custom.size} offset={custom.offset} />
+        ),
+      });
+    }
   } catch (e) {
-    // No Pomodoro widget on the home screen — safe to ignore.
+    // No instance of this widget on the home screen — safe to ignore.
   }
 }
 
 /**
  * Called from the Quote settings screen whenever a style setting changes
- * (color, font, size, alignment, show-author toggle, emoji toggle) so the
- * home-screen widget reflects it immediately, and also when the user wants
- * to force a brand-new quote right away (`forceNewQuote`).
+ * (color, font, size, alignment, show-author toggle, emoji toggle, fit,
+ * position) so the home-screen widget reflects it immediately, and also
+ * when the user wants to force a brand-new quote right away
+ * (`forceNewQuote`).
  */
 export async function refreshQuoteWidget(forceNewQuote = false) {
   try {
@@ -126,13 +143,15 @@ export async function refreshQuoteWidget(forceNewQuote = false) {
     }
     if (quote) await setCurrentWidgetQuoteId(quote.id);
 
-    const [textColor, fontFamily, size, align, showAuthor, emojiEnabled] = await Promise.all([
+    const [textColor, fontFamily, size, align, showAuthor, emojiEnabled, fitRatio, offsets] = await Promise.all([
       getWidgetTextColor(),
       getWidgetFontFamily(),
       getWidgetSize(),
       getWidgetAlign(),
       getShowAuthor(),
       getQuoteEmojiEnabled(),
+      getWidgetFitRatio(),
+      getWidgetOffsets(),
     ]);
 
     await requestWidgetUpdate({
@@ -147,6 +166,8 @@ export async function refreshQuoteWidget(forceNewQuote = false) {
           fontFamily={fontFamily}
           size={size}
           align={align}
+          fitRatio={fitRatio}
+          offsets={offsets}
         />
       ),
     });

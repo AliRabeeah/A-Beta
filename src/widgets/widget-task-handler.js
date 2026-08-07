@@ -1,21 +1,10 @@
 import React from 'react';
 import { Linking } from 'react-native';
 import AsyncStorage from '../utils/secureStorage'; // encrypted at rest -- see secureStorage.js
-import {
-  getWidgetOpacity,
-  getWidgetDayOffset,
-  setWidgetDayOffset,
-  getFocusHabitId,
-  getHeatmapHabitId,
-} from '../utils/widgetSettings';
-import { loadPomodoroWidgetState } from '../utils/pomodoroWidgetState';
-import { toKey } from '../utils/dateUtils';
-import TodayWidget from './TodayWidget';
-import ProgressWidget from './ProgressWidget';
-import HabitFocusWidget from './HabitFocusWidget';
-import WeeklyHeatmapWidget from './WeeklyHeatmapWidget';
+import { getWidgetCustomization } from '../utils/widgetCustomization';
+import FocusListWidget from './FocusListWidget';
+import StatsWidget from './StatsWidget';
 import QuickAddWidget from './QuickAddWidget';
-import PomodoroWidget from './PomodoroWidget';
 import QuoteWidget from './QuoteWidget';
 import { pickRandomQuote, emojiForQuoteId, findQuoteById } from '../utils/quotePicker';
 import {
@@ -33,7 +22,6 @@ import {
 
 const HABITS_KEY = 'a_habits_v1';
 const TASKS_KEY = 'a_tasks_v1';
-const PLANNING_KEY = 'a_planning_v1';
 const LANGUAGE_KEY = 'a_language';
 
 async function loadHabits() {
@@ -52,15 +40,6 @@ async function loadTasks() {
 
 async function saveTasks(tasks) {
   await AsyncStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-}
-
-async function loadPlanningItems() {
-  const raw = await AsyncStorage.getItem(PLANNING_KEY);
-  return raw ? JSON.parse(raw) : [];
-}
-
-async function savePlanningItems(planningItems) {
-  await AsyncStorage.setItem(PLANNING_KEY, JSON.stringify(planningItems));
 }
 
 async function loadLanguage() {
@@ -129,148 +108,82 @@ function applyTaskStatus(tasks, taskId, dateKey, nextStatus) {
   });
 }
 
-/** Toggles a Planning item's completed state for a date (mirrors PlanningContext.setDayCompleted). */
-function applyPlanningStatus(planningItems, planningId, dateKey) {
-  return planningItems.map((p) => {
-    if (p.id !== planningId) return p;
-    const completedDays = { ...(p.completedDays || {}) };
-    if (completedDays[dateKey]) delete completedDays[dateKey];
-    else completedDays[dateKey] = true;
-    return { ...p, completedDays };
-  });
-}
-
-async function handleTodayHabits(props) {
-  let dayOffset = await getWidgetDayOffset();
-
+async function handleFocusList(props) {
   if (props.widgetAction === 'WIDGET_CLICK') {
     const { clickAction, clickActionData } = props;
-    if (clickAction === 'PREV_DAY') {
-      dayOffset -= 1;
-      await setWidgetDayOffset(dayOffset);
-    } else if (clickAction === 'NEXT_DAY') {
-      dayOffset += 1;
-      await setWidgetDayOffset(dayOffset);
-    } else if (clickAction === 'OPEN_APP' || clickAction === 'ADD_HABIT') {
+    if (clickAction === 'OPEN_APP') {
       await openApp();
-    } else if (clickAction === 'TOGGLE_DONE' || clickAction === 'TOGGLE_SKIP') {
+    } else if (clickAction === 'TOGGLE_DONE') {
       const { habitId, dateKey } = clickActionData || {};
       if (habitId && dateKey) {
         const habits = await loadHabits();
-        const updated = applyHabitStatus(habits, habitId, dateKey, clickAction === 'TOGGLE_DONE' ? 'done' : 'skipped');
-        await saveHabits(updated);
+        await saveHabits(applyHabitStatus(habits, habitId, dateKey, 'done'));
       }
-    } else if (clickAction === 'TASK_TOGGLE_DONE' || clickAction === 'TASK_TOGGLE_SKIP') {
+    } else if (clickAction === 'TASK_TOGGLE_DONE') {
       const { taskId, dateKey } = clickActionData || {};
       if (taskId && dateKey) {
         const tasks = await loadTasks();
-        const updated = applyTaskStatus(tasks, taskId, dateKey, clickAction === 'TASK_TOGGLE_DONE' ? 'done' : 'skipped');
-        await saveTasks(updated);
-      }
-    } else if (clickAction === 'PLANNING_TOGGLE_DONE') {
-      const { planningId, dateKey } = clickActionData || {};
-      if (planningId && dateKey) {
-        const planningItems = await loadPlanningItems();
-        const updated = applyPlanningStatus(planningItems, planningId, dateKey);
-        await savePlanningItems(updated);
+        await saveTasks(applyTaskStatus(tasks, taskId, dateKey, 'done'));
       }
     }
   }
 
-  const [freshHabits, freshTasks, freshPlanningItems, opacity, language] = await Promise.all([
+  const [habits, tasks, language, custom] = await Promise.all([
     loadHabits(),
     loadTasks(),
-    loadPlanningItems(),
-    getWidgetOpacity(),
     loadLanguage(),
+    getWidgetCustomization('list'),
   ]);
-  const widgetHeightDp = props.widgetInfo?.height ?? null;
 
   props.renderWidget(
-    <TodayWidget
-      habits={freshHabits}
-      tasks={freshTasks}
-      planningItems={freshPlanningItems}
-      dayOffset={dayOffset}
-      opacity={opacity}
+    <FocusListWidget
+      habits={habits}
+      tasks={tasks}
       language={language}
-      widgetHeightDp={widgetHeightDp}
+      accentColor={custom.accentColor}
+      style={custom.style}
+      size={custom.size}
+      offset={custom.offset}
+      widgetHeightDp={props.widgetInfo?.height ?? null}
     />
   );
 }
 
-async function handleProgressRing(props) {
+async function handleStats(props) {
   if (props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'OPEN_APP') {
     await openApp();
   }
-  const habits = await loadHabits();
-  const opacity = await getWidgetOpacity();
-  props.renderWidget(<ProgressWidget habits={habits} opacity={opacity} />);
-}
-
-async function handleHabitFocus(props) {
-  const todayKey = toKey(new Date());
-
-  if (props.widgetAction === 'WIDGET_CLICK') {
-    const { clickAction, clickActionData } = props;
-    if (clickAction === 'FOCUS_OPEN_APP' || clickAction === 'OPEN_APP') {
-      await openApp();
-    } else if (clickAction === 'FOCUS_TOGGLE_DONE') {
-      const focusId = await getFocusHabitId();
-      if (focusId) {
-        const habits = await loadHabits();
-        const updated = applyHabitStatus(habits, focusId, todayKey, 'done');
-        await saveHabits(updated);
-      }
-    }
-  }
-
-  const focusId = await getFocusHabitId();
-  const habits = await loadHabits();
-  const habit = focusId ? habits.find((h) => h.id === focusId && !h.archived) : null;
-  const opacity = await getWidgetOpacity();
-  props.renderWidget(<HabitFocusWidget habit={habit} opacity={opacity} />);
-}
-
-async function handleWeeklyHeatmap(props) {
-  const todayKey = toKey(new Date());
-
-  if (props.widgetAction === 'WIDGET_CLICK') {
-    const { clickAction } = props;
-    if (clickAction === 'OPEN_APP') {
-      await openApp();
-    } else if (clickAction === 'HEATMAP_TOGGLE_DONE') {
-      const heatmapId = await getHeatmapHabitId();
-      if (heatmapId) {
-        const habits = await loadHabits();
-        const updated = applyHabitStatus(habits, heatmapId, todayKey, 'done');
-        await saveHabits(updated);
-      }
-    }
-  }
-
-  const heatmapId = await getHeatmapHabitId();
-  const habits = await loadHabits();
-  const habit = heatmapId ? habits.find((h) => h.id === heatmapId && !h.archived) : null;
-  const opacity = await getWidgetOpacity();
-  props.renderWidget(<WeeklyHeatmapWidget habit={habit} opacity={opacity} />);
+  const [habits, language, custom] = await Promise.all([
+    loadHabits(),
+    loadLanguage(),
+    getWidgetCustomization('stats'),
+  ]);
+  props.renderWidget(
+    <StatsWidget
+      habits={habits}
+      language={language}
+      accentColor={custom.accentColor}
+      style={custom.style}
+      size={custom.size}
+      offset={custom.offset}
+    />
+  );
 }
 
 async function handleQuickAdd(props) {
-  if (props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'OPEN_APP') {
+  if (props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'ADD_OPEN_APP') {
     await openApp();
   }
-  const opacity = await getWidgetOpacity();
-  props.renderWidget(<QuickAddWidget opacity={opacity} />);
-}
-
-async function handlePomodoro(props) {
-  if (props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'OPEN_APP') {
-    await openApp();
-  }
-  const state = await loadPomodoroWidgetState();
-  const opacity = await getWidgetOpacity();
-  props.renderWidget(<PomodoroWidget state={state} opacity={opacity} />);
+  const [language, custom] = await Promise.all([loadLanguage(), getWidgetCustomization('quickAdd')]);
+  props.renderWidget(
+    <QuickAddWidget
+      language={language}
+      accentColor={custom.accentColor}
+      style={custom.style}
+      size={custom.size}
+      offset={custom.offset}
+    />
+  );
 }
 
 async function handleQuoteWidget(props) {
@@ -329,20 +242,14 @@ export async function widgetTaskHandler(props) {
   const widgetName = props.widgetInfo?.widgetName;
 
   switch (widgetName) {
-    case 'ProgressRing':
-      return handleProgressRing(props);
-    case 'HabitFocus':
-      return handleHabitFocus(props);
-    case 'WeeklyHeatmap':
-      return handleWeeklyHeatmap(props);
+    case 'FocusList':
+      return handleFocusList(props);
+    case 'Stats':
+      return handleStats(props);
     case 'QuickAdd':
       return handleQuickAdd(props);
-    case 'PomodoroTimer':
-      return handlePomodoro(props);
     case 'QuoteWidget':
-      return handleQuoteWidget(props);
-    case 'TodayHabits':
     default:
-      return handleTodayHabits(props);
+      return handleQuoteWidget(props);
   }
 }

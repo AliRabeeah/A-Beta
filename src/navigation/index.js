@@ -30,6 +30,7 @@ import NewTaskScreen from '../screens/NewTaskScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
 import AboutScreen from '../screens/AboutScreen';
 import QuoteSettingsScreen from '../screens/QuoteSettingsScreen';
+import WidgetsSettingsScreen from '../screens/WidgetsSettingsScreen';
 import ArchiveScreen from '../screens/ArchiveScreen';
 import ChallengesScreen from '../screens/ChallengesScreen';
 import ChallengeDetailScreen from '../screens/ChallengeDetailScreen';
@@ -148,6 +149,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Timer" component={TimerScreen} options={{ headerShown: false }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: '' }} />
       <Stack.Screen name="QuoteSettings" component={QuoteSettingsScreen} options={{ title: t('quoteSettingsTitle') }} />
+      <Stack.Screen name="WidgetsSettings" component={WidgetsSettingsScreen} options={{ title: t('widgetSection') }} />
       <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TrophyCase" component={TrophyCaseScreen} options={{ headerShown: false }} />
       <Stack.Screen name="StartChallenge" component={StartChallengeScreen} options={{ headerShown: false }} />

@@ -361,7 +361,7 @@ export default function QuoteSettingsScreen() {
   };
 
   const sizeLabel = { small: t('quoteSizeSmall'), medium: t('quoteSizeMedium'), large: t('quoteSizeLarge') };
-  const fitLabel = { roomy: t('quoteFitRoomy'), balanced: t('quoteFitBalanced'), snug: t('quoteFitSnug') };
+  const fitLabel = { roomy: t('quoteFitRoomy'), balanced: t('quoteFitBalanced'), snug: t('quoteFitSnug'), tightest: t('quoteFitTightest') };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}>
