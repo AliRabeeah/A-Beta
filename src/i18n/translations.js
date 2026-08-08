@@ -353,6 +353,9 @@ export const translations = {
     version: 'Version',
     aboutBody: '"Make Your Own Luck."',
     madeBy: 'Ali Halim ©',
+    aboutPrivacyPolicy: 'Privacy Policy',
+    aboutTerms: 'Terms of Service',
+    aboutRateApp: 'Rate the App',
 
     // Timer
     timerTitle: 'Timer',
@@ -1120,6 +1123,9 @@ export const translations = {
     version: 'الإصدار',
     aboutBody: '"اصنع حظك بنفسك."',
     madeBy: 'Ali Halim ©',
+    aboutPrivacyPolicy: 'سياسة الخصوصية',
+    aboutTerms: 'الشروط والأحكام',
+    aboutRateApp: 'قيّم التطبيق',
 
     // Timer
     timerTitle: 'المؤقت',

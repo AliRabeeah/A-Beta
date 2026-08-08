@@ -1,24 +1,25 @@
 import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedProps,
-  withTiming,
-  interpolate,
-  interpolateColor,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing } from 'react-native-reanimated';
 
-const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 const DURATION = 220;
 
 /**
  * Lives entirely in the bottom tab bar — it only animates the icon itself
- * (a quick pop + a smooth color crossfade instead of the default instant
- * tint swap), never the screen content. That keeps it decoupled from
- * whatever's on screen: no wrapping, no remount risk, safe even behind a
- * heavy screen like EvoCat's Skia canvas.
+ * (a quick pop + a color crossfade instead of the default instant tint
+ * swap), never the screen content. That keeps it decoupled from whatever
+ * screen's on screen: no wrapping, no remount risk.
+ *
+ * The color "crossfade" is two stacked Ionicons (one inactiveColor, one
+ * activeColor) with the active one's opacity animated 0->1, NOT a single
+ * icon with an animated color prop. Animating an icon's color prop
+ * directly via useAnimatedProps was unreliable here — for tabs other than
+ * the one focused at first mount, the color sometimes settled on neither
+ * the intended active nor inactive color once the crossfade finished.
+ * Two-icons-plus-opacity only ever animates opacity (the same technique
+ * already used reliably elsewhere in this app), which sidesteps that
+ * whole class of bug.
  */
 export default function AnimatedTabIcon({ focused, iconName, size, activeColor, inactiveColor }) {
   const progress = useSharedValue(focused ? 1 : 0);
@@ -32,14 +33,16 @@ export default function AnimatedTabIcon({ focused, iconName, size, activeColor, 
     // "pop" when animating toward focused; unfocusing just eases back down
     transform: [{ scale: interpolate(progress.value, [0, 0.5, 1], [1, 1.16, 1]) }],
   }));
-
-  const animatedProps = useAnimatedProps(() => ({
-    color: interpolateColor(progress.value, [0, 1], [inactiveColor, activeColor]),
-  }));
+  const activeIconStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
 
   return (
     <Animated.View style={containerStyle}>
-      <AnimatedIonicons name={iconName} size={size} animatedProps={animatedProps} />
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={iconName} size={size} color={inactiveColor} style={{ position: 'absolute' }} />
+        <Animated.View style={activeIconStyle}>
+          <Ionicons name={iconName} size={size} color={activeColor} />
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 }
