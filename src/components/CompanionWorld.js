@@ -316,27 +316,33 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
 
   const clouds = useMemo(
     () => [
-      { x: VB_W * 0.08, y: VB_H * 0.12, scale: 0.9, duration: 14000 },
-      { x: VB_W * 0.55, y: VB_H * 0.06, scale: 0.7, duration: 18000 },
+      { x: VB_W * 0.1, y: VB_H * 0.22, scale: 0.9, duration: 14000 },
+      { x: VB_W * 0.58, y: VB_H * 0.15, scale: 0.7, duration: 18000 },
     ],
     [VB_H]
   );
 
   // day-only birds gliding across the sky, and small ambient drift
-  // particles (petals by day, soft dust by night) — both unconditional on
-  // growth stage so the scene has some life even at stage 1
+  // particles (petals drifting near the garden by day, soft dust higher in
+  // the sky by night) — both unconditional on growth stage so the scene
+  // has some life even at stage 1
   const birds = useMemo(
     () => [
-      { y: VB_H * 0.18, duration: 9000, delay: 0, scale: 0.8 },
-      { y: VB_H * 0.28, duration: 12000, delay: 0.45, scale: 0.6 },
+      { y: VB_H * 0.3, duration: 9000, delay: 0, scale: 0.8 },
+      { y: VB_H * 0.4, duration: 12000, delay: 0.45, scale: 0.6 },
     ],
     [VB_H]
   );
+  // Day petals hover low, near the flowerbed/grass line, not up in the open
+  // sky — otherwise they read as stray flowers floating near the clouds
+  // instead of petals drifting through the garden. Night dust stays higher
+  // up, among the stars, which is where it's meant to read as ambient glow.
   const driftParticles = useMemo(
     () =>
       Array.from({ length: 6 }).map((_, i) => ({
-        x: ((i * 53 + 20) % VB_W),
-        y: VB_H * (0.1 + ((i * 17) % 40) / 100),
+        x: (i * 53 + 20) % VB_W,
+        dayY: VB_H * (0.66 + ((i * 11) % 16) / 100), // ~0.66-0.82, just above/at the grass line
+        nightY: VB_H * (0.08 + ((i * 17) % 30) / 100), // ~0.08-0.38, upper sky among the stars
         size: 1.6 + (i % 3) * 0.5,
         duration: 6000 + (i % 4) * 1400,
         delay: (i % 6) / 6,
@@ -347,12 +353,12 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
   const flowerColors = ['#F08FB0', '#FFD166', '#F0866E', '#B48EE0'];
   const flowerSpots = useMemo(
     () => [
-      { x: VB_W * 0.18, y: VB_H * 0.86 },
-      { x: VB_W * 0.28, y: VB_H * 0.9 },
-      { x: VB_W * 0.72, y: VB_H * 0.87 },
-      { x: VB_W * 0.82, y: VB_H * 0.91 },
-      { x: VB_W * 0.62, y: VB_H * 0.93 },
-      { x: VB_W * 0.38, y: VB_H * 0.94 },
+      { x: VB_W * 0.16, y: VB_H * 0.87 },
+      { x: VB_W * 0.26, y: VB_H * 0.91 },
+      { x: VB_W * 0.74, y: VB_H * 0.88 },
+      { x: VB_W * 0.84, y: VB_H * 0.92 },
+      { x: VB_W * 0.63, y: VB_H * 0.94 },
+      { x: VB_W * 0.37, y: VB_H * 0.95 },
     ],
     [VB_H]
   );
@@ -509,13 +515,14 @@ export default function CompanionWorld({ stage = 1, mood = 'content', accentColo
             <DriftParticle
               key={i}
               x={p.x}
-              y={p.y}
+              y={night ? p.nightY : p.dayY}
               size={p.size}
               duration={p.duration}
               delay={p.delay}
               color={night ? '#FFF3C4' : flowerColors[i % flowerColors.length]}
               blur={night ? 1.5 : 0}
-              travelY={night ? 20 : 38}
+              travelX={night ? 16 : 14}
+              travelY={night ? 20 : 16}
             />
           ))}
 

@@ -346,7 +346,7 @@ export const translations = {
 
     // About
     version: 'Version',
-    aboutBody: '"Mindset is the key. Discipline is the way."',
+    aboutBody: '"Make Your Own Luck."',
     madeBy: 'Ali Halim ©',
 
     // Timer
@@ -1108,7 +1108,7 @@ export const translations = {
     backupHealthDaysAgo: (n) => (n === 1 ? 'منذ يوم واحد' : `منذ ${n} أيام`),
 
     version: 'الإصدار',
-    aboutBody: '"العقلية هي المفتاح. والانضباط هو الطريق."',
+    aboutBody: '"اصنع حظك بنفسك."',
     madeBy: 'Ali Halim ©',
 
     // Timer
