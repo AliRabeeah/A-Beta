@@ -1,33 +1,59 @@
 # Fonts for the About screen redesign
 
-`AboutScreen.js` was designed for **Fraunces** (headings, app name, quote)
-and **Manrope** (secondary text) per the design spec, but no font files are
-bundled here — I can't download font binaries in this environment, so the
-screen currently falls back to the system serif/default fonts instead
-(configured at the top of `AboutScreen.js`, see `HEADING_FONT` /
-`BODY_FONT`).
+الحين شاشة About تستخدم خط بديل (النظام العادي)، مو الخط الأنيق (Fraunces/Manrope) المطلوب بالتصميم — لأن ملفات الخط الحقيقية مو موجودة. هذا الملف يشرح كيف تضيفها.
 
-It still looks and works correctly with the fallback — this is purely a
-"swap in the real typeface whenever you have it" step, not something
-broken.
+## وين تجيب الخطوط (مجانية)
+1. **Fraunces**: https://fonts.google.com/specimen/Fraunces
+   حمّل وحدتين بس: **Regular** و **Italic**
+2. **Manrope**: https://fonts.google.com/specimen/Manrope
+   حمّل وحدتين بس: **Regular** و **SemiBold**
 
-## How to add the real fonts
+بكل صفحة، زر **Download family** يحمّل لك ملف مضغوط (zip) فيه كل أوزان الخط — تحتاج بس ٤ ملفات منها إجمالًا (٢ من كل خط).
 
-1. Download the font files (both are free/open-source on Google Fonts):
-   - **Fraunces**: https://fonts.google.com/specimen/Fraunces — get at
-     least the Regular and Italic weights (`Fraunces-Regular.ttf`,
-     `Fraunces-Italic.ttf`).
-   - **Manrope**: https://fonts.google.com/specimen/Manrope — get
-     Regular and SemiBold (`Manrope-Regular.ttf`, `Manrope-SemiBold.ttf`).
-2. Put all 4 `.ttf` files directly in this folder
-   (`assets/fonts/`) with those exact filenames.
-3. In `AboutScreen.js`, find the `useFonts(...)` call near the top of the
-   component and uncomment the 4 `require(...)` lines (they're commented
-   out right now specifically so the app builds without the files
-   present).
-4. Change `HEADING_FONT` to `'Fraunces-Regular'` and `BODY_FONT` to
-   `'Manrope-Regular'` (both constants are right above the `useFonts`
-   call).
+## وين تحطها بالضبط
+حط الملفات الأربعة **بنفس هذا المجلد** (`assets/fonts/`)، وسمّها بالضبط كذا (بدون تغيير):
+```
+assets/fonts/Fraunces-Regular.ttf
+assets/fonts/Fraunces-Italic.ttf
+assets/fonts/Manrope-Regular.ttf
+assets/fonts/Manrope-SemiBold.ttf
+```
 
-That's it — no other code changes needed, and nothing else in the app is
-affected either way.
+## التعديل المطلوب بالكود (خطوتين بس)
+افتح ملف `src/screens/AboutScreen.js`، ودور على هذا الجزء بالأعلى:
+
+```js
+function useAboutFonts() {
+  return useFonts({
+    // 'Fraunces-Regular': require('../../assets/fonts/Fraunces-Regular.ttf'),
+    // 'Fraunces-Italic': require('../../assets/fonts/Fraunces-Italic.ttf'),
+    // 'Manrope-Regular': require('../../assets/fonts/Manrope-Regular.ttf'),
+    // 'Manrope-SemiBold': require('../../assets/fonts/Manrope-SemiBold.ttf'),
+  });
+}
+```
+
+**الخطوة ١:** احذف علامة `//` من بداية الأسطر الأربعة (فك التعليق عنها) — تصير كذا:
+```js
+function useAboutFonts() {
+  return useFonts({
+    'Fraunces-Regular': require('../../assets/fonts/Fraunces-Regular.ttf'),
+    'Fraunces-Italic': require('../../assets/fonts/Fraunces-Italic.ttf'),
+    'Manrope-Regular': require('../../assets/fonts/Manrope-Regular.ttf'),
+    'Manrope-SemiBold': require('../../assets/fonts/Manrope-SemiBold.ttf'),
+  });
+}
+```
+
+**الخطوة ٢:** بنفس الملف، دور على هذين السطرين (فوق بشوي):
+```js
+const HEADING_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
+const BODY_FONT = undefined; // platform default
+```
+وغيّرهم لـ:
+```js
+const HEADING_FONT = 'Fraunces-Regular';
+const BODY_FONT = 'Manrope-Regular';
+```
+
+هذا كل شي — احفظ، أعد تشغيل التطبيق (rebuild)، وبتشوف الخط الجديد بشاشة About. ما فيه أي تعديل ثاني مطلوب، وما يأثر على أي شاشة ثانية بالتطبيق.

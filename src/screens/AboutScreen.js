@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withDelay,
-  withRepeat,
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
@@ -24,12 +24,30 @@ import { useLanguage } from '../i18n/LanguageContext';
 // then this falls back to a safe system serif for headings and the
 // platform default for everything else; the screen is fully designed and
 // functional either way, this is purely a typeface swap when ready.
-const HEADING_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
-const BODY_FONT = undefined; // platform default
+const HEADING_FONT = 'Fraunces-Regular';
+const BODY_FONT = 'Manrope-Regular';
+// The quote is italic by design — Android doesn't synthetically slant a
+// custom font the way iOS does when you set fontStyle:'italic' on it, so
+// this points at the actual italic weight file instead, which renders
+// correctly on both platforms. fontStyle:'italic' stays on quoteBody too,
+// as a harmless no-op on Android and the correct behavior on iOS if this
+// ever runs there.
+const QUOTE_FONT = 'Fraunces-Italic';
 
-// Once assets/fonts/*.ttf exist, load them with expo-font's useFonts()
-// here and change the two constants above to 'Fraunces-Regular' /
-// 'Manrope-Regular' — see assets/fonts/README.md for the exact snippet.
+// Step 3 from assets/fonts/README.md: once the 4 .ttf files exist in
+// assets/fonts/, uncomment the 4 lines inside this object (below) — that
+// makes expo-font actually load and register them. Then do step 4: change
+// the two constants above to 'Fraunces-Regular' and 'Manrope-Regular'.
+// Left as an empty object for now so the app builds fine without the
+// files present — an empty useFonts() call is a harmless no-op.
+function useAboutFonts() {
+  return useFonts({
+    'Fraunces-Regular': require('../../assets/fonts/Fraunces-Regular.ttf'),
+    'Fraunces-Italic': require('../../assets/fonts/Fraunces-Italic.ttf'),
+    'Manrope-Regular': require('../../assets/fonts/Manrope-Regular.ttf'),
+    'Manrope-SemiBold': require('../../assets/fonts/Manrope-SemiBold.ttf'),
+  });
+}
 
 // ---------------------------------------------------------------------
 // Palette — an editorial palette specific to this screen (richer/warmer
@@ -102,56 +120,18 @@ function FadeInUp({ delay = 0, reduceMotion, style, children }) {
   return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;
 }
 
-/** The quiet signature background behind the icon: a slowly breathing
- * glow plus two very thin dashed rings rotating opposite directions.
- * Purely ambient — intentionally too slow to read as "an animation"
- * rather than a mood. Fully static when reduce-motion is on. */
-function SignatureHalo({ reduceMotion, size }) {
-  const breathe = useSharedValue(reduceMotion ? 0.5 : 0);
-  const ring1 = useSharedValue(0);
-  const ring2 = useSharedValue(0);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-    breathe.value = withRepeat(withTiming(1, { duration: 6500, easing: Easing.inOut(Easing.sin) }), -1, true);
-    ring1.value = withRepeat(withTiming(1, { duration: 32000, easing: Easing.linear }), -1, false);
-    ring2.value = withRepeat(withTiming(1, { duration: 25000, easing: Easing.linear }), -1, false);
-  }, [reduceMotion, breathe, ring1, ring2]);
-
-  const haloStyle = useAnimatedStyle(() => ({
-    opacity: 0.16 + breathe.value * 0.1,
-    transform: [{ scale: 1 + breathe.value * 0.12 }],
-  }));
-  const ring1Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${ring1.value * 360}deg` }] }));
-  const ring2Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${-ring2.value * 360}deg` }] }));
-
-  const ringOuter = size + 56;
-  const ringInner = size + 30;
-
+/** A quiet, static glow behind the icon plus a soft drop shadow under it —
+ * replaces an earlier version with rotating rings that read as too busy.
+ * No animation at all now, so there's nothing to reduce-motion around. */
+function IconGlow({ size }) {
   return (
-    <View pointerEvents="none" style={[styles.haloWrap, { width: ringOuter + 20, height: ringOuter + 20 }]}>
-      <Animated.View
-        style={[
-          styles.glowCircle,
-          { width: size + 70, height: size + 70, borderRadius: (size + 70) / 2, backgroundColor: ACCENT },
-          haloStyle,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.ring,
-          { width: ringOuter, height: ringOuter, borderRadius: ringOuter / 2, borderColor: ACCENT },
-          ring1Style,
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.ring,
-          { width: ringInner, height: ringInner, borderRadius: ringInner / 2, borderColor: ACCENT, opacity: 0.5 },
-          ring2Style,
-        ]}
-      />
-    </View>
+    <View
+      pointerEvents="none"
+      style={[
+        styles.glowCircle,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: ACCENT },
+      ]}
+    />
   );
 }
 
@@ -173,6 +153,7 @@ export default function AboutScreen() {
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
   const p = PALETTE[mode] || PALETTE.dark;
+  useAboutFonts(); // no-op until the .ttf files exist — see assets/fonts/README.md
 
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
@@ -202,17 +183,12 @@ export default function AboutScreen() {
       >
         <FadeInUp delay={0} reduceMotion={reduceMotion} style={styles.headerCol}>
           <View style={styles.iconStack}>
-            <SignatureHalo reduceMotion={reduceMotion} size={ICON_SIZE + 56} />
-            <View style={styles.iconTileShadow}>
-              <LinearGradient
-                colors={mode === 'dark' ? ['#232327', '#161619'] : ['#FFFFFF', '#F2EEE7']}
-                style={[styles.iconTile, { borderColor: p.cardBorder }]}
-              >
-                <Image
-                  source={require('../../assets/icon.png')}
-                  style={{ width: ICON_SIZE, height: ICON_SIZE, borderRadius: ICON_SIZE * 0.22 }}
-                />
-              </LinearGradient>
+            <IconGlow size={ICON_SIZE + 34} />
+            <View style={styles.iconShadowWrap}>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={{ width: ICON_SIZE, height: ICON_SIZE, borderRadius: ICON_SIZE * 0.22 }}
+              />
             </View>
           </View>
 
@@ -227,12 +203,12 @@ export default function AboutScreen() {
           >
             "
           </Text>
-          <Text style={[styles.quoteBody, { color: p.text, fontFamily: HEADING_FONT }]}>{t('aboutBody')}</Text>
+          <Text style={[styles.quoteBody, { color: p.text, fontFamily: QUOTE_FONT }]}>{t('aboutBody')}</Text>
           <View style={[styles.quoteDivider, { backgroundColor: ACCENT }]} />
         </FadeInUp>
 
         <FadeInUp delay={170} reduceMotion={reduceMotion} style={styles.madeByRow}>
-          <Text style={[styles.madeBy, { color: p.textSecondary, fontFamily: BODY_FONT }]}>{t('madeBy')}</Text>
+          <Text style={[styles.madeBy, { color: p.textSecondary, fontFamily: 'Manrope-SemiBold' }]}>{t('madeBy')}</Text>
           {SOCIAL_LINKS.length > 0 && (
             <View style={[styles.socialRow, isRTL && { flexDirection: 'row-reverse' }]}>
               {SOCIAL_LINKS.map((link) => (
@@ -258,23 +234,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', paddingHorizontal: 24 },
   headerCol: { alignItems: 'center', marginBottom: 26 },
   iconStack: { alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  haloWrap: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  glowCircle: { position: 'absolute' },
-  ring: { position: 'absolute', borderWidth: 1, borderStyle: 'dashed' },
-  iconTileShadow: {
+  glowCircle: { position: 'absolute', opacity: 0.14 },
+  iconShadowWrap: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
-    elevation: 10,
-  },
-  iconTile: {
-    width: 140,
-    height: 140,
-    borderRadius: 32,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 8,
   },
   appName: { fontSize: 30, textAlign: 'center', letterSpacing: 0.2 },
   versionText: { fontSize: 12.5, fontWeight: '500', textAlign: 'center', marginTop: 6 },
