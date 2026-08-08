@@ -22,6 +22,11 @@ export const APP_ICON_OPTIONS = [
   { id: 'cream', nameKey: 'appIconCream', thumbnail: require('../../assets/app-icons/cream.png') },
   { id: 'amber', nameKey: 'appIconAmber', thumbnail: require('../../assets/app-icons/amber.png') },
   { id: 'infinity', nameKey: 'appIconInfinity', thumbnail: require('../../assets/app-icons/infinity.png') },
+  { id: 'tanleaf', nameKey: 'appIconTanleaf', thumbnail: require('../../assets/app-icons/tanleaf.png') },
+  { id: 'sageleaf', nameKey: 'appIconSageleaf', thumbnail: require('../../assets/app-icons/sageleaf.png') },
+  { id: 'sky', nameKey: 'appIconSky', thumbnail: require('../../assets/app-icons/sky.png') },
+  { id: 'pistachio', nameKey: 'appIconPistachio', thumbnail: require('../../assets/app-icons/pistachio.png') },
+  { id: 'clay', nameKey: 'appIconClay', thumbnail: require('../../assets/app-icons/clay.png') },
 ];
 
 export const isAppIconSwitchingAvailable = () => Platform.OS === 'android' && !!nativeModule;

@@ -81,6 +81,21 @@
           },
           "infinity": {
             "android": "./assets/app-icons/infinity.png"
+          },
+          "tanleaf": {
+            "android": "./assets/app-icons/tanleaf.png"
+          },
+          "sageleaf": {
+            "android": "./assets/app-icons/sageleaf.png"
+          },
+          "sky": {
+            "android": "./assets/app-icons/sky.png"
+          },
+          "pistachio": {
+            "android": "./assets/app-icons/pistachio.png"
+          },
+          "clay": {
+            "android": "./assets/app-icons/clay.png"
           }
         }
       ],
