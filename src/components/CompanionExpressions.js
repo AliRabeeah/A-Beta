@@ -2,10 +2,9 @@ import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
 
-// Drop-in replacement for the hand-drawn Skia <Companion> and for
-// CompanionLottie — same {stage, mood, accentColor, size} signature, so
-// CompanionWorld.js just imports whichever implementation is current.
-//
+// Renders the cat as a real static image per mood, with a code-driven
+// breathing/bounce loop (via react-native-reanimated) — see the README in
+// src/assets/companion-expressions/ for the mood -> file mapping.
 // Unlike CompanionLottie (one looping animation file, mood unused), this
 // swaps to a DIFFERENT static image per mood, and adds the "alive" feeling
 // itself in code — a gentle breathing/bounce loop applied to whichever

@@ -13,7 +13,7 @@ import {
   vec,
 } from '@shopify/react-native-skia';
 import { useSharedValue, useDerivedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import Companion from './CompanionExpressions'; // was './Companion' (Skia) or './CompanionLottie' — swap back to revert
+import Companion from './CompanionExpressions';
 import { getSkyState, celestialPosition } from '../utils/companionWorldTime';
 
 const VB_W = 320;

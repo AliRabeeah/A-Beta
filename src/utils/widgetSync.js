@@ -94,13 +94,6 @@ export async function refreshTodayWidget(habitsOverride) {
 }
 
 /**
- * Kept as a safe no-op — the Pomodoro widget was removed. Calls from
- * TimerScreen are harmless to leave in place rather than touching that
- * screen just to strip them out.
- */
-export async function refreshPomodoroWidget() {}
-
-/**
  * Called from the Widgets settings screen whenever a customization
  * setting changes (color, size, style, position) for the List, Stats, or
  * Quick Add widget, so the home-screen instance reflects it immediately.

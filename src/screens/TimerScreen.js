@@ -9,8 +9,6 @@ import { useTokens, withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
 import { scheduleTimerAlert, cancelTimerAlert } from '../utils/notifications';
 import { playTimerCompleteSound } from '../utils/timerSound';
-import { savePomodoroWidgetState, clearPomodoroWidgetState } from '../utils/pomodoroWidgetState';
-import { refreshPomodoroWidget } from '../utils/widgetSync';
 import ProgressRing from '../components/ProgressRing';
 
 const POMODORO_SETTINGS_KEY = 'a_pomodoro_settings';
@@ -204,7 +202,6 @@ export default function TimerScreen({ navigation }) {
       setPhase('work');
       pomodoroTimer.reset(durations.work * 60);
     }
-    clearPomodoroWidgetState().then(refreshPomodoroWidget);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoroTimer.completedSignal]);
 
@@ -227,19 +224,16 @@ export default function TimerScreen({ navigation }) {
     setCycleCount(0);
     const seconds = durations.work * 60;
     pomodoroTimer.start(seconds, t('timerPhaseCompleteTitle'), t('phaseWork'));
-    savePomodoroWidgetState({ phase: 'work', running: true, endTimestamp: Date.now() + seconds * 1000 }).then(refreshPomodoroWidget);
   };
 
   const resumePomodoro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     pomodoroTimer.start(pomodoroTimer.remaining, t('timerPhaseCompleteTitle'), t(phaseKeys[phase]));
-    savePomodoroWidgetState({ phase, running: true, endTimestamp: Date.now() + pomodoroTimer.remaining * 1000 }).then(refreshPomodoroWidget);
   };
 
   const pausePomodoro = () => {
     Haptics.selectionAsync();
     pomodoroTimer.pause();
-    clearPomodoroWidgetState().then(refreshPomodoroWidget);
   };
 
   const resetPomodoro = () => {
@@ -247,7 +241,6 @@ export default function TimerScreen({ navigation }) {
     setPhase('work');
     setCycleCount(0);
     pomodoroTimer.reset(0);
-    clearPomodoroWidgetState().then(refreshPomodoroWidget);
   };
 
   const phaseLabel = t(phaseKeys[phase]);

@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTabBar, TAB_BAR_POOL } from '../context/TabBarContext';
+import withTabFade from './withTabFade';
 
 // Lets code outside of any screen component (e.g. the notification-tap
 // handler in App.js, for the Day Closing reminder) trigger navigation.
@@ -75,6 +76,14 @@ const TAB_SCREEN_COMPONENTS = {
   Companion: CompanionScreen,
 };
 
+// Wrapped once at module scope (not inside Tabs()'s render) so each
+// wrapped component keeps a stable identity across re-renders — wrapping
+// fresh on every render would make React Navigation see a "new" component
+// type each time and remount the active screen instead of just fading it.
+const FADED_TAB_SCREEN_COMPONENTS = Object.fromEntries(
+  Object.entries(TAB_SCREEN_COMPONENTS).map(([id, Component]) => [id, withTabFade(Component)])
+);
+
 function Tabs() {
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -112,7 +121,7 @@ function Tabs() {
       })}
     >
       {activeTabs.map((screenId) => (
-        <Tab.Screen key={screenId} name={screenId} component={TAB_SCREEN_COMPONENTS[screenId]} />
+        <Tab.Screen key={screenId} name={screenId} component={FADED_TAB_SCREEN_COMPONENTS[screenId]} />
       ))}
     </Tab.Navigator>
   );
