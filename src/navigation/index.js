@@ -3,11 +3,10 @@ import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTabBar, TAB_BAR_POOL } from '../context/TabBarContext';
-import withTabFade from './withTabFade';
+import AnimatedTabIcon from './AnimatedTabIcon';
 
 // Lets code outside of any screen component (e.g. the notification-tap
 // handler in App.js, for the Day Closing reminder) trigger navigation.
@@ -76,14 +75,6 @@ const TAB_SCREEN_COMPONENTS = {
   Companion: CompanionScreen,
 };
 
-// Wrapped once at module scope (not inside Tabs()'s render) so each
-// wrapped component keeps a stable identity across re-renders — wrapping
-// fresh on every render would make React Navigation see a "new" component
-// type each time and remount the active screen instead of just fading it.
-const FADED_TAB_SCREEN_COMPONENTS = Object.fromEntries(
-  Object.entries(TAB_SCREEN_COMPONENTS).map(([id, Component]) => [id, withTabFade(Component)])
-);
-
 function Tabs() {
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -113,15 +104,23 @@ function Tabs() {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarIcon: ({ color, size }) => {
+        tabBarIcon: ({ focused, size }) => {
           const poolEntry = TAB_BAR_POOL.find((s) => s.id === route.name);
-          return <Ionicons name={poolEntry?.icon || 'ellipse-outline'} size={size} color={color} />;
+          return (
+            <AnimatedTabIcon
+              focused={focused}
+              iconName={poolEntry?.icon || 'ellipse-outline'}
+              size={size}
+              activeColor={colors.primary}
+              inactiveColor={colors.textSecondary}
+            />
+          );
         },
         tabBarLabel: t(`tabScreen_${route.name}`),
       })}
     >
       {activeTabs.map((screenId) => (
-        <Tab.Screen key={screenId} name={screenId} component={FADED_TAB_SCREEN_COMPONENTS[screenId]} />
+        <Tab.Screen key={screenId} name={screenId} component={TAB_SCREEN_COMPONENTS[screenId]} />
       ))}
     </Tab.Navigator>
   );
