@@ -10,6 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
+  withRepeat,
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
@@ -123,15 +124,108 @@ function FadeInUp({ delay = 0, reduceMotion, style, children }) {
 /** A quiet, static glow behind the icon plus a soft drop shadow under it —
  * replaces an earlier version with rotating rings that read as too busy.
  * No animation at all now, so there's nothing to reduce-motion around. */
-function IconGlow({ size }) {
+/**
+ * Computes {x, y, angleDeg} for a point walking clockwise around the
+ * perimeter of a rounded square (centered on 0,0), at fraction `t` of the
+ * way around. `angleDeg` is the direction of travel at that point, so a
+ * line segment can be rotated to stay tangent to the path.
+ *
+ * The perimeter is 4 straight edges + 4 quarter-circle corners, walked in
+ * order: top edge -> top-right corner -> right edge -> bottom-right
+ * corner -> bottom edge -> bottom-left corner -> left edge -> top-left
+ * corner -> (loops back to top edge).
+ */
+function pointOnRoundedSquare(t, size, radius) {
+  'worklet';
+  const half = size / 2;
+  const straight = size - 2 * radius;
+  const arc = (Math.PI * radius) / 2;
+  const total = 4 * straight + 4 * arc;
+  let d = ((t % 1) + 1) % 1; // normalize into [0, 1)
+  d *= total;
+
+  // corner arc centers, one per corner
+  const cTR = { x: half - radius, y: -half + radius };
+  const cBR = { x: half - radius, y: half - radius };
+  const cBL = { x: -half + radius, y: half - radius };
+  const cTL = { x: -half + radius, y: -half + radius };
+
+  const segments = [
+    { len: straight, kind: 'line', from: { x: -half + radius, y: -half }, dir: { x: 1, y: 0 } },
+    { len: arc, kind: 'arc', center: cTR, start: -Math.PI / 2 },
+    { len: straight, kind: 'line', from: { x: half, y: -half + radius }, dir: { x: 0, y: 1 } },
+    { len: arc, kind: 'arc', center: cBR, start: 0 },
+    { len: straight, kind: 'line', from: { x: half - radius, y: half }, dir: { x: -1, y: 0 } },
+    { len: arc, kind: 'arc', center: cBL, start: Math.PI / 2 },
+    { len: straight, kind: 'line', from: { x: -half, y: half - radius }, dir: { x: 0, y: -1 } },
+    { len: arc, kind: 'arc', center: cTL, start: Math.PI },
+  ];
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (d <= seg.len || i === segments.length - 1) {
+      if (seg.kind === 'line') {
+        const x = seg.from.x + seg.dir.x * d;
+        const y = seg.from.y + seg.dir.y * d;
+        const angleDeg = (Math.atan2(seg.dir.y, seg.dir.x) * 180) / Math.PI;
+        return { x, y, angleDeg };
+      }
+      const a = seg.start + d / radius;
+      const x = seg.center.x + radius * Math.cos(a);
+      const y = seg.center.y + radius * Math.sin(a);
+      const angleDeg = (Math.atan2(Math.cos(a), -Math.sin(a)) * 180) / Math.PI;
+      return { x, y, angleDeg };
+    }
+    d -= seg.len;
+  }
+  return { x: 0, y: -half, angleDeg: 0 };
+}
+
+const FRAME_SIZE = 130;
+const FRAME_RADIUS = 28;
+const TRACK_SIZE = 106;
+const TRACK_RADIUS = 22;
+const TRAVEL_LINE_LENGTH = 14;
+const TRAVEL_LINE_THICKNESS = 2.5;
+
+/** The outer rounded-square frame around the icon, plus a short line that
+ * travels slowly around the track in the gap between the icon and the
+ * frame — replaces the earlier circular glow. Static (no travel) when
+ * reduce-motion is on. */
+function IconFrame({ reduceMotion, p }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    t.value = withRepeat(withTiming(1, { duration: 9000, easing: Easing.linear }), -1, false);
+  }, [reduceMotion, t]);
+
+  const travelStyle = useAnimatedStyle(() => {
+    const { x, y, angleDeg } = pointOnRoundedSquare(t.value, TRACK_SIZE, TRACK_RADIUS);
+    return {
+      transform: [{ translateX: x }, { translateY: y }, { rotate: `${angleDeg}deg` }],
+    };
+  });
+
   return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.glowCircle,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: ACCENT },
-      ]}
-    />
+    <View pointerEvents="none" style={[styles.frameWrap, { width: FRAME_SIZE, height: FRAME_SIZE }]}>
+      <View
+        style={{
+          position: 'absolute',
+          width: FRAME_SIZE,
+          height: FRAME_SIZE,
+          borderRadius: FRAME_RADIUS,
+          borderWidth: 1,
+          borderColor: p.cardBorder,
+        }}
+      />
+      <Animated.View
+        style={[
+          styles.travelLine,
+          { backgroundColor: ACCENT, left: FRAME_SIZE / 2 - TRAVEL_LINE_LENGTH / 2, top: FRAME_SIZE / 2 - TRAVEL_LINE_THICKNESS / 2 },
+          travelStyle,
+        ]}
+      />
+    </View>
   );
 }
 
@@ -183,7 +277,7 @@ export default function AboutScreen() {
       >
         <FadeInUp delay={0} reduceMotion={reduceMotion} style={styles.headerCol}>
           <View style={styles.iconStack}>
-            <IconGlow size={ICON_SIZE + 34} />
+            <IconFrame reduceMotion={reduceMotion} p={p} />
             <View style={styles.iconShadowWrap}>
               <Image
                 source={require('../../assets/icon.png')}
@@ -234,7 +328,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', paddingHorizontal: 24 },
   headerCol: { alignItems: 'center', marginBottom: 26 },
   iconStack: { alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  glowCircle: { position: 'absolute', opacity: 0.14 },
+  frameWrap: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  travelLine: {
+    position: 'absolute',
+    width: TRAVEL_LINE_LENGTH,
+    height: TRAVEL_LINE_THICKNESS,
+    borderRadius: TRAVEL_LINE_THICKNESS / 2,
+  },
   iconShadowWrap: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
