@@ -15,24 +15,37 @@ export default function NotesHeader({
   onBackPress,
   noteCount = 0,
   onMorePress,
+  viewMode,
+  onToggleViewMode,
 }) {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
+      <View style={[styles.topRow, isRTL && { flexDirection: 'row-reverse' }]}>
         {showBack ? (
           <TouchableOpacity onPress={onBackPress} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="chevron-back" size={26} color={colors.primary} />
+            <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.primary} />
           </TouchableOpacity>
         ) : (
           <View style={styles.backBtn} />
         )}
 
-        <TouchableOpacity onPress={onMorePress} style={styles.moreBtn} hitSlop={8}>
-          <Ionicons name="ellipsis-horizontal-circle" size={24} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={[styles.rightGroup, isRTL && { flexDirection: 'row-reverse' }]}>
+          {!!onToggleViewMode && (
+            <TouchableOpacity onPress={onToggleViewMode} style={styles.moreBtn} hitSlop={8}>
+              <Ionicons
+                name={viewMode === 'list' ? 'grid-outline' : 'list-outline'}
+                size={22}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={onMorePress} style={styles.moreBtn} hitSlop={8}>
+            <Ionicons name="ellipsis-horizontal-circle" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={[styles.largeTitle, { color: colors.text }]}>{t('notesTitle')}</Text>
@@ -59,6 +72,11 @@ const styles = StyleSheet.create({
   },
   moreBtn: {
     padding: 2,
+  },
+  rightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
   largeTitle: {
     fontSize: 34,

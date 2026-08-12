@@ -76,3 +76,37 @@ export function resolveNoteColor(colorId, isDark) {
   const id = colorId && NOTE_COLOR_PALETTE[colorId] ? colorId : DEFAULT_NOTE_COLOR;
   return NOTE_COLOR_PALETTE[id][isDark ? 'dark' : 'light'];
 }
+
+/**
+ * Per-note text size. A single scale multiplier is applied to every text
+ * element in the editor and on the masonry card (title, body, headings,
+ * quotes, list items, snippet) so the note stays visually consistent at
+ * any size, rather than only bumping one element.
+ */
+export const FONT_SIZE_OPTIONS = [
+  { id: 'small', scale: 0.88, labelKey: 'fontSizeSmall' },
+  { id: 'medium', scale: 1, labelKey: 'fontSizeMedium' },
+  { id: 'large', scale: 1.18, labelKey: 'fontSizeLarge' },
+];
+export const DEFAULT_NOTE_FONT_SIZE = 'medium';
+
+export function resolveFontScale(fontSizeId) {
+  const found = FONT_SIZE_OPTIONS.find((o) => o.id === fontSizeId);
+  return found ? found.scale : 1;
+}
+
+/**
+ * Title font choice. Kept to safe, always-available system font families
+ * (no bundled font files) so this never risks a missing-font crash —
+ * 'elegant' just points at each platform's built-in serif face.
+ */
+export const TITLE_FONT_OPTIONS = [
+  { id: 'default', fontFamily: undefined, labelKey: 'titleFontDefault' },
+  { id: 'elegant', fontFamily: 'serif', labelKey: 'titleFontElegant' },
+];
+export const DEFAULT_TITLE_FONT = 'default';
+
+export function resolveTitleFontFamily(titleFontId) {
+  const found = TITLE_FONT_OPTIONS.find((o) => o.id === titleFontId);
+  return found ? found.fontFamily : undefined;
+}

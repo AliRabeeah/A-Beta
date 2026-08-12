@@ -5,6 +5,7 @@ import { schedulePlanningReminder, cancelPlanningReminder } from '../utils/notif
 import { refreshTodayWidget } from '../utils/widgetSync';
 import { addToTrash, removeFromTrash } from './TrashContext';
 import { emitUndo } from '../utils/undoBus';
+import { migratePlanningItem, emptyPoint } from '../utils/planningUtils';
 
 const STORAGE_KEY = 'a_planning_v1';
 
@@ -16,8 +17,17 @@ export function PlanningProvider({ children }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) setPlanningItems(JSON.parse(raw));
+      .then(async (raw) => {
+        if (!raw) return;
+        const stored = JSON.parse(raw);
+        // One-time migration: old items ("daily goal" / "extended plan" with
+        // `subjects`) get converted to the new free-form points model the
+        // first time they're loaded. Already-migrated items pass through
+        // untouched, so this is safe to run on every app start.
+        const migrated = stored.map(migratePlanningItem);
+        setPlanningItems(migrated);
+        const changed = JSON.stringify(migrated) !== JSON.stringify(stored);
+        if (changed) await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       })
       .catch((e) => console.error('Error loading planning items:', e))
       .finally(() => setLoaded(true));
@@ -33,13 +43,18 @@ export function PlanningProvider({ children }) {
     let reminderId = null;
     const newItem = {
       id: Date.now().toString(),
-      createdDate: toKey(new Date()),
-      completedDays: {},
-      hiddenDays: {},
+      title: '',
+      description: '',
+      startDate: null,
+      dueDate: null,
+      reminderAt: null,
       archived: false,
+      hiddenDays: {},
+      createdAt: new Date().toISOString(),
+      points: [],
       ...payload,
     };
-    if (newItem.type === 'daily' && newItem.reminderTime) {
+    if (newItem.reminderAt) {
       reminderId = await schedulePlanningReminder(newItem);
     }
     newItem.reminderId = reminderId;
@@ -52,28 +67,19 @@ export function PlanningProvider({ children }) {
     if (!existing) return;
 
     let reminderId = existing.reminderId;
-    if (existing.type === 'daily' && updates.reminderTime !== undefined && updates.reminderTime !== existing.reminderTime) {
+    if (updates.reminderAt !== undefined && updates.reminderAt !== existing.reminderAt) {
       await cancelPlanningReminder(existing.reminderId);
-      reminderId = updates.reminderTime ? await schedulePlanningReminder({ ...existing, ...updates }) : null;
+      reminderId = updates.reminderAt ? await schedulePlanningReminder({ ...existing, ...updates }) : null;
     }
 
     const next = planningItems.map((p) => (p.id === id ? { ...p, ...updates, reminderId } : p));
     await persist(next);
   }, [planningItems, persist]);
 
-  /** Deletes only today's occurrence: for an extended plan this hides just
-   *  that one day without touching the rest; for a daily goal (which only
-   *  ever has one occurrence) it deletes the whole item. */
+  /** Hides a plan from just today's (or `date`'s) Today/Agenda view without touching the plan itself. */
   const deleteTodayOnly = useCallback(async (id, date = new Date()) => {
     const existing = planningItems.find((p) => p.id === id);
     if (!existing) return;
-
-    if (existing.type === 'daily') {
-      if (existing.reminderId) await cancelPlanningReminder(existing.reminderId);
-      await persist(planningItems.filter((p) => p.id !== id));
-      return;
-    }
-
     const key = toKey(date);
     const next = planningItems.map((p) =>
       p.id === id ? { ...p, hiddenDays: { ...p.hiddenDays, [key]: true } } : p
@@ -110,31 +116,80 @@ export function PlanningProvider({ children }) {
   /**
    * Replaces all local planning items with an imported/restored set,
    * mirroring replaceAllHabits/replaceAllTasks: cancels reminders tied to
-   * the current set first, then reschedules any reminders in the imported data.
+   * the current set first, then reschedules any reminders in the imported
+   * data. Imported items pass through the same migration as items loaded
+   * from disk, so older backups still work.
    */
   const replaceAllPlanningItems = useCallback(async (importedItems) => {
     for (const p of planningItems) {
       if (p.reminderId) await cancelPlanningReminder(p.reminderId);
     }
+    const migrated = importedItems.map(migratePlanningItem);
     const rehydrated = [];
-    for (const p of importedItems) {
+    for (const p of migrated) {
       let reminderId = null;
-      if (p.type === 'daily' && p.reminderTime) reminderId = await schedulePlanningReminder(p);
+      if (p.reminderAt) reminderId = await schedulePlanningReminder(p);
       rehydrated.push({ ...p, reminderId });
     }
     await persist(rehydrated);
   }, [planningItems, persist]);
 
-  /** Marks (or unmarks) a given date as completed for an item's progress tracker. */
-  const setDayCompleted = useCallback(async (id, completed, date = new Date()) => {
-    const key = toKey(date);
+  /** Bulk-marks every point in a plan as completed/uncompleted at once
+   *  (the card's quick checkbox — "I finished everything in this plan"). */
+  const setDayCompleted = useCallback(async (id, completed /* , date -- unused, see planningUtils.isDayCompleted */) => {
+    const now = new Date().toISOString();
     const next = planningItems.map((p) => {
       if (p.id !== id) return p;
-      const completedDays = { ...(p.completedDays || {}) };
-      if (completed) completedDays[key] = true;
-      else delete completedDays[key];
-      return { ...p, completedDays };
+      const points = (p.points || []).map((pt) => ({
+        ...pt,
+        completed,
+        completedAt: completed ? now : null,
+      }));
+      return { ...p, points };
     });
+    await persist(next);
+  }, [planningItems, persist]);
+
+  /** Appends a new empty point to a plan and returns its id. */
+  const addPoint = useCallback(async (planId, text = '') => {
+    const point = { ...emptyPoint(), text };
+    const next = planningItems.map((p) => (p.id === planId ? { ...p, points: [...(p.points || []), point] } : p));
+    await persist(next);
+    return point.id;
+  }, [planningItems, persist]);
+
+  const updatePoint = useCallback(async (planId, pointId, updates) => {
+    const now = new Date().toISOString();
+    const next = planningItems.map((p) => {
+      if (p.id !== planId) return p;
+      const points = (p.points || []).map((pt) => {
+        if (pt.id !== pointId) return pt;
+        const merged = { ...pt, ...updates };
+        if (updates.completed !== undefined) merged.completedAt = updates.completed ? now : null;
+        return merged;
+      });
+      return { ...p, points };
+    });
+    await persist(next);
+  }, [planningItems, persist]);
+
+  const togglePoint = useCallback((planId, pointId) => {
+    const plan = planningItems.find((p) => p.id === planId);
+    const point = plan?.points?.find((pt) => pt.id === pointId);
+    if (!point) return;
+    return updatePoint(planId, pointId, { completed: !point.completed });
+  }, [planningItems, updatePoint]);
+
+  const removePoint = useCallback(async (planId, pointId) => {
+    const next = planningItems.map((p) =>
+      p.id === planId ? { ...p, points: (p.points || []).filter((pt) => pt.id !== pointId) } : p
+    );
+    await persist(next);
+  }, [planningItems, persist]);
+
+  /** Reorders a plan's points to a caller-supplied array of the same points (drag-to-reorder). */
+  const reorderPoints = useCallback(async (planId, orderedPoints) => {
+    const next = planningItems.map((p) => (p.id === planId ? { ...p, points: orderedPoints } : p));
     await persist(next);
   }, [planningItems, persist]);
 
@@ -149,6 +204,11 @@ export function PlanningProvider({ children }) {
       replaceAllPlanningItems,
       deleteTodayOnly,
       setDayCompleted,
+      addPoint,
+      updatePoint,
+      togglePoint,
+      removePoint,
+      reorderPoints,
     }),
     [
       planningItems,
@@ -160,6 +220,11 @@ export function PlanningProvider({ children }) {
       replaceAllPlanningItems,
       deleteTodayOnly,
       setDayCompleted,
+      addPoint,
+      updatePoint,
+      togglePoint,
+      removePoint,
+      reorderPoints,
     ]
   );
 

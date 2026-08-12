@@ -1,13 +1,15 @@
 import {
   keyToDate,
-  maxDuration,
-  planStartKey,
-  planEndKey,
+  dayDiff,
+  pointsProgress,
+  isPlanFullyCompleted,
   isDueOnDate,
-  activeSubjectsOnDate,
-  completedDaysCount,
-  totalDaysCount,
   isDayCompleted,
+  daysUntilDue,
+  isPlanOverdue,
+  daysUntilPointDue,
+  isPointOverdue,
+  migratePlanningItem,
 } from './planningUtils';
 
 describe('keyToDate', () => {
@@ -19,106 +21,149 @@ describe('keyToDate', () => {
   });
 });
 
-describe('maxDuration', () => {
-  test('daily items are always 1 day', () => {
-    expect(maxDuration({ type: 'daily' })).toBe(1);
-  });
-
-  test('extended items use the longest subject duration', () => {
-    const item = { type: 'extended', subjects: [{ days: 10 }, { days: 25 }, { days: 5 }] };
-    expect(maxDuration(item)).toBe(25);
-  });
-
-  test('extended items with no subjects fall back to 1', () => {
-    expect(maxDuration({ type: 'extended', subjects: [] })).toBe(1);
+describe('dayDiff', () => {
+  test('counts whole days between two keys', () => {
+    expect(dayDiff('2026-08-01', '2026-08-05')).toBe(4);
+    expect(dayDiff('2026-08-05', '2026-08-01')).toBe(-4);
+    expect(dayDiff('2026-08-01', '2026-08-01')).toBe(0);
   });
 });
 
-describe('planStartKey / planEndKey', () => {
-  test('daily item start/end is its creation date', () => {
-    const item = { type: 'daily', createdDate: '2026-08-01' };
-    expect(planStartKey(item)).toBe('2026-08-01');
-    expect(planEndKey(item)).toBe('2026-08-01');
+describe('pointsProgress / isPlanFullyCompleted', () => {
+  test('counts done vs total points', () => {
+    const item = { points: [{ completed: true }, { completed: false }, { completed: true }] };
+    expect(pointsProgress(item)).toEqual({ done: 2, total: 3, percent: 67 });
   });
 
-  test('extended item spans from startDate for (maxDuration - 1) more days', () => {
-    const item = { type: 'extended', startDate: '2026-08-01', subjects: [{ days: 5 }] };
-    expect(planStartKey(item)).toBe('2026-08-01');
-    expect(planEndKey(item)).toBe('2026-08-05');
+  test('a plan with no points is not "fully completed"', () => {
+    expect(isPlanFullyCompleted({ points: [] })).toBe(false);
   });
 
-  test('extended item without startDate falls back to createdDate', () => {
-    const item = { type: 'extended', createdDate: '2026-08-01', subjects: [{ days: 3 }] };
-    expect(planStartKey(item)).toBe('2026-08-01');
-    expect(planEndKey(item)).toBe('2026-08-03');
+  test('fully completed once every point is checked', () => {
+    const item = { points: [{ completed: true }, { completed: true }] };
+    expect(isPlanFullyCompleted(item)).toBe(true);
   });
 });
 
 describe('isDueOnDate', () => {
   test('archived items are never due', () => {
-    const item = { type: 'daily', createdDate: '2026-08-01', archived: true };
+    const item = { archived: true, startDate: '2026-08-01', createdAt: '2026-08-01T00:00:00.000Z' };
     expect(isDueOnDate(item, new Date(2026, 7, 1))).toBe(false);
   });
 
   test('a day explicitly hidden is not due', () => {
-    const item = { type: 'daily', createdDate: '2026-08-01', hiddenDays: { '2026-08-01': true } };
+    const item = { startDate: '2026-08-01', hiddenDays: { '2026-08-01': true } };
     expect(isDueOnDate(item, new Date(2026, 7, 1))).toBe(false);
   });
 
-  test('daily items are due only on their exact creation date', () => {
-    const item = { type: 'daily', createdDate: '2026-08-01' };
-    expect(isDueOnDate(item, new Date(2026, 7, 1))).toBe(true);
-    expect(isDueOnDate(item, new Date(2026, 7, 2))).toBe(false);
-  });
-
-  test('extended items are due anywhere within their date range, inclusive', () => {
-    const item = { type: 'extended', startDate: '2026-08-01', subjects: [{ days: 5 }] };
+  test('due anywhere within [startDate, dueDate], inclusive', () => {
+    const item = { startDate: '2026-08-01', dueDate: '2026-08-05' };
     expect(isDueOnDate(item, new Date(2026, 7, 1))).toBe(true); // first day
     expect(isDueOnDate(item, new Date(2026, 7, 3))).toBe(true); // middle
     expect(isDueOnDate(item, new Date(2026, 7, 5))).toBe(true); // last day
     expect(isDueOnDate(item, new Date(2026, 7, 6))).toBe(false); // past the end
-  });
-});
-
-describe('activeSubjectsOnDate', () => {
-  test('non-extended items return all their subjects unfiltered', () => {
-    const item = { type: 'daily', subjects: [{ id: 1 }] };
-    expect(activeSubjectsOnDate(item, new Date(2026, 7, 1))).toEqual([{ id: 1 }]);
+    expect(isDueOnDate(item, new Date(2026, 6, 31))).toBe(false); // before start
   });
 
-  test('only subjects still running on that day are returned', () => {
-    const item = {
-      type: 'extended',
-      startDate: '2026-08-01',
-      subjects: [
-        { id: 'short', days: 2 }, // runs day 0-1 (Aug 1-2)
-        { id: 'long', days: 5 },  // runs day 0-4 (Aug 1-5)
-      ],
-    };
-    const day1 = activeSubjectsOnDate(item, new Date(2026, 7, 1));
-    expect(day1.map((s) => s.id)).toEqual(['short', 'long']);
-
-    const day3 = activeSubjectsOnDate(item, new Date(2026, 7, 3));
-    expect(day3.map((s) => s.id)).toEqual(['long']); // 'short' already finished
-  });
-});
-
-describe('completedDaysCount / totalDaysCount', () => {
-  test('counts keys in completedDays', () => {
-    const item = { completedDays: { '2026-08-01': true, '2026-08-02': true } };
-    expect(completedDaysCount(item)).toBe(2);
+  test('no dueDate set means it stays due indefinitely after starting', () => {
+    const item = { startDate: '2026-08-01' };
+    expect(isDueOnDate(item, new Date(2026, 11, 25))).toBe(true);
   });
 
-  test('totalDaysCount mirrors maxDuration', () => {
-    const item = { type: 'extended', subjects: [{ days: 9 }] };
-    expect(totalDaysCount(item)).toBe(9);
+  test('falls back to createdAt when no startDate is set', () => {
+    const item = { createdAt: '2026-08-01T00:00:00.000Z' };
+    expect(isDueOnDate(item, new Date(2026, 7, 1))).toBe(true);
+    expect(isDueOnDate(item, new Date(2026, 6, 31))).toBe(false);
   });
 });
 
 describe('isDayCompleted', () => {
-  test('true only when that exact day key is marked complete', () => {
-    const item = { completedDays: { '2026-08-01': true } };
-    expect(isDayCompleted(item, new Date(2026, 7, 1))).toBe(true);
-    expect(isDayCompleted(item, new Date(2026, 7, 2))).toBe(false);
+  test('mirrors isPlanFullyCompleted, ignoring the date argument', () => {
+    const done = { points: [{ completed: true }] };
+    const notDone = { points: [{ completed: true }, { completed: false }] };
+    expect(isDayCompleted(done, new Date(2026, 7, 1))).toBe(true);
+    expect(isDayCompleted(notDone, new Date(2026, 7, 1))).toBe(false);
+  });
+});
+
+describe('daysUntilDue / isPlanOverdue', () => {
+  test('null when no dueDate is set', () => {
+    expect(daysUntilDue({}, new Date(2026, 7, 1))).toBeNull();
+    expect(isPlanOverdue({}, new Date(2026, 7, 1))).toBe(false);
+  });
+
+  test('positive when due date is in the future, negative once passed', () => {
+    const item = { dueDate: '2026-08-10' };
+    expect(daysUntilDue(item, new Date(2026, 7, 5))).toBe(5);
+    expect(daysUntilDue(item, new Date(2026, 7, 12))).toBe(-2);
+  });
+
+  test('overdue only if past due AND not fully completed', () => {
+    const incomplete = { dueDate: '2026-08-01', points: [{ completed: false }] };
+    const complete = { dueDate: '2026-08-01', points: [{ completed: true }] };
+    const today = new Date(2026, 7, 5);
+    expect(isPlanOverdue(incomplete, today)).toBe(true);
+    expect(isPlanOverdue(complete, today)).toBe(false);
+  });
+});
+
+describe('daysUntilPointDue / isPointOverdue', () => {
+  test('null when the point has no dueDate', () => {
+    expect(daysUntilPointDue({})).toBeNull();
+    expect(isPointOverdue({})).toBe(false);
+  });
+
+  test('overdue only if past due AND not completed', () => {
+    const today = new Date(2026, 7, 5);
+    expect(isPointOverdue({ dueDate: '2026-08-01', completed: false }, today)).toBe(true);
+    expect(isPointOverdue({ dueDate: '2026-08-01', completed: true }, today)).toBe(false);
+    expect(isPointOverdue({ dueDate: '2026-08-10', completed: false }, today)).toBe(false);
+  });
+});
+
+describe('migratePlanningItem', () => {
+  test('already-migrated items (with a points array) pass through untouched', () => {
+    const item = { id: '1', title: 'x', points: [{ id: 'p1', text: 'a', completed: false }] };
+    expect(migratePlanningItem(item)).toBe(item);
+  });
+
+  test('a completed daily goal becomes a plan with all points completed on its creation date', () => {
+    const legacy = {
+      id: '1',
+      type: 'daily',
+      title: 'Study day',
+      createdDate: '2026-08-01',
+      subjects: [{ id: 's1', name: 'Math', quantityLabel: '3 lectures' }],
+      completedDays: { '2026-08-01': true },
+      reminderTime: '18:00',
+    };
+    const migrated = migratePlanningItem(legacy);
+    expect(migrated.points).toHaveLength(1);
+    expect(migrated.points[0].completed).toBe(true);
+    expect(migrated.points[0].text).toBe('Math \u2014 3 lectures');
+    expect(migrated.startDate).toBe('2026-08-01');
+    expect(migrated.dueDate).toBe('2026-08-01');
+    expect(migrated.reminderAt).toContain('2026-08-01');
+  });
+
+  test('an extended plan spreads subject due dates and best-effort completion', () => {
+    const legacy = {
+      id: '2',
+      type: 'extended',
+      title: 'Reading plan',
+      startDate: '2026-08-01',
+      subjects: [
+        { id: 's1', name: 'Book A', perDay: '10 pages', days: 2 }, // Aug 1-2
+        { id: 's2', name: 'Book B', perDay: '5 pages', days: 5 },  // Aug 1-5
+      ],
+      completedDays: { '2026-08-01': true, '2026-08-02': true }, // only the first two days done
+    };
+    const migrated = migratePlanningItem(legacy);
+    expect(migrated.points).toHaveLength(2);
+    expect(migrated.points[0].dueDate).toBe('2026-08-02');
+    expect(migrated.points[0].completed).toBe(true); // both its days were completed
+    expect(migrated.points[1].dueDate).toBe('2026-08-05');
+    expect(migrated.points[1].completed).toBe(false); // days 3-5 weren't marked done
+    expect(migrated.dueDate).toBe('2026-08-05'); // longest subject wins
   });
 });

@@ -243,12 +243,15 @@ export async function cancelTaskReminders(notificationIds) {
  * pattern above. Returns null if there's no reminder time set or the
  * moment has already passed.
  */
+/**
+ * Schedules a one-off reminder for a Planning item at an exact date+time
+ * (`item.reminderAt`, an ISO datetime string). Mirrors scheduleNoteReminder.
+ * Returns null if there's no reminder set or the moment has already passed.
+ */
 export async function schedulePlanningReminder(item) {
-  if (!item.reminderTime || item.type !== 'daily') return null;
-  const [hour, minute] = item.reminderTime.split(':').map(Number);
-  const due = new Date(item.createdDate + 'T00:00:00');
-  due.setHours(hour, minute, 0, 0);
-  if (due.getTime() <= Date.now()) return null;
+  if (!item.reminderAt) return null;
+  const due = new Date(item.reminderAt);
+  if (isNaN(due.getTime()) || due.getTime() <= Date.now()) return null;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('planning-v1', {
@@ -261,7 +264,11 @@ export async function schedulePlanningReminder(item) {
   }
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title: item.title, body: 'Planning reminder', sound: 'default' },
+    content: {
+      title: item.title || 'Plan',
+      body: (item.description || '').trim().slice(0, 120) || 'Planning reminder',
+      sound: 'default',
+    },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: due, channelId: 'planning-v1' },
   });
   return id;

@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, FlatList, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,25 +7,53 @@ import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useNotes } from '../context/NoteContext';
 import { authenticateWithBiometrics, isBiometricAvailable } from '../utils/biometricAuth';
+import { getNotesViewMode, setNotesViewMode } from '../utils/notesViewSettings';
 
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesSearchBar from '../components/notes/NotesSearchBar';
 import NotesFilterBar from '../components/notes/NotesFilterBar';
 import NoteMasonryCard from '../components/notes/NoteMasonryCard';
+import NoteRow from '../components/notes/NoteRow';
+import SwipeableNoteRow from '../components/notes/SwipeableNoteRow';
 import ActionSheet from '../components/ActionSheet';
 import { distributeMasonry } from '../utils/masonryLayout';
+
+// Wider layouts (tablets, landscape phones) get a 3rd masonry column
+// instead of stretching 2 columns awkwardly wide.
+const WIDE_LAYOUT_BREAKPOINT = 700;
 
 export default function NotesScreen({ navigation }) {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const { notes, deleteNote, toggleNoteFavorite, toggleNoteLock, toggleChecklistItem } = useNotes();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [moreVisible, setMoreVisible] = useState(false);
   const [sortBy, setSortBy] = useState('edited');
   const [cardActionsNote, setCardActionsNote] = useState(null);
+  const [viewMode, setViewMode] = useState('grid');
+
+  // Load the person's last-used view mode (grid/list) once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await getNotesViewMode();
+      if (!cancelled) setViewMode(stored);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleToggleViewMode = useCallback(() => {
+    Haptics.selectionAsync();
+    setViewMode((prev) => {
+      const next = prev === 'list' ? 'grid' : 'list';
+      setNotesViewMode(next);
+      return next;
+    });
+  }, []);
 
   const handleAddNote = useCallback(() => {
     navigation.navigate('AddEditNote');
@@ -107,7 +135,8 @@ export default function NotesScreen({ navigation }) {
     });
   }, [notes, query, activeFilter, sortBy]);
 
-  const columns = useMemo(() => distributeMasonry(filteredNotes, 2), [filteredNotes]);
+  const columnCount = width >= WIDE_LAYOUT_BREAKPOINT ? 3 : 2;
+  const columns = useMemo(() => distributeMasonry(filteredNotes, columnCount), [filteredNotes, columnCount]);
 
   const moreActions = [
     {
@@ -157,6 +186,8 @@ export default function NotesScreen({ navigation }) {
         onBackPress={() => navigation.goBack()}
         noteCount={notes.length}
         onMorePress={() => setMoreVisible(true)}
+        viewMode={viewMode}
+        onToggleViewMode={handleToggleViewMode}
       />
 
       <View style={styles.searchFilterGroup}>
@@ -180,44 +211,46 @@ export default function NotesScreen({ navigation }) {
             {query || activeFilter !== 'all' ? t('notesNoResultsSubtitle') : t('notesEmptySubtitle')}
           </Text>
         </View>
+      ) : viewMode === 'list' ? (
+        <FlatList
+          data={filteredNotes}
+          keyExtractor={(note) => note.id}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item: note }) => (
+            <SwipeableNoteRow
+              isPinned={note.isFavorite}
+              onPin={() => toggleNoteFavorite(note.id)}
+              onDelete={() => handleDeleteNote(note)}
+            >
+              <NoteRow note={note} onPress={() => handleNotePress(note)} />
+            </SwipeableNoteRow>
+          )}
+        />
       ) : (
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.masonryRow}>
-            <View style={styles.column}>
-              {columns[0].map((note, index) => (
-                <NoteMasonryCard
-                  key={note.id}
-                  note={note}
-                  index={index}
-                  onPress={() => handleNotePress(note)}
-                  onLongPress={() => {
-                    Haptics.selectionAsync();
-                    setCardActionsNote(note);
-                  }}
-                  onTogglePin={() => toggleNoteFavorite(note.id)}
-                  onToggleChecklistItem={(itemId) => toggleChecklistItem(note.id, itemId)}
-                />
-              ))}
-            </View>
-            <View style={styles.column}>
-              {columns[1].map((note, index) => (
-                <NoteMasonryCard
-                  key={note.id}
-                  note={note}
-                  index={index}
-                  onPress={() => handleNotePress(note)}
-                  onLongPress={() => {
-                    Haptics.selectionAsync();
-                    setCardActionsNote(note);
-                  }}
-                  onTogglePin={() => toggleNoteFavorite(note.id)}
-                  onToggleChecklistItem={(itemId) => toggleChecklistItem(note.id, itemId)}
-                />
-              ))}
-            </View>
+            {columns.map((column, colIndex) => (
+              <View key={colIndex} style={styles.column}>
+                {column.map((note, index) => (
+                  <NoteMasonryCard
+                    key={note.id}
+                    note={note}
+                    index={index}
+                    onPress={() => handleNotePress(note)}
+                    onLongPress={() => {
+                      Haptics.selectionAsync();
+                      setCardActionsNote(note);
+                    }}
+                    onTogglePin={() => toggleNoteFavorite(note.id)}
+                    onToggleChecklistItem={(itemId) => toggleChecklistItem(note.id, itemId)}
+                  />
+                ))}
+              </View>
+            ))}
           </View>
         </ScrollView>
       )}

@@ -1,11 +1,29 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { getTagById, resolveNoteColor, DEFAULT_NOTE_EMOJI } from '../../constants/noteOptions';
+import { getTagById, resolveNoteColor, DEFAULT_NOTE_EMOJI, resolveFontScale, DEFAULT_NOTE_FONT_SIZE } from '../../constants/noteOptions';
 import AnimatedPressable from '../AnimatedPressable';
+
+/**
+ * Faint horizontal ruled lines behind the card content — a subtle "paper"
+ * texture rather than a flat color fill. Purely decorative (pointerEvents
+ * disabled) and drawn with a handful of SVG lines, so it stays cheap even
+ * across a whole masonry grid.
+ */
+function PaperTexture({ color }) {
+  const lines = [40, 62, 84, 106, 128, 150, 172, 194];
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      {lines.map((y) => (
+        <Line key={y} x1="0" y1={y} x2="100%" y2={y} stroke={color} strokeWidth={1} strokeOpacity={0.08} />
+      ))}
+    </Svg>
+  );
+}
 
 function formatCardDate(isoString, locale) {
   if (!isoString) return '';
@@ -21,10 +39,20 @@ function formatCardDate(isoString, locale) {
   });
 }
 
+// Pulls preview text from the first block that actually has some, across
+// every text-bearing block type (not just plain paragraphs), so a note
+// that opens with a heading, quote, or list still shows a useful preview.
 function getSnippet(note) {
-  const firstTextBlock = (note.blocks || []).find((b) => b.type === 'paragraph' && (b.text || '').trim());
-  const text = firstTextBlock ? firstTextBlock.text : note.content || '';
-  return (text || '').replace(/\s+/g, ' ').trim();
+  for (const block of note.blocks || []) {
+    if ((block.type === 'paragraph' || block.type === 'heading' || block.type === 'quote') && (block.text || '').trim()) {
+      return block.text.replace(/\s+/g, ' ').trim();
+    }
+    if ((block.type === 'bulletList' || block.type === 'numberedList') && (block.items || []).length) {
+      const firstItem = block.items.find((it) => (it.text || '').trim());
+      if (firstItem) return firstItem.text.replace(/\s+/g, ' ').trim();
+    }
+  }
+  return (note.content || '').replace(/\s+/g, ' ').trim();
 }
 
 function getFlatChecklist(note) {
@@ -53,6 +81,8 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
   const extraChecklistCount = Math.max(0, checklist.length - visibleChecklist.length);
   const timestamp = formatCardDate(note.lastEdited || note.createdAt, locale);
   const isLocked = !!note.isLocked;
+  const hasReminder = !isLocked && !!note.reminderAt;
+  const fontScale = resolveFontScale(note.fontSize || DEFAULT_NOTE_FONT_SIZE);
 
   return (
     <AnimatedPressable
@@ -61,12 +91,21 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
       onLongPress={onLongPress}
       style={[styles.card, { backgroundColor: tone.bg }]}
     >
+      <PaperTexture color={tone.text} />
+
       {note.isFavorite && (
         <View style={[styles.tape, { backgroundColor: tone.tape }]} />
       )}
 
       <View style={styles.topRow}>
-        <Text style={styles.emoji}>{isLocked ? '\ud83d\udd12' : note.emoji || DEFAULT_NOTE_EMOJI}</Text>
+        <View style={styles.badgeGroup}>
+          <Text style={styles.emoji}>{isLocked ? '\ud83d\udd12' : note.emoji || DEFAULT_NOTE_EMOJI}</Text>
+          {hasReminder && (
+            <View style={[styles.reminderBadge, { backgroundColor: tone.tape }]}>
+              <Ionicons name="alarm" size={10} color="#fff" />
+            </View>
+          )}
+        </View>
         <TouchableOpacity
           onPress={() => {
             Haptics.selectionAsync();
@@ -83,18 +122,18 @@ export default function NoteMasonryCard({ note, onPress, onLongPress, onTogglePi
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.title, { color: tone.text }]} numberOfLines={1}>
+      <Text style={[styles.title, { color: tone.text, fontSize: 15 * fontScale }]} numberOfLines={1}>
         {isLocked ? t('noteLockedTitle') : note.title || t('untitledNote')}
       </Text>
 
       {isLocked ? (
-        <Text style={[styles.snippet, { color: tone.text }]} numberOfLines={2}>
+        <Text style={[styles.snippet, { color: tone.text, fontSize: 13 * fontScale }]} numberOfLines={2}>
           {t('noteLockedSubtitle')}
         </Text>
       ) : (
         <>
           {!!snippet && (
-            <Text style={[styles.snippet, { color: tone.text }]} numberOfLines={2}>
+            <Text style={[styles.snippet, { color: tone.text, fontSize: 13 * fontScale }]} numberOfLines={2}>
               {snippet}
             </Text>
           )}
@@ -184,6 +223,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   emoji: { fontSize: 22 },
+  badgeGroup: { position: 'relative' },
+  reminderBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -4,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pinBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   title: {
     fontSize: 15,

@@ -1,4 +1,4 @@
-import { toKey } from './dateUtils';
+import { toKey } from '/home/claude/project/A-Beta-main/src/utils/dateUtils.js.compiled';
 
 /** Parses a 'YYYY-MM-DD' key back into a local-midnight Date. */
 export function keyToDate(key) {
@@ -23,13 +23,19 @@ export function dayDiff(aKey, bKey) {
 export function pointsProgress(item) {
   const points = item.points || [];
   const total = points.length;
-  const done = points.filter((p) => p.completed).length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
-  return { done, total, percent };
+  const done = points.filter(p => p.completed).length;
+  const percent = total ? Math.round(done / total * 100) : 0;
+  return {
+    done,
+    total,
+    percent
+  };
 }
-
 export function isPlanFullyCompleted(item) {
-  const { total, done } = pointsProgress(item);
+  const {
+    total,
+    done
+  } = pointsProgress(item);
   return total > 0 && done === total;
 }
 
@@ -38,11 +44,9 @@ export function isDueOnDate(item, date) {
   const key = toKey(date);
   if (item.archived) return false;
   if (item.hiddenDays?.[key]) return false;
-
   const start = item.startDate || toKey(new Date(item.createdAt || Date.now()));
   if (key < start) return false;
   if (item.dueDate && key > item.dueDate) return false;
-
   return true;
 }
 
@@ -57,7 +61,6 @@ export function daysUntilDue(item, today = new Date()) {
   if (!item.dueDate) return null;
   return dayDiff(toKey(today), item.dueDate);
 }
-
 export function isPlanOverdue(item, today = new Date()) {
   const remaining = daysUntilDue(item, today);
   return remaining !== null && remaining < 0 && !isPlanFullyCompleted(item);
@@ -68,20 +71,23 @@ export function daysUntilPointDue(point, today = new Date()) {
   if (!point.dueDate) return null;
   return dayDiff(toKey(today), point.dueDate);
 }
-
 export function isPointOverdue(point, today = new Date()) {
   const remaining = daysUntilPointDue(point, today);
   return remaining !== null && remaining < 0 && !point.completed;
 }
-
 let pointIdSeed = 0;
 export function makePointId() {
   pointIdSeed += 1;
   return `pt_${Date.now()}_${pointIdSeed}`;
 }
-
 export function emptyPoint() {
-  return { id: makePointId(), text: '', dueDate: null, completed: false, completedAt: null };
+  return {
+    id: makePointId(),
+    text: '',
+    dueDate: null,
+    completed: false,
+    completedAt: null
+  };
 }
 
 /**
@@ -102,16 +108,15 @@ export function migratePlanningItem(item) {
   if (item.points) return item; // already on the new model
 
   const createdAt = item.createdAt || new Date(`${item.createdDate || item.startDate || toKey(new Date())}T00:00:00`).toISOString();
-
   if (item.type === 'daily') {
     const dayKey = item.createdDate || toKey(new Date(createdAt));
     const wasCompleted = !!item.completedDays?.[dayKey];
-    const points = (item.subjects || []).map((s) => ({
+    const points = (item.subjects || []).map(s => ({
       id: s.id || makePointId(),
       text: [s.name, s.quantityLabel].filter(Boolean).join(' \u2014 '),
       dueDate: dayKey,
       completed: wasCompleted,
-      completedAt: wasCompleted ? createdAt : null,
+      completedAt: wasCompleted ? createdAt : null
     }));
     return {
       id: item.id,
@@ -119,21 +124,19 @@ export function migratePlanningItem(item) {
       description: '',
       startDate: dayKey,
       dueDate: dayKey,
-      reminderAt: item.reminderTime
-        ? new Date(`${dayKey}T${item.reminderTime}:00`).toISOString()
-        : null,
+      reminderAt: item.reminderTime ? new Date(`${dayKey}T${item.reminderTime}:00`).toISOString() : null,
       reminderId: item.reminderId || null,
       archived: !!item.archived,
       hiddenDays: item.hiddenDays || {},
       createdAt,
-      points,
+      points
     };
   }
 
   // extended
   const startKey = item.startDate || item.createdDate || toKey(new Date(createdAt));
   let latestDue = startKey;
-  const points = (item.subjects || []).map((s) => {
+  const points = (item.subjects || []).map(s => {
     const days = Number(s.days) || 0;
     const subjectDueKey = toKey(new Date(keyToDate(startKey).getTime() + Math.max(0, days - 1) * 86400000));
     if (subjectDueKey > latestDue) latestDue = subjectDueKey;
@@ -143,18 +146,19 @@ export function migratePlanningItem(item) {
     let allDaysDone = days > 0;
     for (let i = 0; i < days; i++) {
       const dKey = toKey(new Date(keyToDate(startKey).getTime() + i * 86400000));
-      if (!item.completedDays?.[dKey]) { allDaysDone = false; break; }
+      if (!item.completedDays?.[dKey]) {
+        allDaysDone = false;
+        break;
+      }
     }
-
     return {
       id: s.id || makePointId(),
       text: [s.name, s.perDay].filter(Boolean).join(' \u2014 '),
       dueDate: days > 0 ? subjectDueKey : null,
       completed: allDaysDone,
-      completedAt: null,
+      completedAt: null
     };
   });
-
   return {
     id: item.id,
     title: item.title,
@@ -166,6 +170,6 @@ export function migratePlanningItem(item) {
     archived: !!item.archived,
     hiddenDays: item.hiddenDays || {},
     createdAt,
-    points,
+    points
   };
 }

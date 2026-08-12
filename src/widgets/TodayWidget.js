@@ -2,7 +2,7 @@ import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import { toKey, addDays } from '../utils/dateUtils';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
-import { isDueOnDate as isPlanningDueOnDate, isDayCompleted as isPlanningDayCompleted, maxDuration, planStartKey } from '../utils/planningUtils';
+import { isDueOnDate as isPlanningDueOnDate, isDayCompleted as isPlanningDayCompleted, pointsProgress } from '../utils/planningUtils';
 
 const CATEGORY_LABELS = {
   en: {
@@ -127,21 +127,18 @@ function buildRows(habits, tasks, planningItems, targetDate, language) {
 
   for (const p of planningItems) {
     if (!isPlanningDueOnDate(p, targetDate)) continue;
-    const total = maxDuration(p);
-    const start = planStartKey(p);
-    const dayIndex = Math.round((new Date(targetKey) - new Date(start)) / 86400000) + 1;
-    const dayLabel = DAY_LABEL[language] || DAY_LABEL.en;
+    const { done, total } = pointsProgress(p);
     rows.push({
       kind: 'planning',
       id: p.id,
       name: p.title,
       icon: PLANNING_ICON,
-      color: PLANNING_COLOR,
+      color: p.color || PLANNING_COLOR,
       isDone: isPlanningDayCompleted(p, targetDate),
       isSkipped: false,
       canSkip: false,
       progressText: '',
-      subtitle: total > 1 ? `${dayLabel} ${Math.max(1, Math.min(dayIndex, total))}/${total}` : (PLANNING_LABEL[language] || PLANNING_LABEL.en),
+      subtitle: total > 0 ? `${done}/${total}` : (PLANNING_LABEL[language] || PLANNING_LABEL.en),
       doneClickAction: 'PLANNING_TOGGLE_DONE',
       skipClickAction: null,
       clickActionData: { planningId: p.id, dateKey: targetKey },
