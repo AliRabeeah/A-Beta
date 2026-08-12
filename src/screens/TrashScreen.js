@@ -8,6 +8,7 @@ import { useTrash } from '../context/TrashContext';
 import { useTasks } from '../context/TaskContext';
 import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
+import { useTables } from '../context/TableContext';
 import { useFavorites } from '../context/FavoriteContext';
 import { useWishlist } from '../context/WishlistContext';
 
@@ -24,6 +25,8 @@ function labelFor(item, t) {
       return item.data.title || t('trashType_favorite');
     case 'wishlist':
       return item.data.title || t('trashType_wishlist');
+    case 'table':
+      return item.data.title || t('trashType_table');
     default:
       return '—';
   }
@@ -38,6 +41,7 @@ export default function TrashScreen({ navigation }) {
   const { restorePlanningItem } = usePlanning();
   const { restoreFavorite } = useFavorites();
   const { restoreItem: restoreWishlistItem } = useWishlist();
+  const { restoreTable } = useTables();
 
   useEffect(() => {
     navigation.setOptions({ title: t('trashTitle') });
@@ -55,6 +59,7 @@ export default function TrashScreen({ navigation }) {
     planning: restorePlanningItem,
     favorite: restoreFavorite,
     wishlist: restoreWishlistItem,
+    table: restoreTable,
   };
 
   const handleRestore = async (item) => {
@@ -84,6 +89,7 @@ export default function TrashScreen({ navigation }) {
     planning: items.filter((i) => i.type === 'planning'),
     favorite: items.filter((i) => i.type === 'favorite'),
     wishlist: items.filter((i) => i.type === 'wishlist'),
+    table: items.filter((i) => i.type === 'table'),
   };
 
   return (
@@ -102,7 +108,7 @@ export default function TrashScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4 }}>
-          {['task', 'note', 'planning', 'favorite', 'wishlist'].map((type) =>
+          {['task', 'note', 'planning', 'favorite', 'wishlist', 'table'].map((type) =>
             byType[type].length === 0 ? null : (
               <View key={type} style={{ marginBottom: 16 }}>
                 <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t(`trashType_${type}`)}</Text>

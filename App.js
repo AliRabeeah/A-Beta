@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
 import { HabitProvider, useHabits } from './src/context/HabitContext';
 import { PlanningProvider, usePlanning } from './src/context/PlanningContext';
+import { TableProvider } from './src/context/TableContext';
 import { TaskProvider, useTasks } from './src/context/TaskContext';
 import { ChallengeProvider, useChallenges } from './src/context/ChallengeContext';
 import { NoteProvider, useNotes } from './src/context/NoteContext';
@@ -267,6 +268,7 @@ export default function App() {
               <SpeedDialProvider>
                 <HabitProvider>
                   <PlanningProvider>
+                    <TableProvider>
                     <TaskProvider>
                       <ChallengeProvider>
                         <NoteProvider>
@@ -282,6 +284,7 @@ export default function App() {
                         </NoteProvider>
                       </ChallengeProvider>
                     </TaskProvider>
+                    </TableProvider>
                   </PlanningProvider>
                 </HabitProvider>
               </SpeedDialProvider>
