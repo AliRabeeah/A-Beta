@@ -143,8 +143,8 @@
               "minHeight": "80dp",
               "targetCellWidth": 5,
               "targetCellHeight": 2,
-              "description": "A transparent, auto-changing motivational quote",
-              "updatePeriodMillis": 14400000,
+              "description": "A transparent, auto-changing motivational quote \u2014 change interval configurable in the app",
+              "updatePeriodMillis": 1800000,
               "resizeMode": "horizontal|vertical"
             }
           ]

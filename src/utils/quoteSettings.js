@@ -17,6 +17,8 @@ const LAST_SCHEDULED_DATE_KEY = 'a_quote_last_scheduled_date';
 const SCHEDULED_NOTIF_IDS_KEY = 'a_quote_scheduled_notif_ids';
 const CURRENT_WIDGET_QUOTE_KEY = 'a_quote_widget_current_id';
 const WIDGET_OFFSETS_KEY = 'a_quote_widget_offsets'; // { emoji:{x,y}, quote:{x,y}, author:{x,y} }
+const ROTATION_INTERVAL_KEY = 'a_quote_widget_rotation_interval'; // minutes between auto-changes; 0 = off (manual/tap only)
+const LAST_ROTATED_AT_KEY = 'a_quote_widget_last_rotated_at'; // ms epoch timestamp of the last auto or manual change
 
 export const DEFAULT_WIDGET_COLOR = '#FFFFFF';
 export const DEFAULT_WIDGET_FONT = 'serif';
@@ -231,4 +233,47 @@ export async function resetWidgetOffsets() {
 
 export function categoryIsKnown(id) {
   return QUOTE_CATEGORIES.some((c) => c.id === id);
+}
+
+// ---------------------------------------------------------------------
+// Widget auto-rotation (change the quote by itself, no tap needed)
+// ---------------------------------------------------------------------
+// The widget's own periodic refresh (Android's AppWidgetProvider tick, see
+// app.json's updatePeriodMillis for QuoteWidget) runs every 30 minutes at
+// most — that's the OS-enforced floor, we can't go tighter than that
+// without a custom foreground service. So "every 30 minutes" is the
+// shortest selectable option; longer options just skip most ticks until
+// their own interval has actually elapsed (tracked via
+// getWidgetLastRotatedAt/setWidgetLastRotatedAt, checked in
+// widget-task-handler.js on every periodic tick).
+export const DEFAULT_ROTATION_INTERVAL_MINUTES = 240; // 4 hours
+
+export const WIDGET_ROTATION_INTERVAL_OPTIONS = [
+  { id: 0, labelKey: 'quoteRotationOff' },
+  { id: 30, labelKey: 'quoteRotation30m' },
+  { id: 60, labelKey: 'quoteRotation1h' },
+  { id: 120, labelKey: 'quoteRotation2h' },
+  { id: 240, labelKey: 'quoteRotation4h' },
+  { id: 360, labelKey: 'quoteRotation6h' },
+  { id: 720, labelKey: 'quoteRotation12h' },
+  { id: 1440, labelKey: 'quoteRotation24h' },
+];
+
+/** Minutes between automatic quote changes on the widget. 0 = off (only changes when tapped). */
+export async function getWidgetRotationInterval() {
+  const raw = await AsyncStorage.getItem(ROTATION_INTERVAL_KEY);
+  const n = raw !== null ? Number(raw) : DEFAULT_ROTATION_INTERVAL_MINUTES;
+  return WIDGET_ROTATION_INTERVAL_OPTIONS.some((o) => o.id === n) ? n : DEFAULT_ROTATION_INTERVAL_MINUTES;
+}
+export async function setWidgetRotationInterval(minutes) {
+  await AsyncStorage.setItem(ROTATION_INTERVAL_KEY, String(minutes));
+}
+
+/** When the widget's quote last changed (auto or by tap), as an epoch ms timestamp. */
+export async function getWidgetLastRotatedAt() {
+  const raw = await AsyncStorage.getItem(LAST_ROTATED_AT_KEY);
+  return raw ? Number(raw) : 0;
+}
+export async function setWidgetLastRotatedAt(timestampMs) {
+  await AsyncStorage.setItem(LAST_ROTATED_AT_KEY, String(timestampMs));
 }

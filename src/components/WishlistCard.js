@@ -88,8 +88,11 @@ export default function WishlistCard({ item, tagsById, onPress, onLongPress }) {
 
 const styles = StyleSheet.create({
   card: { flex: 1, overflow: 'hidden' },
-  thumb: { width: '100%', aspectRatio: 4 / 3 },
-  thumbPlaceholder: { width: '100%', aspectRatio: 4 / 3, alignItems: 'center', justifyContent: 'center' },
+  // Portrait poster ratio (2:3) — matches FavoriteCard's movie/show/book
+  // poster sizing, instead of the old landscape 4:3 thumbnail, so an
+  // added cover image reads as a proper poster in the grid.
+  thumb: { width: '100%', aspectRatio: 2 / 3 },
+  thumbPlaceholder: { width: '100%', aspectRatio: 2 / 3, alignItems: 'center', justifyContent: 'center' },
   placeholderEmoji: { fontSize: 34 },
   reminderBadge: {
     position: 'absolute',

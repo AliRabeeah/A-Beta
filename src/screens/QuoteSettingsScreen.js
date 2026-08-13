@@ -27,7 +27,8 @@ import {
   getLikedQuoteIds, toggleLikedQuoteId,
   getWidgetFitMode, setWidgetFitMode,
   getWidgetOffsets, setWidgetOffsets, resetWidgetOffsets,
-  WIDGET_COLOR_OPTIONS, WIDGET_FONT_OPTIONS, WIDGET_FIT_OPTIONS,
+  getWidgetRotationInterval, setWidgetRotationInterval,
+  WIDGET_COLOR_OPTIONS, WIDGET_FONT_OPTIONS, WIDGET_FIT_OPTIONS, WIDGET_ROTATION_INTERVAL_OPTIONS,
   DEFAULT_WIDGET_OFFSETS, MAX_WIDGET_OFFSET_DP,
 } from '../utils/quoteSettings';
 import { ensurePermission, scheduleQuoteNotifications, cancelQuoteNotifications } from '../utils/notifications';
@@ -150,6 +151,7 @@ export default function QuoteSettingsScreen() {
   const [fit, setFitState] = useState('balanced');
   const [align, setAlignState] = useState('center');
   const [showAuthor, setShowAuthorState] = useState(true);
+  const [rotationInterval, setRotationIntervalState] = useState(240);
   const [offsets, setOffsetsState] = useState(DEFAULT_WIDGET_OFFSETS);
   const offsetsRef = useRef(offsets);
   useEffect(() => { offsetsRef.current = offsets; }, [offsets]);
@@ -227,6 +229,7 @@ export default function QuoteSettingsScreen() {
     getWidgetFitMode().then(setFitState);
     getWidgetAlign().then(setAlignState);
     getShowAuthor().then(setShowAuthorState);
+    getWidgetRotationInterval().then(setRotationIntervalState);
     getWidgetOffsets().then(setOffsetsState);
     getLikedQuoteIds().then(setLikedIds);
     loadPreview();
@@ -311,6 +314,14 @@ export default function QuoteSettingsScreen() {
   const handlePickFit = async (f) => {
     setFitState(f);
     await setWidgetFitMode(f);
+    refreshQuoteWidget();
+  };
+
+  const handlePickRotationInterval = async (minutes) => {
+    setRotationIntervalState(minutes);
+    await setWidgetRotationInterval(minutes);
+    // Doesn't force an immediate quote change — just updates how the
+    // widget's next periodic tick decides whether it's due to change.
     refreshQuoteWidget();
   };
 
@@ -477,6 +488,27 @@ export default function QuoteSettingsScreen() {
           <Text style={{ color: colors.text, fontSize: 15 }}>{t('quoteEmojiToggle')}</Text>
           <Ionicons name={emojiEnabled ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={emojiEnabled ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
+      </View>
+
+      {/* Auto-change interval */}
+      <Text style={[styles.section, { color: colors.textSecondary }]}>{t('quoteRotationSection')}</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={{ padding: 16 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('quoteRotationHint')}</Text>
+          <View style={styles.chipRow}>
+            {WIDGET_ROTATION_INTERVAL_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => handlePickRotationInterval(opt.id)}
+                style={[styles.pill, { backgroundColor: rotationInterval === opt.id ? colors.primary : colors.surfaceElevated, borderColor: colors.border }]}
+              >
+                <Text style={{ color: rotationInterval === opt.id ? colors.onPrimary : colors.text, fontSize: 13, fontWeight: '600' }}>
+                  {t(opt.labelKey)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
 
       {/* Widget appearance */}

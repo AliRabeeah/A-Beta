@@ -18,6 +18,9 @@ import {
   setCurrentWidgetQuoteId,
   getWidgetFitRatio,
   getWidgetOffsets,
+  getWidgetRotationInterval,
+  getWidgetLastRotatedAt,
+  setWidgetLastRotatedAt,
 } from '../utils/quoteSettings';
 
 const HABITS_KEY = 'a_habits_v1';
@@ -188,17 +191,36 @@ async function handleQuickAdd(props) {
 
 async function handleQuoteWidget(props) {
   let quote = null;
+  const isTap = props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'NEW_QUOTE';
 
-  if (props.widgetAction === 'WIDGET_CLICK' && props.clickAction === 'NEW_QUOTE') {
-    // Tap anywhere on the widget -> immediately swap in a new quote.
+  if (isTap) {
+    // Tap anywhere on the widget -> immediately swap in a new quote, and
+    // restart the auto-rotation clock from this moment (so a manual pick
+    // doesn't get overwritten by an auto-change a few seconds later).
     quote = await pickRandomQuote();
+    await setWidgetLastRotatedAt(Date.now());
   } else {
-    // Periodic refresh or first render: keep showing the same quote that
-    // was last chosen (by the timer or a tap) rather than reshuffling on
-    // every Android-triggered redraw.
-    const currentId = await getCurrentWidgetQuoteId();
-    quote = currentId ? findQuoteById(currentId) : null;
-    if (!quote) quote = await pickRandomQuote();
+    // Periodic refresh (Android's own widget update tick, at most every
+    // 30 min — see app.json's updatePeriodMillis). Only actually swap the
+    // quote once the user's configured auto-change interval has elapsed;
+    // otherwise redraw with the same quote so it doesn't reshuffle on
+    // every OS-triggered tick.
+    const [currentId, intervalMinutes, lastRotatedAt] = await Promise.all([
+      getCurrentWidgetQuoteId(),
+      getWidgetRotationInterval(),
+      getWidgetLastRotatedAt(),
+    ]);
+
+    const dueForAutoChange =
+      intervalMinutes > 0 && (lastRotatedAt === 0 || Date.now() - lastRotatedAt >= intervalMinutes * 60 * 1000);
+
+    if (dueForAutoChange || !currentId) {
+      quote = await pickRandomQuote();
+      await setWidgetLastRotatedAt(Date.now());
+    } else {
+      quote = findQuoteById(currentId);
+      if (!quote) quote = await pickRandomQuote();
+    }
   }
 
   if (quote) await setCurrentWidgetQuoteId(quote.id);

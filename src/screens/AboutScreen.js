@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import RateAppModal from '../components/RateAppModal';
 
 // ---------------------------------------------------------------------
 // Typography
@@ -76,15 +77,6 @@ const PALETTE = {
   },
 };
 
-// TODO: replace with the real URLs before shipping — these are
-// placeholders so the section is fully built and working, just pointed
-// nowhere yet.
-const PRIVACY_URL = 'https://example.com/privacy';
-const TERMS_URL = 'https://example.com/terms';
-const ANDROID_PACKAGE = 'com.alihalim.a';
-const RATE_URL_NATIVE = `market://details?id=${ANDROID_PACKAGE}`;
-const RATE_URL_WEB = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
-
 // TODO: same — small clickable icons beside the developer name. Fill in
 // the real profile URLs; an icon with an empty url is simply not shown.
 const SOCIAL_LINKS = [
@@ -95,14 +87,6 @@ const SOCIAL_LINKS = [
 
 function openSafely(url) {
   Linking.openURL(url).catch(() => {});
-}
-
-async function openRateApp() {
-  try {
-    await Linking.openURL(RATE_URL_NATIVE);
-  } catch {
-    openSafely(RATE_URL_WEB);
-  }
 }
 
 /** Fades + rises in on mount, with an optional stagger delay. Skips the
@@ -242,13 +226,14 @@ function LinkRow({ label, onPress, isLast, p }) {
   );
 }
 
-export default function AboutScreen() {
+export default function AboutScreen({ navigation }) {
   const { mode } = useTheme();
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
   const p = PALETTE[mode] || PALETTE.dark;
   useAboutFonts(); // no-op until the .ttf files exist — see assets/fonts/README.md
 
+  const [rateModalVisible, setRateModalVisible] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
     let mounted = true;
@@ -315,11 +300,13 @@ export default function AboutScreen() {
         </FadeInUp>
 
         <FadeInUp delay={230} reduceMotion={reduceMotion} style={[styles.linksCard, { backgroundColor: p.card, borderColor: p.cardBorder }]}>
-          <LinkRow label={t('aboutPrivacyPolicy')} onPress={() => openSafely(PRIVACY_URL)} p={p} />
-          <LinkRow label={t('aboutTerms')} onPress={() => openSafely(TERMS_URL)} p={p} />
-          <LinkRow label={t('aboutRateApp')} onPress={openRateApp} isLast p={p} />
+          <LinkRow label={t('aboutPrivacyPolicy')} onPress={() => navigation.navigate('Legal', { type: 'privacy' })} p={p} />
+          <LinkRow label={t('aboutTerms')} onPress={() => navigation.navigate('Legal', { type: 'terms' })} p={p} />
+          <LinkRow label={t('aboutRateApp')} onPress={() => setRateModalVisible(true)} isLast p={p} />
         </FadeInUp>
       </View>
+
+      <RateAppModal visible={rateModalVisible} onClose={() => setRateModalVisible(false)} />
     </View>
   );
 }
