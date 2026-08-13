@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { autoTextAlign } from '../../../utils/textDirection';
 
 /**
  * Editable bullet ("•") or numbered ("1.", "2.", ...) list block. Mirrors
@@ -40,7 +41,7 @@ export default function EditableListBlock({
             returnKeyType="next"
             style={[
               styles.input,
-              { color: tint, fontSize: 15 * fontScale, textAlign: isRTL ? 'right' : 'left' },
+              { color: tint, fontSize: 15 * fontScale, textAlign: autoTextAlign(item.text, isRTL) },
             ]}
             multiline
           />

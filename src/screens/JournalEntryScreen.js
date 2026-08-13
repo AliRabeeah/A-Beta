@@ -10,6 +10,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useJournal } from '../context/JournalContext';
 import { toKey } from '../utils/dateUtils';
 import { wordCount } from '../utils/journalUtils';
+import { autoTextAlign } from '../utils/textDirection';
 import { getRandomPromptKey } from '../constants/journalPrompts';
 
 const AUTOSAVE_DELAY_MS = 600;
@@ -119,7 +120,7 @@ export default function JournalEntryScreen({ route, navigation }) {
           placeholderTextColor={colors.textSecondary}
           multiline
           autoFocus={!existing}
-          style={[styles.bodyInput, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}
+          style={[styles.bodyInput, { color: colors.text, textAlign: autoTextAlign(content, isRTL) }]}
         />
 
         <Text style={[styles.wordCount, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>

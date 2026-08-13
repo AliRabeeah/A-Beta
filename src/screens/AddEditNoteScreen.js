@@ -30,6 +30,7 @@ import {
   resolveTitleFontFamily,
 } from '../constants/noteOptions';
 import { extractLinks, normalizeUrlForOpen, countNoteText } from '../utils/noteTextUtils';
+import { autoTextAlign } from '../utils/textDirection';
 
 import EmojiPickerSheet from '../components/notes/EmojiPickerSheet';
 import NoteColorPickerRow from '../components/notes/NoteColorPickerRow';
@@ -545,7 +546,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
             onChangeText={setTitle}
             placeholder={t('titlePlaceholder')}
             placeholderTextColor={tone.text + '99'}
-            style={[styles.titleInput, { color: tone.text, fontSize: 22 * fontScale, fontFamily: titleFontFamily, textAlign }]}
+            style={[styles.titleInput, { color: tone.text, fontSize: 22 * fontScale, fontFamily: titleFontFamily, textAlign: autoTextAlign(title, isRTL) }]}
             multiline
           />
         </View>
@@ -572,7 +573,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
                         fontWeight: block.bold ? '700' : '400',
                         fontStyle: block.italic ? 'italic' : 'normal',
                         textDecorationLine: block.underline ? 'underline' : 'none',
-                        textAlign: block.align || textAlign,
+                        textAlign: block.align || autoTextAlign(block.text, isRTL),
                         backgroundColor: block.highlight ? tone.tape + '4d' : 'transparent',
                       },
                     ]}
@@ -603,7 +604,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
                         fontWeight: block.bold ? '900' : '800',
                         fontStyle: block.italic ? 'italic' : 'normal',
                         textDecorationLine: block.underline ? 'underline' : 'none',
-                        textAlign: block.align || textAlign,
+                        textAlign: block.align || autoTextAlign(block.text, isRTL),
                         backgroundColor: block.highlight ? tone.tape + '4d' : 'transparent',
                       },
                     ]}
@@ -639,7 +640,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
                           fontWeight: block.bold ? '700' : '400',
                           fontStyle: block.italic === false ? 'normal' : 'italic',
                           textDecorationLine: block.underline ? 'underline' : 'none',
-                          textAlign: block.align || textAlign,
+                          textAlign: block.align || autoTextAlign(block.text, isRTL),
                           backgroundColor: block.highlight ? tone.tape + '4d' : 'transparent',
                         },
                       ]}
@@ -700,7 +701,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
                             fontSize: 14 * fontScale,
                             opacity: item.isChecked ? 0.55 : 0.92,
                             textDecorationLine: item.isChecked ? 'line-through' : 'none',
-                            textAlign,
+                            textAlign: autoTextAlign(item.text, isRTL),
                           },
                         ]}
                       >
@@ -727,7 +728,7 @@ export default function AddEditNoteScreen({ route, navigation }) {
                       returnKeyType="next"
                       placeholder={t('noteChecklistInputPlaceholder')}
                       placeholderTextColor={tone.text + '99'}
-                      style={[styles.checklistInput, { color: tone.text, borderColor: tone.tape, textAlign }]}
+                      style={[styles.checklistInput, { color: tone.text, borderColor: tone.tape, textAlign: autoTextAlign(drafts[block.groupId], isRTL) }]}
                     />
                     <TouchableOpacity onPress={() => commitChecklistDraft(block.groupId)} style={[styles.smallAddBtn, { backgroundColor: overlaySoft }]}>
                       <Ionicons name="add" size={14} color={tone.text} />
