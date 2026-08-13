@@ -551,6 +551,9 @@ export const translations = {
     planDueTodayLabel: 'Due today',
     planDaysRemainingLabel: (days) => (days === 1 ? '1 day left' : `${days} days left`),
     planOverdueLabel: (days) => (days === 1 ? 'Overdue by 1 day' : `Overdue by ${days} days`),
+    planNoPeriodLabel: 'No timeframe set',
+    planUntilDateLabel: (date) => `Until ${date}`,
+    planFromDateLabel: (date) => `From ${date}`,
 
     // Tables
     tablesTitle: 'Tables',
@@ -1448,6 +1451,9 @@ export const translations = {
     planDueTodayLabel: 'موعدها اليوم',
     planDaysRemainingLabel: (days) => (days === 1 ? 'باقي يوم واحد' : `باقي ${days} أيام`),
     planOverdueLabel: (days) => (days === 1 ? 'متأخرة بيوم واحد' : `متأخرة ${days} أيام`),
+    planNoPeriodLabel: 'بدون فترة محددة',
+    planUntilDateLabel: (date) => `حتى ${date}`,
+    planFromDateLabel: (date) => `من ${date}`,
 
     // Tables
     tablesTitle: 'الجداول',
