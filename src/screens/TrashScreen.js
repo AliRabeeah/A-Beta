@@ -11,6 +11,7 @@ import { usePlanning } from '../context/PlanningContext';
 import { useTables } from '../context/TableContext';
 import { useFavorites } from '../context/FavoriteContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useJournal } from '../context/JournalContext';
 
 function labelFor(item, t) {
   switch (item.type) {
@@ -27,6 +28,10 @@ function labelFor(item, t) {
       return item.data.title || t('trashType_wishlist');
     case 'table':
       return item.data.title || t('trashType_table');
+    case 'journal':
+      return item.data.date
+        ? `${t('trashType_journal')} \u2014 ${new Date(item.data.date + 'T00:00:00').toLocaleDateString()}`
+        : t('trashType_journal');
     default:
       return '—';
   }
@@ -42,6 +47,7 @@ export default function TrashScreen({ navigation }) {
   const { restoreFavorite } = useFavorites();
   const { restoreItem: restoreWishlistItem } = useWishlist();
   const { restoreTable } = useTables();
+  const { restoreEntry: restoreJournalEntry } = useJournal();
 
   useEffect(() => {
     navigation.setOptions({ title: t('trashTitle') });
@@ -60,6 +66,7 @@ export default function TrashScreen({ navigation }) {
     favorite: restoreFavorite,
     wishlist: restoreWishlistItem,
     table: restoreTable,
+    journal: restoreJournalEntry,
   };
 
   const handleRestore = async (item) => {
@@ -90,6 +97,7 @@ export default function TrashScreen({ navigation }) {
     favorite: items.filter((i) => i.type === 'favorite'),
     wishlist: items.filter((i) => i.type === 'wishlist'),
     table: items.filter((i) => i.type === 'table'),
+    journal: items.filter((i) => i.type === 'journal'),
   };
 
   return (
@@ -108,7 +116,7 @@ export default function TrashScreen({ navigation }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 4 }}>
-          {['task', 'note', 'planning', 'favorite', 'wishlist', 'table'].map((type) =>
+          {['task', 'note', 'planning', 'favorite', 'wishlist', 'table', 'journal'].map((type) =>
             byType[type].length === 0 ? null : (
               <View key={type} style={{ marginBottom: 16 }}>
                 <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t(`trashType_${type}`)}</Text>

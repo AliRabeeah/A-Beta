@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { encryptNotesForBackup } from './noteEncryption';
+import { encryptJournalForBackup } from './journalEncryption';
 
 const BACKUP_FILE_NAME = 'a-backup.json';
 // v1 -> v2: added tabBarConfig, speedDialConfig, settingsSectionOrder, and
@@ -21,6 +22,7 @@ export async function buildBackupPayload({
   notes,
   planningItems,
   tableItems,
+  journalEntries,
   wishlist,
   wishlistTags,
   accent,
@@ -36,6 +38,10 @@ export async function buildBackupPayload({
   // (manual file export, GitHub auto-backup) funnels through — so their
   // title/content never exists in plain text in the resulting payload.
   const safeNotes = await encryptNotesForBackup(notes || []);
+  // Every journal entry is locked by design, so every entry is encrypted
+  // here unconditionally (unlike notes, which only encrypt the ones
+  // marked isLocked).
+  const safeJournal = await encryptJournalForBackup(journalEntries || {});
 
   return {
     app: 'A',
@@ -50,6 +56,7 @@ export async function buildBackupPayload({
       notes: safeNotes,
       planningItems: planningItems || [],
       tableItems: tableItems || [],
+      journalEntries: safeJournal,
       wishlist: wishlist || [],
       wishlistTags: wishlistTags || [],
       accent,

@@ -44,6 +44,8 @@ import PlanningScreen from '../screens/PlanningScreen';
 import AddEditPlanningScreen from '../screens/AddEditPlanningScreen';
 import TablesScreen from '../screens/TablesScreen';
 import TableDetailScreen from '../screens/TableDetailScreen';
+import JournalScreen from '../screens/JournalScreen';
+import JournalEntryScreen from '../screens/JournalEntryScreen';
 import TrashScreen from '../screens/TrashScreen';
 import DayClosingScreen from '../screens/DayClosingScreen';
 import MoodHistoryScreen from '../screens/MoodHistoryScreen';
@@ -182,6 +184,8 @@ export default function RootNavigator() {
       />
       <Stack.Screen name="Tables" component={TablesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="TableDetail" component={TableDetailScreen} options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="Journal" component={JournalScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="JournalEntry" component={JournalEntryScreen} options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="Trash" component={TrashScreen} options={({ route }) => ({ title: '' })} />
       <Stack.Screen name="Wishlist" component={WishlistScreen} options={{ headerShown: false }} />
       <Stack.Screen

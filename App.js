@@ -13,6 +13,7 @@ import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
 import { HabitProvider, useHabits } from './src/context/HabitContext';
 import { PlanningProvider, usePlanning } from './src/context/PlanningContext';
 import { TableProvider } from './src/context/TableContext';
+import { JournalProvider } from './src/context/JournalContext';
 import { TaskProvider, useTasks } from './src/context/TaskContext';
 import { ChallengeProvider, useChallenges } from './src/context/ChallengeContext';
 import { NoteProvider, useNotes } from './src/context/NoteContext';
@@ -269,6 +270,7 @@ export default function App() {
                 <HabitProvider>
                   <PlanningProvider>
                     <TableProvider>
+                    <JournalProvider>
                     <TaskProvider>
                       <ChallengeProvider>
                         <NoteProvider>
@@ -284,6 +286,7 @@ export default function App() {
                         </NoteProvider>
                       </ChallengeProvider>
                     </TaskProvider>
+                    </JournalProvider>
                     </TableProvider>
                   </PlanningProvider>
                 </HabitProvider>
