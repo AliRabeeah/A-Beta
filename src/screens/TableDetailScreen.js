@@ -65,6 +65,15 @@ function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (evt, gesture) => Math.abs(gesture.dx) > 2,
+      // Once we've claimed the gesture, refuse to hand it back. Without
+      // this, the header's own horizontal ScrollView (the same axis as
+      // this drag) requests termination the moment the finger moves, and
+      // — since PanResponder grants that request by default — the drag
+      // turns into a table scroll instead of a resize. onShouldBlock is
+      // the Android-side equivalent: stops the ScrollView's native touch
+      // interception from grabbing the gesture out from under us too.
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: () => { baseRef.current = widthRef.current; Haptics.selectionAsync(); },
       onPanResponderMove: (evt, gesture) => {
         const delta = isRTL ? -gesture.dx : gesture.dx;

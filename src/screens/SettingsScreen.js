@@ -14,6 +14,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
+import { useFont } from '../theme/FontContext';
 import { withAlpha } from '../theme/tokens';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useHabits } from '../context/HabitContext';
@@ -83,6 +84,7 @@ const SETTINGS_SECTION_META = {
   language: { icon: 'language-outline', labelKey: 'languageSection' },
   appearance: { icon: 'contrast-outline', labelKey: 'appearance' },
   accent: { icon: 'color-palette-outline', labelKey: 'accentColorSection' },
+  font: { icon: 'text-outline', labelKey: 'fontSection' },
   appIcon: { icon: 'apps-outline', labelKey: 'appIconSection' },
   tabBar: { icon: 'grid-outline', labelKey: 'tabBarCustomizeEntry' },
   speedDial: { icon: 'flash-outline', labelKey: 'speedDialCustomizeEntry' },
@@ -101,6 +103,7 @@ const SETTINGS_SECTION_META = {
 
 export default function SettingsScreen({ navigation }) {
   const { colors, preference, setMode, accent, setAccent, presets } = useTheme();
+  const { fontId, setFont, options: fontOptions } = useFont();
   const { t, language, setLanguage, isRTL } = useLanguage();
   const { habits, replaceAllHabits } = useHabits();
   const { tasks, replaceAllTasks } = useTasks();
@@ -789,6 +792,57 @@ export default function SettingsScreen({ navigation }) {
                         </View>
                       </View>
                     )}
+                  </View>
+                )}
+              </View>
+      ),
+    },
+    {
+      id: 'font',
+      render: (drag, isActive) => (
+              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, isActive && { opacity: 0.6 }]}>
+                <TouchableOpacity onPress={() => setOpenSection('font')} onLongPress={drag} delayLongPress={200} disabled={isActive} style={styles.row} activeOpacity={0.7}>
+                  <View style={styles.rowLeft}>
+                    <Ionicons name="text-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{t('fontSection')}</Text>
+                  </View>
+                  <Ionicons name={openSection === 'font' ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                {openSection === 'font' && (
+                  <View style={{ padding: 14, paddingTop: 0 }}>
+                    <View style={[styles.divider, { backgroundColor: colors.border, marginBottom: 12 }]} />
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 14 }}>{t('fontHint')}</Text>
+                    {fontOptions.map((opt) => {
+                      const isSelected = fontId === opt.id;
+                      return (
+                        <TouchableOpacity
+                          key={opt.id}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setFont(opt.id);
+                          }}
+                          style={styles.row}
+                        >
+                          <View style={styles.rowLeft}>
+                            <Text
+                              style={{
+                                color: colors.text,
+                                fontSize: 17,
+                                fontFamily: opt.family || undefined,
+                                minWidth: 32,
+                              }}
+                            >
+                              Aa
+                            </Text>
+                            <Text style={{ color: colors.text, marginLeft: 12, fontSize: 15, fontFamily: opt.family || undefined }}>
+                              {t(opt.labelKey)}
+                            </Text>
+                          </View>
+                          {isSelected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
               </View>

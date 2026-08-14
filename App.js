@@ -9,6 +9,7 @@ import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { FontProvider, useFont } from './src/theme/FontContext';
 import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
 import { HabitProvider, useHabits } from './src/context/HabitContext';
 import { PlanningProvider, usePlanning } from './src/context/PlanningContext';
@@ -59,6 +60,7 @@ try {
  */
 function SplashGate() {
   const { loaded: themeLoaded } = useTheme();
+  const { loaded: fontLoaded } = useFont();
   const { loaded: lockLoaded } = useAppLock();
   const { loaded: habitsLoaded } = useHabits();
   const { loaded: planningLoaded } = usePlanning();
@@ -74,6 +76,7 @@ function SplashGate() {
 
   const allLoaded =
     themeLoaded &&
+    fontLoaded &&
     lockLoaded &&
     habitsLoaded &&
     planningLoaded &&
@@ -263,6 +266,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
+        <FontProvider>
           <LanguageProvider>
             <AppLockProvider>
               <TabBarProvider>
@@ -294,6 +298,7 @@ export default function App() {
               </TabBarProvider>
             </AppLockProvider>
           </LanguageProvider>
+        </FontProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

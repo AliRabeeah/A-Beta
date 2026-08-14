@@ -11,7 +11,7 @@
 
 const CONTACT_EMAIL = 'dev.alihalim@gmail.com';
 const DEVELOPER_NAME = 'Ali Halim';
-const LAST_UPDATED = { en: 'August 13, 2026', ar: '13 أغسطس 2026' };
+const LAST_UPDATED = { en: 'August 14, 2026', ar: '14 أغسطس 2026' };
 
 const privacy = {
   en: {

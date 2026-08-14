@@ -3,7 +3,7 @@ import AsyncStorage from './secureStorage'; // encrypted at rest -- see secureSt
 export const SETTINGS_SECTION_ORDER_KEY = 'a_settings_sections_order_v1';
 
 export const DEFAULT_SETTINGS_SECTION_ORDER = [
-  'language', 'appearance', 'accent', 'appIcon', 'tabBar', 'speedDial', 'appLock',
+  'language', 'appearance', 'accent', 'font', 'appIcon', 'tabBar', 'speedDial', 'appLock',
   'notifications', 'widget', 'backup', 'trash', 'github', 'moodHistory',
   'dayClosing', 'weeklyReview', 'quoteSettings', 'about',
 ];
