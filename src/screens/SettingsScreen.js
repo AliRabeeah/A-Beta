@@ -1593,7 +1593,7 @@ export default function SettingsScreen({ navigation }) {
                     {showWeeklyReviewPicker && (
                       <DateTimePicker value={weeklyReviewTime} mode="time" is24Hour={false} onChange={handleWeeklyReviewTimeChange} />
                     )}
-                    <TouchableOpacity onPress={() => navigation.navigate('WeeklyReview')} style={[styles.row, { paddingTop: weeklyReviewOn ? 0 : undefined }]}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Insights', { initialTab: 'weeklyReview' })} style={[styles.row, { paddingTop: weeklyReviewOn ? 0 : undefined }]}>
                       <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700' }}>{t('weeklyReviewEntry')}</Text>
                       <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                     </TouchableOpacity>

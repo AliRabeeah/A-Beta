@@ -19,7 +19,7 @@ function isTaskDueOnDate(task, date, dateKey) {
   return false;
 }
 
-export default function AgendaScreen({ navigation }) {
+export default function AgendaScreen({ navigation, embedded = false }) {
   const { colors } = useTheme();
   const { t, language, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -65,16 +65,18 @@ export default function AgendaScreen({ navigation }) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 30 }}
+      contentContainerStyle={{ padding: 20, paddingTop: embedded ? 4 : insets.top + 20, paddingBottom: insets.bottom + 30 }}
     >
-      <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        {navigation?.canGoBack?.() && (
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={[styles.title, { color: colors.text }]}>{t('agendaTitle')}</Text>
-      </View>
+      {!embedded && (
+        <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          {navigation?.canGoBack?.() && (
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.title, { color: colors.text }]}>{t('agendaTitle')}</Text>
+        </View>
+      )}
 
       {activeChallengesCount > 0 && (
         <View style={[styles.challengeBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>

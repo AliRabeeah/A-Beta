@@ -11,7 +11,7 @@ import { getCurrentStreak, getBestStreak, statusOf, getAvoidStreak, getLongestAv
 import { toKey, addDays } from '../utils/dateUtils';
 import { exportStatsToFile } from '../utils/statsExport';
 
-export default function StatsScreen({ navigation }) {
+export default function StatsScreen({ navigation, embedded = false, onNavigateTab }) {
   const { colors } = useTheme();
   const tokens = useTokens();
   const { t, language } = useLanguage();
@@ -57,16 +57,19 @@ export default function StatsScreen({ navigation }) {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, paddingTop: embedded ? 4 : insets.top + 20 }}>
       <View style={styles.headerRow}>
-        {navigation?.canGoBack?.() && (
+        {!embedded && navigation?.canGoBack?.() && (
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={26} color={colors.text} />
           </TouchableOpacity>
         )}
-        <Text style={[styles.title, { color: colors.text }]}>{t('statsTitle')}</Text>
+        {!embedded && <Text style={[styles.title, { color: colors.text }]}>{t('statsTitle')}</Text>}
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => navigation.navigate('YearInPixels')} style={styles.exportBtn}>
+        <TouchableOpacity
+          onPress={() => (embedded ? onNavigateTab?.('yearInPixels') : navigation.navigate('YearInPixels'))}
+          style={styles.exportBtn}
+        >
           <Ionicons name="grid-outline" size={22} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleExport} disabled={exporting} style={styles.exportBtn}>

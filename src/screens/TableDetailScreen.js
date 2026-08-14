@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -18,10 +18,14 @@ import { toKey } from '../utils/dateUtils';
 import ActionSheet from '../components/ActionSheet';
 import ColumnEditorSheet from '../components/tables/ColumnEditorSheet';
 import TagPickerSheet from '../components/tables/TagPickerSheet';
+import TableSettingsSheet from '../components/tables/TableSettingsSheet';
 
-const COLUMN_WIDTH = { text: 140, number: 90, currency: 110, date: 120, checkbox: 70, tag: 130, link: 160, rating: 116 };
+// Default widths — just a starting point now that every column is
+// user-resizable via the drag handle on its header's trailing edge.
+const COLUMN_WIDTH = { text: 120, number: 84, currency: 104, date: 114, checkbox: 64, tag: 122, link: 150, rating: 112 };
+const MIN_COL_WIDTH = 64;
+const MAX_COL_WIDTH = 320;
 const ADD_COLUMN_WIDTH = 48;
-const ROW_ACTION_WIDTH = 40;
 const STAR_COUNT = 5;
 
 // Fixed row heights keep the frozen column and the scrollable columns in
@@ -42,6 +46,46 @@ function normalizeUrl(value) {
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
+/**
+ * Small drag handle on a header cell's trailing edge that lets the person
+ * resize that column freely. Uses two refs rather than component state so
+ * every intermediate frame during the drag is cheap (no re-render of the
+ * handle itself) — the live width lives in the parent via onChange.
+ */
+function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange, onCommit }) {
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const baseRef = useRef(width);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gesture) => Math.abs(gesture.dx) > 2,
+      onPanResponderGrant: () => { baseRef.current = widthRef.current; Haptics.selectionAsync(); },
+      onPanResponderMove: (evt, gesture) => {
+        const delta = isRTL ? -gesture.dx : gesture.dx;
+        const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
+        onChangeRef.current(next);
+      },
+      onPanResponderRelease: (evt, gesture) => {
+        const delta = isRTL ? -gesture.dx : gesture.dx;
+        const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
+        onCommitRef.current(next);
+      },
+    })
+  ).current;
+
+  return (
+    <View {...panResponder.panHandlers} hitSlop={{ left: 10, right: 10 }} style={[styles.resizeHandle, isRTL ? { left: 0 } : { right: 0 }]}>
+      <View style={[styles.resizeHandleBar, { backgroundColor: colors.border }]} />
+    </View>
+  );
+}
+
 export default function TableDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
   const { t, language, isRTL } = useLanguage();
@@ -57,14 +101,18 @@ export default function TableDetailScreen({ route, navigation }) {
   const [datePickerCell, setDatePickerCell] = useState(null);
   const [tagPickerCell, setTagPickerCell] = useState(null);
   const [columnEditorTarget, setColumnEditorTarget] = useState(undefined); // undefined = closed, null = new, column = edit
+  const [columnMenuTarget, setColumnMenuTarget] = useState(null);
+  const [rowMenuTarget, setRowMenuTarget] = useState(null);
   const [sort, setSort] = useState({ columnId: null, direction: 'asc' });
   const [moreMenuVisible, setMoreMenuVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [groupByColumnId, setGroupByColumnId] = useState(null);
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderDraft, setReorderDraft] = useState([]);
+  const [liveWidths, setLiveWidths] = useState({}); // in-progress column resize preview, keyed by columnId
   const cellInputRef = useRef(null);
 
   // The two lists (frozen column + scrollable columns) scroll vertically in
@@ -75,8 +123,18 @@ export default function TableDetailScreen({ route, navigation }) {
   const syncSource = useRef(null);
 
   const columns = table?.columns || [];
+  const isLocked = !!table?.locked;
+  const showTotal = table?.showTotalRow !== false;
+  const customTextColor = table?.appearance?.textColor || null;
+  const customBg = table?.appearance?.backgroundColor || null;
+
   const frozenColumn = columns.find((c) => c.id === table?.frozenColumnId) || columns[0] || null;
   const scrollColumns = frozenColumn ? columns.filter((c) => c.id !== frozenColumn.id) : columns;
+
+  const getColWidth = useCallback((column) => {
+    if (!column) return 120;
+    return liveWidths[column.id] ?? column.width ?? COLUMN_WIDTH[column.type] ?? 120;
+  }, [liveWidths]);
 
   const sortColumn = columns.find((c) => c.id === sort.columnId);
   const sortedRows = useMemo(() => sortRows(table?.rows || [], sortColumn, sort.direction), [table?.rows, sortColumn, sort.direction]);
@@ -91,9 +149,10 @@ export default function TableDetailScreen({ route, navigation }) {
   );
   const tagColumns = columns.filter((c) => c.type === 'tag');
 
-  const frozenWidth = frozenColumn ? (COLUMN_WIDTH[frozenColumn.type] || 120) + ROW_ACTION_WIDTH : 0;
-  const scrollWidth = scrollColumns.reduce((sum, c) => sum + (COLUMN_WIDTH[c.type] || 120), 0) + ADD_COLUMN_WIDTH;
+  const frozenWidth = frozenColumn ? getColWidth(frozenColumn) : 0;
+  const scrollWidth = scrollColumns.reduce((sum, c) => sum + getColWidth(c), 0) + ADD_COLUMN_WIDTH;
   const hasAggregateColumn = columns.some((c) => c.type === 'number' || c.type === 'currency');
+  const showFooter = hasAggregateColumn && showTotal;
 
   const onFrozenScroll = useCallback((e) => {
     if (syncSource.current === 'scroll') return;
@@ -118,6 +177,7 @@ export default function TableDetailScreen({ route, navigation }) {
   }
 
   const commitTitle = () => {
+    if (isLocked) return;
     if (title.trim() !== table.title) updateTable(table.id, { title: title.trim() });
   };
 
@@ -131,6 +191,7 @@ export default function TableDetailScreen({ route, navigation }) {
   };
 
   const openCellEditor = (row, column) => {
+    if (isLocked) return;
     if (column.type === 'checkbox') {
       Haptics.selectionAsync();
       updateCell(table.id, row.id, column.id, !row.cells[column.id]);
@@ -156,6 +217,7 @@ export default function TableDetailScreen({ route, navigation }) {
   };
 
   const handleSetRating = (row, column, star) => {
+    if (isLocked) return;
     Haptics.selectionAsync();
     const current = row.cells[column.id];
     updateCell(table.id, row.id, column.id, current === star ? null : star);
@@ -169,14 +231,19 @@ export default function TableDetailScreen({ route, navigation }) {
     Linking.openURL(normalizeUrl(value)).catch(() => Alert.alert(t('tableInvalidLink')));
   };
 
-  const handleAddRow = () => addRow(table.id);
+  const handleAddRow = () => {
+    if (isLocked) return;
+    addRow(table.id);
+  };
 
   const handleDeleteRow = (row) => {
+    if (isLocked) return;
     Haptics.selectionAsync();
     removeRow(table.id, row.id);
   };
 
   const handleSaveColumn = (draft) => {
+    if (isLocked) return;
     if (columnEditorTarget) {
       updateColumn(table.id, columnEditorTarget.id, { name: draft.name, tagOptions: draft.tagOptions });
     } else {
@@ -185,16 +252,16 @@ export default function TableDetailScreen({ route, navigation }) {
     setColumnEditorTarget(undefined);
   };
 
-  const handleDeleteColumn = () => {
-    if (!columnEditorTarget) return;
+  const confirmDeleteColumn = (column) => {
+    if (isLocked || !column) return;
     Alert.alert(t('deleteColumnConfirmTitle'), t('deleteColumnConfirmBody'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete'),
         style: 'destructive',
         onPress: () => {
-          if (table.frozenColumnId === columnEditorTarget.id) updateTable(table.id, { frozenColumnId: null });
-          removeColumn(table.id, columnEditorTarget.id);
+          if (table.frozenColumnId === column.id) updateTable(table.id, { frozenColumnId: null });
+          removeColumn(table.id, column.id);
           setColumnEditorTarget(undefined);
         },
       },
@@ -219,6 +286,7 @@ export default function TableDetailScreen({ route, navigation }) {
   };
 
   const handleSetFrozenColumn = (column) => {
+    if (isLocked) return;
     Haptics.selectionAsync();
     updateTable(table.id, { frozenColumnId: column.id });
   };
@@ -231,6 +299,7 @@ export default function TableDetailScreen({ route, navigation }) {
   };
 
   const handleEnterReorderMode = () => {
+    if (isLocked) return;
     setMoreMenuVisible(false);
     setReorderDraft(table.rows);
     setReorderMode(true);
@@ -246,18 +315,51 @@ export default function TableDetailScreen({ route, navigation }) {
     setGroupPickerVisible(true);
   };
 
+  const openColumnMenu = (column) => {
+    if (isLocked) return;
+    Haptics.selectionAsync();
+    setColumnMenuTarget(column);
+  };
+
+  const openRowMenu = (row) => {
+    if (isLocked) return;
+    Haptics.selectionAsync();
+    setRowMenuTarget(row);
+  };
+
+  const handleResizeCommit = (column, next) => {
+    setLiveWidths((prev) => {
+      const nextState = { ...prev };
+      delete nextState[column.id];
+      return nextState;
+    });
+    updateColumn(table.id, column.id, { width: Math.round(next) });
+  };
+
   const groupPickerActions = [
     { icon: 'close-circle-outline', label: t('tableGroupByNone'), onPress: () => setGroupByColumnId(null) },
     ...tagColumns.map((c) => ({ icon: 'pricetag-outline', label: c.name, onPress: () => setGroupByColumnId(c.id) })),
   ];
 
-  const renderRating = (row, column, width) => (
+  const columnMenuActions = columnMenuTarget ? [
+    ...(columnMenuTarget.id !== frozenColumn?.id
+      ? [{ icon: 'pin-outline', label: t('tablePinColumn'), onPress: () => handleSetFrozenColumn(columnMenuTarget) }]
+      : []),
+    { icon: 'create-outline', label: t('editColumnTitle'), onPress: () => setColumnEditorTarget(columnMenuTarget) },
+    { icon: 'trash', label: t('deleteColumn'), destructive: true, onPress: () => confirmDeleteColumn(columnMenuTarget) },
+  ] : [];
+
+  const rowMenuActions = rowMenuTarget ? [
+    { icon: 'trash', label: t('delete'), destructive: true, onPress: () => handleDeleteRow(rowMenuTarget) },
+  ] : [];
+
+  const renderRating = (row, column, width, onLongPressRow) => (
     <View key={column.id} style={[styles.cell, styles.ratingCell, { width }]}>
       {Array.from({ length: STAR_COUNT }).map((_, i) => {
         const starValue = i + 1;
         const filled = (row.cells[column.id] || 0) >= starValue;
         return (
-          <TouchableOpacity key={i} onPress={() => handleSetRating(row, column, starValue)} hitSlop={3}>
+          <TouchableOpacity key={i} onPress={() => handleSetRating(row, column, starValue)} onLongPress={onLongPressRow} hitSlop={3}>
             <Ionicons name={filled ? 'star' : 'star-outline'} size={14} color={filled ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
         );
@@ -265,7 +367,7 @@ export default function TableDetailScreen({ route, navigation }) {
     </View>
   );
 
-  const renderLink = (row, column, width) => {
+  const renderLink = (row, column, width, onLongPressRow) => {
     const value = row.cells[column.id];
     const isEditingThis = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
     if (isEditingThis) {
@@ -287,7 +389,7 @@ export default function TableDetailScreen({ route, navigation }) {
     }
     return (
       <View key={column.id} style={[styles.cell, styles.linkCell, { width }, isRTL && { flexDirection: 'row-reverse' }]}>
-        <TouchableOpacity onPress={() => openCellEditor(row, column)} style={{ flex: 1 }}>
+        <TouchableOpacity onPress={() => openCellEditor(row, column)} onLongPress={onLongPressRow} style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ color: value ? colors.primary : colors.textSecondary, fontSize: 13, textAlign: isRTL ? 'right' : 'left' }}>
             {value || '\u2014'}
           </Text>
@@ -301,10 +403,10 @@ export default function TableDetailScreen({ route, navigation }) {
     );
   };
 
-  const renderCell = (row, column) => {
-    const width = COLUMN_WIDTH[column.type] || 120;
-    if (column.type === 'rating') return renderRating(row, column, width);
-    if (column.type === 'link') return renderLink(row, column, width);
+  const renderCell = (row, column, { onLongPressRow } = {}) => {
+    const width = getColWidth(column);
+    if (column.type === 'rating') return renderRating(row, column, width, onLongPressRow);
+    if (column.type === 'link') return renderLink(row, column, width, onLongPressRow);
 
     const isEditingThis = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
     const value = row.cells[column.id];
@@ -328,7 +430,7 @@ export default function TableDetailScreen({ route, navigation }) {
 
     if (column.type === 'checkbox') {
       return (
-        <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} style={[styles.cell, styles.cellCenter, { width }]}>
+        <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} onLongPress={onLongPressRow} style={[styles.cell, styles.cellCenter, { width }]}>
           <Ionicons name={value ? 'checkbox' : 'square-outline'} size={20} color={value ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
       );
@@ -337,7 +439,7 @@ export default function TableDetailScreen({ route, navigation }) {
     if (column.type === 'tag') {
       const opt = (column.tagOptions || []).find((o) => o.id === value);
       return (
-        <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} style={[styles.cell, { width }]}>
+        <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} onLongPress={onLongPressRow} style={[styles.cell, { width }]}>
           {opt ? (
             <View style={[styles.tagChip, { backgroundColor: withAlpha(opt.color, 0.18) }]}>
               <Text numberOfLines={1} style={{ color: opt.color, fontSize: 12, fontWeight: '700' }}>{opt.label}</Text>
@@ -350,41 +452,44 @@ export default function TableDetailScreen({ route, navigation }) {
     }
 
     return (
-      <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} style={[styles.cell, { width }]}>
-        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, textAlign: isRTL ? 'right' : 'left' }}>
+      <TouchableOpacity key={column.id} onPress={() => openCellEditor(row, column)} onLongPress={onLongPressRow} style={[styles.cell, { width }]}>
+        <Text numberOfLines={1} style={{ color: customTextColor || colors.text, fontSize: 14, textAlign: isRTL ? 'right' : 'left' }}>
           {formatCellDisplay(value, column, locale)}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const renderColumnHeaderCell = (column, { showPin = false } = {}) => {
-    const width = COLUMN_WIDTH[column.type] || 120;
+  const renderColumnHeaderCell = (column) => {
+    const width = getColWidth(column);
     const isSorted = sort.columnId === column.id;
     return (
       <View key={column.id} style={[styles.headerCell, { width, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={() => toggleSort(column)} style={styles.headerNameBtn}>
+        <TouchableOpacity
+          onPress={() => toggleSort(column)}
+          onLongPress={() => openColumnMenu(column)}
+          style={[styles.headerNameBtn, isRTL ? { paddingLeft: 14 } : { paddingRight: 14 }]}
+        >
           <Text numberOfLines={1} style={[styles.headerText, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
             {column.name}
           </Text>
           {isSorted && <Ionicons name={sort.direction === 'asc' ? 'chevron-up' : 'chevron-down'} size={11} color={colors.primary} />}
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          {showPin && (
-            <TouchableOpacity onPress={() => handleSetFrozenColumn(column)} hitSlop={6} style={{ padding: 2 }}>
-              <Ionicons name="pin-outline" size={13} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => setColumnEditorTarget(column)} hitSlop={6} style={{ padding: 2 }}>
-            <Ionicons name="ellipsis-vertical" size={12} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <ColumnResizeHandle
+          width={width}
+          minWidth={MIN_COL_WIDTH}
+          maxWidth={MAX_COL_WIDTH}
+          isRTL={isRTL}
+          colors={colors}
+          onChange={(w) => setLiveWidths((prev) => ({ ...prev, [column.id]: w }))}
+          onCommit={(w) => handleResizeCommit(column, w)}
+        />
       </View>
     );
   };
 
   const renderFooterCell = (column) => {
-    const width = COLUMN_WIDTH[column.type] || 120;
+    const width = getColWidth(column);
     if (column.type !== 'number' && column.type !== 'currency') return <View key={column.id} style={{ width }} />;
     const { sum } = columnAggregate(table, column.id);
     return (
@@ -401,9 +506,8 @@ export default function TableDetailScreen({ route, navigation }) {
   // ---- Frozen (pinned) column: header / row / footer ----
 
   const renderFrozenHeader = () => (
-    <View style={[styles.headerRow, { height: HEADER_HEIGHT, backgroundColor: colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+    <View style={[styles.headerRow, { height: HEADER_HEIGHT, backgroundColor: customBg || colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
       {renderColumnHeaderCell(frozenColumn)}
-      <View style={{ width: ROW_ACTION_WIDTH }} />
     </View>
   );
 
@@ -417,27 +521,23 @@ export default function TableDetailScreen({ route, navigation }) {
     }
     const row = item.row;
     return (
-      <View style={[styles.dataRow, { height: ROW_HEIGHT, backgroundColor: colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.dataRow, { height: ROW_HEIGHT, backgroundColor: customBg || colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: zebraBg(index) }]} pointerEvents="none" />
-        {renderCell(row, frozenColumn)}
-        <TouchableOpacity onPress={() => handleDeleteRow(row)} style={[styles.cell, styles.cellCenter, { width: ROW_ACTION_WIDTH }]} hitSlop={4}>
-          <Ionicons name="trash-outline" size={15} color={colors.danger} style={{ opacity: 0.6 }} />
-        </TouchableOpacity>
+        {renderCell(row, frozenColumn, { onLongPressRow: () => openRowMenu(row) })}
       </View>
     );
   };
 
   const renderFrozenFooter = () => {
-    if (!hasAggregateColumn) return null;
+    if (!showFooter) return null;
     const isAggregatable = frozenColumn.type === 'number' || frozenColumn.type === 'currency';
     return (
-      <View style={[styles.footerRow, { height: FOOTER_HEIGHT, backgroundColor: colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.footerRow, { height: FOOTER_HEIGHT, backgroundColor: customBg || colors.surface, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
         {isAggregatable ? renderFooterCell(frozenColumn) : (
-          <View style={[styles.cell, { width: COLUMN_WIDTH[frozenColumn.type] || 120 }]}>
+          <View style={[styles.cell, { width: getColWidth(frozenColumn) }]}>
             <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' }}>{t('tableTotalLabel')}</Text>
           </View>
         )}
-        <View style={{ width: ROW_ACTION_WIDTH }} />
       </View>
     );
   };
@@ -445,11 +545,13 @@ export default function TableDetailScreen({ route, navigation }) {
   // ---- Scrollable (remaining) columns: header / row / footer ----
 
   const renderScrollHeader = () => (
-    <View style={[styles.headerRow, { height: HEADER_HEIGHT, backgroundColor: colors.background, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
-      {scrollColumns.map((c) => renderColumnHeaderCell(c, { showPin: true }))}
-      <TouchableOpacity onPress={() => setColumnEditorTarget(null)} style={[styles.addColumnBtn, { width: ADD_COLUMN_WIDTH, borderColor: colors.border }]}>
-        <Ionicons name="add" size={18} color={colors.primary} />
-      </TouchableOpacity>
+    <View style={[styles.headerRow, { height: HEADER_HEIGHT, backgroundColor: customBg || colors.background, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+      {scrollColumns.map((c) => renderColumnHeaderCell(c))}
+      {!isLocked && (
+        <TouchableOpacity onPress={() => setColumnEditorTarget(null)} style={[styles.addColumnBtn, { width: ADD_COLUMN_WIDTH, borderColor: colors.border }]}>
+          <Ionicons name="add" size={18} color={colors.primary} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -459,7 +561,7 @@ export default function TableDetailScreen({ route, navigation }) {
     }
     const row = item.row;
     return (
-      <View style={[styles.dataRow, { height: ROW_HEIGHT, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.dataRow, { height: ROW_HEIGHT, backgroundColor: customBg || 'transparent', borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={[StyleSheet.absoluteFill, { backgroundColor: zebraBg(index) }]} pointerEvents="none" />
         {scrollColumns.map((column) => renderCell(row, column))}
         <View style={{ width: ADD_COLUMN_WIDTH }} />
@@ -468,9 +570,9 @@ export default function TableDetailScreen({ route, navigation }) {
   };
 
   const renderScrollFooter = () => {
-    if (!hasAggregateColumn) return null;
+    if (!showFooter) return null;
     return (
-      <View style={[styles.footerRow, { height: FOOTER_HEIGHT, backgroundColor: colors.background, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.footerRow, { height: FOOTER_HEIGHT, backgroundColor: customBg || colors.background, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
         {scrollColumns.map(renderFooterCell)}
         <View style={{ width: ADD_COLUMN_WIDTH }} />
       </View>
@@ -486,8 +588,9 @@ export default function TableDetailScreen({ route, navigation }) {
     : null;
 
   const moreActions = [
-    { icon: 'swap-vertical', label: t('tableReorderRows'), onPress: handleEnterReorderMode },
+    ...(isLocked ? [] : [{ icon: 'swap-vertical', label: t('tableReorderRows'), onPress: handleEnterReorderMode }]),
     { icon: 'layers-outline', label: `${t('tableGroupBy')}${groupByColumn ? `: ${groupByColumn.name}` : ''}`, onPress: openGroupPicker },
+    { icon: 'settings-outline', label: t('tableSettings'), onPress: () => { setMoreMenuVisible(false); setSettingsVisible(true); } },
     { icon: 'share-outline', label: t('exportCSV'), onPress: handleExportCSV },
     { icon: 'trash', label: t('deleteTable'), destructive: true, onPress: handleDeleteTable },
   ];
@@ -519,7 +622,7 @@ export default function TableDetailScreen({ route, navigation }) {
               >
                 <Ionicons name="reorder-three" size={20} color={colors.textSecondary} />
                 <Text numberOfLines={1} style={{ color: colors.text, fontSize: 15, flex: 1, textAlign: isRTL ? 'right' : 'left' }}>
-                  {frozenColumn ? formatCellDisplay(row.cells[frozenColumn.id], frozenColumn, locale) || t('untitledTable') : t('untitledTable')}
+                  {frozenColumn ? (formatCellDisplay(row.cells[frozenColumn.id], frozenColumn, locale) || t('untitledTable')) : t('untitledTable')}
                 </Text>
               </TouchableOpacity>
             </ScaleDecorator>
@@ -539,10 +642,12 @@ export default function TableDetailScreen({ route, navigation }) {
           value={title}
           onChangeText={setTitle}
           onBlur={commitTitle}
+          editable={!isLocked}
           placeholder={t('tableNamePlaceholder')}
           placeholderTextColor={colors.textSecondary}
           style={[styles.titleInput, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}
         />
+        {isLocked && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />}
         <TouchableOpacity onPress={handleToggleSearch} hitSlop={8}>
           <Ionicons name={searchVisible ? 'search' : 'search-outline'} size={22} color={colors.primary} />
         </TouchableOpacity>
@@ -576,9 +681,11 @@ export default function TableDetailScreen({ route, navigation }) {
       {columns.length === 0 ? (
         <View style={styles.emptyColumns}>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('noColumnsYetTitle')}</Text>
-          <TouchableOpacity onPress={() => setColumnEditorTarget(null)} style={[styles.addFirstBtn, { backgroundColor: colors.primary }]}>
-            <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>{t('addColumnTitle')}</Text>
-          </TouchableOpacity>
+          {!isLocked && (
+            <TouchableOpacity onPress={() => setColumnEditorTarget(null)} style={[styles.addFirstBtn, { backgroundColor: colors.primary }]}>
+              <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>{t('addColumnTitle')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <>
@@ -609,7 +716,7 @@ export default function TableDetailScreen({ route, navigation }) {
             </View>
 
             {/* Remaining columns, scrollable horizontally. */}
-            <ScrollView horizontal showsHorizontalScrollIndicator style={{ flex: 1 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={{ flex: 1, backgroundColor: customBg || colors.background }}>
               <View style={{ width: scrollWidth }}>
                 <FlatList
                   ref={scrollListRef}
@@ -630,10 +737,12 @@ export default function TableDetailScreen({ route, navigation }) {
             </ScrollView>
           </View>
 
-          <TouchableOpacity onPress={handleAddRow} style={[styles.addRowBar, { borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
-            <Ionicons name="add" size={16} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>{t('addRow')}</Text>
-          </TouchableOpacity>
+          {!isLocked && (
+            <TouchableOpacity onPress={handleAddRow} style={[styles.addRowBar, { borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>{t('addRow')}</Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
 
@@ -665,18 +774,27 @@ export default function TableDetailScreen({ route, navigation }) {
         column={columnEditorTarget}
         onClose={() => setColumnEditorTarget(undefined)}
         onSave={handleSaveColumn}
-        onDelete={columnEditorTarget ? handleDeleteColumn : undefined}
+        onDelete={columnEditorTarget ? () => confirmDeleteColumn(columnEditorTarget) : undefined}
+      />
+
+      <TableSettingsSheet
+        visible={settingsVisible}
+        table={table}
+        onClose={() => setSettingsVisible(false)}
+        onUpdate={(patch) => updateTable(table.id, patch)}
       />
 
       <ActionSheet visible={moreMenuVisible} onClose={() => setMoreMenuVisible(false)} title={table.title || t('untitledTable')} actions={moreActions} />
       <ActionSheet visible={groupPickerVisible} onClose={() => setGroupPickerVisible(false)} title={t('tableGroupByPickTitle')} actions={groupPickerActions} />
+      <ActionSheet visible={!!columnMenuTarget} onClose={() => setColumnMenuTarget(null)} title={columnMenuTarget?.name} actions={columnMenuActions} />
+      <ActionSheet visible={!!rowMenuTarget} onClose={() => setRowMenuTarget(null)} title={t('tableRowMenuTitle')} actions={rowMenuActions} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, gap: 14 },
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, gap: 12 },
   titleInput: { flex: 1, fontSize: 17, fontWeight: '700' },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderRadius: 12 },
   emptyColumns: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
@@ -684,9 +802,11 @@ const styles = StyleSheet.create({
   addFirstBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   tableBody: { flex: 1, flexDirection: 'row' },
   headerRow: { flexDirection: 'row', borderBottomWidth: 1.5 },
-  headerCell: { paddingHorizontal: 8, borderRightWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1 },
-  headerNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 },
+  headerCell: { paddingHorizontal: 8, borderRightWidth: StyleSheet.hairlineWidth, justifyContent: 'center', flex: 1, position: 'relative' },
+  headerNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   headerText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
+  resizeHandle: { position: 'absolute', top: 0, bottom: 0, width: 16, alignItems: 'center', justifyContent: 'center' },
+  resizeHandleBar: { width: 3, height: '50%', borderRadius: 2 },
   addColumnBtn: { alignItems: 'center', justifyContent: 'center', borderRightWidth: StyleSheet.hairlineWidth },
   dataRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   groupHeader: { justifyContent: 'center', paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },

@@ -9,7 +9,7 @@ import { useTasks } from '../context/TaskContext';
 import { isDueOnDate, statusOf } from '../utils/streakUtils';
 import { toKey, addDays } from '../utils/dateUtils';
 
-export default function WeeklyReviewScreen({ navigation }) {
+export default function WeeklyReviewScreen({ navigation, embedded = false, onNavigateTab }) {
   const { colors } = useTheme();
   const { t, language, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -75,19 +75,24 @@ export default function WeeklyReviewScreen({ navigation }) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 30 }}
+      contentContainerStyle={{ padding: 20, paddingTop: embedded ? 4 : insets.top + 20, paddingBottom: insets.bottom + 30 }}
     >
-      <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        {navigation?.canGoBack?.() && (
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>{t('weeklyReviewTitle')}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>{rangeLabel}</Text>
+      {!embedded && (
+        <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          {navigation?.canGoBack?.() && (
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          <View>
+            <Text style={[styles.title, { color: colors.text }]}>{t('weeklyReviewTitle')}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>{rangeLabel}</Text>
+          </View>
         </View>
-      </View>
+      )}
+      {embedded && (
+        <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>{rangeLabel}</Text>
+      )}
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t('weeklyReviewDailyBreakdown')}</Text>
@@ -141,7 +146,7 @@ export default function WeeklyReviewScreen({ navigation }) {
       )}
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('Agenda')}
+        onPress={() => (embedded ? onNavigateTab?.('agenda') : navigation.navigate('Agenda'))}
         style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
       >
         <Ionicons name="calendar-outline" size={18} color={colors.onPrimary} />

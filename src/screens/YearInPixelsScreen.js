@@ -11,7 +11,7 @@ import { isDueOnDate, statusOf } from '../utils/streakUtils';
 
 const MONTHS_IN_YEAR = 12;
 
-export default function YearInPixelsScreen({ navigation }) {
+export default function YearInPixelsScreen({ navigation, embedded = false }) {
   const { colors } = useTheme();
   const { t, language, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -73,16 +73,18 @@ export default function YearInPixelsScreen({ navigation }) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 30 }}
+      contentContainerStyle={{ padding: 20, paddingTop: embedded ? 4 : insets.top + 20, paddingBottom: insets.bottom + 30 }}
     >
-      <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        {navigation?.canGoBack?.() && (
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={[styles.title, { color: colors.text }]}>{t('yearInPixelsTitle')}</Text>
-      </View>
+      {!embedded && (
+        <View style={[styles.headerRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          {navigation?.canGoBack?.() && (
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={26} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.title, { color: colors.text }]}>{t('yearInPixelsTitle')}</Text>
+        </View>
+      )}
 
       <View style={[styles.yearNav, isRTL && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => setYear((y) => y - 1)} style={styles.yearBtn}>

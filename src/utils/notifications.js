@@ -631,8 +631,9 @@ export async function cancelDayClosingReminder() {
 /**
  * Schedules (or reschedules) the weekly review reminder on the given
  * weekday (1 = Sunday ... 7 = Saturday) at the given HH:mm local time.
- * Tapping it carries `data.screen = 'WeeklyReview'` so App.js's
- * notification-response listener opens that screen directly.
+ * Tapping it carries `data.screen = 'Insights'` (with a params payload
+ * selecting the Weekly Review tab) so App.js's notification-response
+ * listener opens that screen directly, on the right tab.
  */
 export async function ensureWeeklyReviewReminder(weekday, time) {
   await cancelWeeklyReviewReminder();
@@ -654,7 +655,7 @@ export async function ensureWeeklyReviewReminder(weekday, time) {
       title: '📅 Weekly Review',
       body: 'See how your week went and plan the next one.',
       sound: 'default',
-      data: { screen: 'WeeklyReview' },
+      data: { screen: 'Insights', params: { initialTab: 'weeklyReview' } },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.WEEKLY,

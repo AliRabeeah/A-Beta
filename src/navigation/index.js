@@ -21,7 +21,7 @@ export function navigate(name, params) {
 import TodayScreen from '../screens/TodayScreen';
 import HabitsScreen from '../screens/HabitsScreen';
 import TasksScreen from '../screens/TasksScreen';
-import StatsScreen from '../screens/StatsScreen';
+import InsightsScreen from '../screens/InsightsScreen';
 import TimerScreen from '../screens/TimerScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AddEditHabitScreen from '../screens/AddEditHabitScreen';
@@ -53,17 +53,13 @@ import MoodHistoryScreen from '../screens/MoodHistoryScreen';
 import WishlistScreen from '../screens/WishlistScreen';
 import AddEditWishlistScreen from '../screens/AddEditWishlistScreen';
 import SearchScreen from '../screens/SearchScreen';
-import AgendaScreen from '../screens/AgendaScreen';
-import WeeklyReviewScreen from '../screens/WeeklyReviewScreen';
-import YearInPixelsScreen from '../screens/YearInPixelsScreen';
-import CompanionScreen from '../screens/CompanionScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 // Every screen in the customizable tab-bar pool, mapped to its component.
 // Kept separate from the Stack.Screen registrations below (some of these,
-// like Stats/Challenges/Favorites/Planning/Timer, are ALSO reachable by
+// like Insights/Challenges/Favorites/Planning/Timer, are ALSO reachable by
 // pushing onto the stack from the drawer/settings when they're not
 // currently chosen as a tab).
 const TAB_SCREEN_COMPONENTS = {
@@ -72,12 +68,13 @@ const TAB_SCREEN_COMPONENTS = {
   Tasks: TasksScreen,
   Notes: NotesScreen,
   Settings: SettingsScreen,
-  Stats: StatsScreen,
+  Insights: InsightsScreen,
   Challenges: ChallengesScreen,
   Favorites: FavoritesScreen,
   Planning: PlanningScreen,
   Timer: TimerScreen,
-  Companion: CompanionScreen,
+  Tables: TablesScreen,
+  Journal: JournalScreen,
 };
 
 function Tabs() {
@@ -93,11 +90,7 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        // EvoCat is a full-bleed scene (its own floating menu button and no
-        // bottom chrome) even when the person has pinned it as one of their
-        // active tabs, so unlike the other tabs its bar is always hidden
-        // rather than only when reached via a stack push from the drawer.
-        tabBarStyle: route.name === 'Companion' ? { display: 'none' } : {
+        tabBarStyle: {
           backgroundColor: colors.background,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
@@ -158,7 +151,7 @@ export default function RootNavigator() {
       />
       <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: '' }} />
       <Stack.Screen name="Archive" component={ArchiveScreen} options={{ title: '' }} />
-      <Stack.Screen name="Stats" component={StatsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Insights" component={InsightsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Timer" component={TimerScreen} options={{ headerShown: false }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: '' }} />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: '' }} />
@@ -202,10 +195,6 @@ export default function RootNavigator() {
       />
       <Stack.Screen name="MoodHistory" component={MoodHistoryScreen} options={{ title: '' }} />
       <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Agenda" component={AgendaScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="YearInPixels" component={YearInPixelsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Companion" component={CompanionScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

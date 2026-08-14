@@ -226,7 +226,7 @@ function Root() {
         }
       }
 
-      if (data.screen) navigate(data.screen);
+      if (data.screen) navigate(data.screen, data.params);
     });
     return () => sub.remove();
   }, [habits, setCompletionStatus]);

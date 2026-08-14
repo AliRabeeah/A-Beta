@@ -12,12 +12,13 @@ export const TAB_BAR_POOL = [
   { id: 'Tasks', icon: 'clipboard-outline' },
   { id: 'Notes', icon: 'document-text-outline' },
   { id: 'Settings', icon: 'settings-sharp' },
-  { id: 'Stats', icon: 'bar-chart' },
+  { id: 'Insights', icon: 'bar-chart' },
   { id: 'Challenges', icon: 'trophy-outline' },
   { id: 'Favorites', icon: 'heart-outline' },
   { id: 'Planning', icon: 'calendar-outline' },
   { id: 'Timer', icon: 'timer-outline' },
-  { id: 'Companion', icon: 'paw-outline' },
+  { id: 'Tables', icon: 'apps-outline' },
+  { id: 'Journal', icon: 'book-outline' },
 ];
 
 // Default on first run = exactly today's fixed 5 tabs, in the same order,
