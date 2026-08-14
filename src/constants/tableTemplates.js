@@ -12,6 +12,8 @@ export const COLUMN_TYPES = [
   { id: 'date', icon: 'calendar-outline', labelKey: 'columnTypeDate' },
   { id: 'checkbox', icon: 'checkbox-outline', labelKey: 'columnTypeCheckbox' },
   { id: 'tag', icon: 'pricetag-outline', labelKey: 'columnTypeTag' },
+  { id: 'link', icon: 'link-outline', labelKey: 'columnTypeLink' },
+  { id: 'rating', icon: 'star-outline', labelKey: 'columnTypeRating' },
 ];
 
 export function getColumnType(typeId) {

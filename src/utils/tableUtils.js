@@ -16,7 +16,8 @@ export function emptyCellValue(type) {
   switch (type) {
     case 'checkbox': return false;
     case 'number':
-    case 'currency': return null; // null = empty, distinct from 0
+    case 'currency':
+    case 'rating': return null; // null = empty, distinct from 0
     case 'date':
     case 'tag': return null;
     default: return '';
@@ -84,9 +85,51 @@ export function formatCellDisplay(value, column, locale) {
       const opt = (column.tagOptions || []).find((o) => o.id === value);
       return opt ? opt.label : '';
     }
+    case 'rating':
+      return String(value);
     default:
       return String(value);
   }
+}
+
+/** True if any cell in the row contains the query (case-insensitive, all column types). */
+export function rowMatchesSearch(row, columns, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return columns.some((column) => {
+    const raw = row.cells[column.id];
+    if (raw === null || raw === undefined || raw === '') return false;
+    if (column.type === 'checkbox') return false; // nothing textual to match
+    const display = column.type === 'tag'
+      ? (column.tagOptions || []).find((o) => o.id === raw)?.label || ''
+      : String(raw);
+    return display.toLowerCase().includes(needle);
+  });
+}
+
+/**
+ * Splits already-sorted/filtered rows into { type: 'group' | 'row' } display
+ * items for a tag column, so a single flat list can render section headers
+ * inline. Rows with no value for the tag column land in a shared "no value" group.
+ */
+export function groupRowsByTag(rows, groupColumn, noneLabel) {
+  if (!groupColumn) return rows.map((row) => ({ type: 'row', key: `row-${row.id}`, row }));
+  const options = groupColumn.tagOptions || [];
+  const buckets = new Map();
+  const order = [];
+  for (const row of rows) {
+    const optionId = row.cells[groupColumn.id];
+    const key = optionId || '__none__';
+    if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
+    buckets.get(key).push(row);
+  }
+  const items = [];
+  for (const key of order) {
+    const opt = options.find((o) => o.id === key);
+    items.push({ type: 'group', key: `group-${key}`, label: opt ? opt.label : noneLabel, color: opt ? opt.color : null, count: buckets.get(key).length });
+    for (const row of buckets.get(key)) items.push({ type: 'row', key: `row-${row.id}`, row });
+  }
+  return items;
 }
 
 function csvEscape(value) {
@@ -116,7 +159,7 @@ export function sortRows(rows, column, direction = 'asc') {
     if (aEmpty) return 1; // empty cells sink to the bottom regardless of direction
     if (bEmpty) return -1;
 
-    if (column.type === 'number' || column.type === 'currency') return (Number(av) - Number(bv)) * mult;
+    if (column.type === 'number' || column.type === 'currency' || column.type === 'rating') return (Number(av) - Number(bv)) * mult;
     if (column.type === 'checkbox') return ((av === bv) ? 0 : av ? -1 : 1) * mult;
     if (column.type === 'date') return (new Date(av) - new Date(bv)) * mult;
     return String(av).localeCompare(String(bv)) * mult;
