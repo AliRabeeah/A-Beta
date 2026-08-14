@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking, PanResponder } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -48,50 +49,62 @@ function normalizeUrl(value) {
 
 /**
  * Small drag handle on a header cell's trailing edge that lets the person
- * resize that column freely. Uses two refs rather than component state so
- * every intermediate frame during the drag is cheap (no re-render of the
- * handle itself) — the live width lives in the parent via onChange.
+ * resize that column freely. The live width lives in the parent (via
+ * onChange on every frame, onCommit once the drag ends) rather than in
+ * this component's own state, so dragging doesn't re-render the handle.
+ *
+ * Built on react-native-gesture-handler rather than the plain RN
+ * PanResponder: this handle sits inside a horizontal ScrollView (same drag
+ * axis) nested inside a vertical FlatList, and PanResponder's JS-only
+ * responder negotiation does not reliably win that gesture arena on the
+ * New Architecture — drags would just scroll the table instead of
+ * resizing. gesture-handler resolves this natively via activeOffsetX /
+ * failOffsetY below, so a clearly-horizontal drag claims the gesture while
+ * a vertical one is left alone for the FlatList to scroll.
  */
 function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange, onCommit }) {
-  const widthRef = useRef(width);
-  widthRef.current = width;
   const baseRef = useRef(width);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (evt, gesture) => Math.abs(gesture.dx) > 2,
-      // Once we've claimed the gesture, refuse to hand it back. Without
-      // this, the header's own horizontal ScrollView (the same axis as
-      // this drag) requests termination the moment the finger moves, and
-      // — since PanResponder grants that request by default — the drag
-      // turns into a table scroll instead of a resize. onShouldBlock is
-      // the Android-side equivalent: stops the ScrollView's native touch
-      // interception from grabbing the gesture out from under us too.
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onPanResponderGrant: () => { baseRef.current = widthRef.current; Haptics.selectionAsync(); },
-      onPanResponderMove: (evt, gesture) => {
-        const delta = isRTL ? -gesture.dx : gesture.dx;
-        const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
-        onChangeRef.current(next);
-      },
-      onPanResponderRelease: (evt, gesture) => {
-        const delta = isRTL ? -gesture.dx : gesture.dx;
-        const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
-        onCommitRef.current(next);
-      },
-    })
-  ).current;
+  const handleGestureEvent = (evt) => {
+    const dx = evt.nativeEvent.translationX;
+    const delta = isRTL ? -dx : dx;
+    const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
+    onChangeRef.current(next);
+  };
+
+  const handleStateChange = (evt) => {
+    const { state, oldState, translationX } = evt.nativeEvent;
+    if (state === State.BEGAN) {
+      baseRef.current = width;
+      Haptics.selectionAsync();
+      return;
+    }
+    // Fires once when the gesture finishes (successfully or otherwise) —
+    // oldState === ACTIVE is what distinguishes "was actually dragging"
+    // from a tap/cancel that never crossed the activation threshold.
+    if (oldState === State.ACTIVE && (state === State.END || state === State.CANCELLED || state === State.FAILED)) {
+      const delta = isRTL ? -translationX : translationX;
+      const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
+      onCommitRef.current(next);
+    }
+  };
 
   return (
-    <View {...panResponder.panHandlers} hitSlop={{ left: 10, right: 10 }} style={[styles.resizeHandle, isRTL ? { left: 0 } : { right: 0 }]}>
-      <View style={[styles.resizeHandleBar, { backgroundColor: colors.border }]} />
-    </View>
+    <PanGestureHandler
+      onGestureEvent={handleGestureEvent}
+      onHandlerStateChange={handleStateChange}
+      activeOffsetX={[-8, 8]}
+      failOffsetY={[-12, 12]}
+      hitSlop={{ left: 12, right: 12 }}
+    >
+      <View collapsable={false} style={[styles.resizeHandle, isRTL ? { left: 0 } : { right: 0 }]}>
+        <View style={[styles.resizeHandleBar, { backgroundColor: colors.border }]} />
+      </View>
+    </PanGestureHandler>
   );
 }
 
