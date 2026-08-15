@@ -147,7 +147,7 @@ export default function SideDrawer({ visible, onClose, navigation }) {
             <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="cover" />
             <View style={[styles.headerText, language === 'ar' && { alignItems: 'flex-end' }]}>
               <Text style={[styles.appName, { color: colors.text }]}>A</Text>
-              <Text style={[styles.byLine, { color: colors.textSecondary }]}>by Ali Halim</Text>
+              <Text style={[styles.byLine, { color: colors.textSecondary }]}>By Ali Halim</Text>
               <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>{dateLabel}</Text>
             </View>
           </View>

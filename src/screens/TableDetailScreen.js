@@ -101,7 +101,7 @@ function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange
       failOffsetY={[-12, 12]}
       hitSlop={{ left: 12, right: 12 }}
     >
-      <View collapsable={false} style={[styles.resizeHandle, isRTL ? { left: 0 } : { right: 0 }]}>
+      <View collapsable={false} style={styles.resizeHandle}>
         <View style={[styles.resizeHandleBar, { backgroundColor: colors.border }]} />
       </View>
     </PanGestureHandler>
@@ -486,11 +486,11 @@ export default function TableDetailScreen({ route, navigation }) {
     const width = getColWidth(column);
     const isSorted = sort.columnId === column.id;
     return (
-      <View key={column.id} style={[styles.headerCell, { width, borderColor: colors.border }]}>
+      <View key={column.id} style={[styles.headerCell, { width, borderColor: colors.border }, isRTL && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity
           onPress={() => toggleSort(column)}
           onLongPress={() => openColumnMenu(column)}
-          style={[styles.headerNameBtn, isRTL ? { paddingLeft: 14 } : { paddingRight: 14 }]}
+          style={styles.headerNameBtn}
         >
           <Text numberOfLines={1} style={[styles.headerText, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
             {column.name}
@@ -824,10 +824,10 @@ const styles = StyleSheet.create({
   addFirstBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   tableBody: { flex: 1, flexDirection: 'row' },
   headerRow: { flexDirection: 'row', borderBottomWidth: 1.5 },
-  headerCell: { paddingHorizontal: 8, borderRightWidth: StyleSheet.hairlineWidth, justifyContent: 'center', flexShrink: 0, position: 'relative' },
-  headerNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  headerCell: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderRightWidth: StyleSheet.hairlineWidth, flexShrink: 0 },
+  headerNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1, minWidth: 0 },
   headerText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
-  resizeHandle: { position: 'absolute', top: 0, bottom: 0, width: 16, alignItems: 'center', justifyContent: 'center' },
+  resizeHandle: { width: 20, height: '100%', alignItems: 'center', justifyContent: 'center' },
   resizeHandleBar: { width: 3, height: '50%', borderRadius: 2 },
   addColumnBtn: { alignItems: 'center', justifyContent: 'center', borderRightWidth: StyleSheet.hairlineWidth },
   dataRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
