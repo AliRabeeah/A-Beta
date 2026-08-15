@@ -67,9 +67,17 @@ function normalizeUrl(value) {
  * axis) nested inside a vertical FlatList, and PanResponder's JS-only
  * responder negotiation does not reliably win that gesture arena on the
  * New Architecture — drags would just scroll the table instead of
- * resizing. gesture-handler resolves this natively via activeOffsetX /
- * failOffsetY below, so a clearly-horizontal drag claims the gesture while
- * a vertical one is left alone for the FlatList to scroll.
+ * resizing.
+ *
+ * Activation is gated by a brief hold (activateAfterLongPress) rather than
+ * an immediate-movement threshold — the same mechanism this app's own row
+ * reordering (react-native-draggable-flatlist) already relies on inside
+ * this same nested ScrollView/FlatList. A plain scroll only ever
+ * recognizes continuous, immediate movement, so by the time this handle's
+ * hold threshold passes, the ScrollView has already ceded the touch; an
+ * immediate-movement-based pan (activeOffsetX) was tried here first and,
+ * being the same kind of gesture as the ScrollView's own, kept losing that
+ * race instead.
  */
 function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange, onCommit }) {
   const baseRef = useRef(width);
@@ -77,6 +85,7 @@ function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange
   onChangeRef.current = onChange;
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
+  const [isActive, setIsActive] = useState(false);
 
   const handleGestureEvent = (evt) => {
     const dx = evt.nativeEvent.translationX;
@@ -89,13 +98,19 @@ function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange
     const { state, oldState, translationX } = evt.nativeEvent;
     if (state === State.BEGAN) {
       baseRef.current = width;
+      return;
+    }
+    // Fires once the hold threshold passes and the drag actually starts.
+    if (oldState === State.BEGAN && state === State.ACTIVE) {
+      setIsActive(true);
       Haptics.selectionAsync();
       return;
     }
-    // Fires once when the gesture finishes (successfully or otherwise) —
+    // Fires once the gesture finishes (successfully or otherwise) —
     // oldState === ACTIVE is what distinguishes "was actually dragging"
     // from a tap/cancel that never crossed the activation threshold.
     if (oldState === State.ACTIVE && (state === State.END || state === State.CANCELLED || state === State.FAILED)) {
+      setIsActive(false);
       const delta = isRTL ? -translationX : translationX;
       const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
       onCommitRef.current(next);
@@ -106,12 +121,11 @@ function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange
     <PanGestureHandler
       onGestureEvent={handleGestureEvent}
       onHandlerStateChange={handleStateChange}
-      activeOffsetX={[-8, 8]}
-      failOffsetY={[-12, 12]}
+      activateAfterLongPress={150}
       hitSlop={{ left: 12, right: 12 }}
     >
       <View collapsable={false} style={styles.resizeHandle}>
-        <View style={[styles.resizeHandleBar, { backgroundColor: colors.border }]} />
+        <View style={[styles.resizeHandleBar, { backgroundColor: isActive ? colors.primary : colors.border }, isActive && { width: 4 }]} />
       </View>
     </PanGestureHandler>
   );
