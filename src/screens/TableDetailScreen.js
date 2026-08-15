@@ -1,6 +1,15 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+// ScrollView and FlatList come from react-native-gesture-handler, not
+// 'react-native': the plain RN versions run their own native touch/scroll
+// handling entirely outside gesture-handler's arena, so a PanGestureHandler
+// nested inside them (like the column resize handle below, which shares
+// the same horizontal axis as the outer ScrollView) never actually
+// receives the touch — it's silently swallowed by the ScrollView before
+// gesture-handler sees it. The gesture-handler exports are drop-in
+// compatible (same props/ref API) but are registered in that arena, so
+// nested handlers can correctly claim priority over them.
+import { PanGestureHandler, State, ScrollView, FlatList } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
