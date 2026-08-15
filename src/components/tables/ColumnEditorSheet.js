@@ -11,12 +11,13 @@ import { makeTagOptionId, nextTagColor } from '../../utils/tableUtils';
 
 /**
  * Add-column flow: pick a name + type (+ tag options, if type is 'tag').
- * Edit-column flow (existing column passed in): rename only, plus tag
- * option management for tag columns — the type itself is locked once a
- * column has been created, since changing it could strand existing cell
- * data in a shape that no longer matches (a number in a date column, etc).
+ * Edit-column flow (existing column passed in): rename, tag option
+ * management for tag columns, and column width (+/- stepper). The type
+ * itself is locked once a column has been created, since changing it
+ * could strand existing cell data in a shape that no longer matches (a
+ * number in a date column, etc).
  */
-export default function ColumnEditorSheet({ visible, column, onClose, onSave, onDelete }) {
+export default function ColumnEditorSheet({ visible, column, onClose, onSave, onDelete, currentWidth, minWidth = 64, maxWidth = 320, widthStep = 10 }) {
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -25,16 +26,45 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [tagOptions, setTagOptions] = useState([]);
+  const [width, setWidth] = useState(currentWidth || 120);
+  const [widthInput, setWidthInput] = useState(String(Math.round(currentWidth || 120)));
 
   useEffect(() => {
     if (visible) {
       setName(column?.name || '');
       setType(column?.type || 'text');
       setTagOptions(column?.tagOptions || []);
+      setWidth(currentWidth || 120);
+      setWidthInput(String(Math.round(currentWidth || 120)));
     }
-  }, [visible, column]);
+  }, [visible, column, currentWidth]);
 
   if (!visible) return null;
+
+  const stepWidth = (dir) => {
+    Haptics.selectionAsync();
+    setWidth((prev) => {
+      const next = Math.min(maxWidth, Math.max(minWidth, prev + dir * widthStep));
+      setWidthInput(String(Math.round(next)));
+      return next;
+    });
+  };
+
+  // Typing is kept in its own string state rather than clamped live —
+  // clamping on every keystroke would fight the person while they're still
+  // entering a number (e.g. typing "20" toward "200" would snap to the
+  // 64px minimum after the first digit). The value is parsed and clamped
+  // once they're done: on blur, or at save time if they never blur.
+  const handleWidthInputChange = (text) => {
+    setWidthInput(text.replace(/[^0-9]/g, ''));
+  };
+
+  const commitWidthInput = () => {
+    const parsed = parseInt(widthInput, 10);
+    const clamped = Number.isNaN(parsed) ? width : Math.min(maxWidth, Math.max(minWidth, parsed));
+    setWidth(clamped);
+    setWidthInput(String(clamped));
+  };
 
   const addTagOption = () => {
     setTagOptions((prev) => [...prev, { id: makeTagOptionId(), label: '', color: nextTagColor(prev) }]);
@@ -49,7 +79,12 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
   const handleSave = () => {
     if (!name.trim()) return;
     const cleanedTags = type === 'tag' ? tagOptions.filter((o) => o.label.trim()).map((o) => ({ ...o, label: o.label.trim() })) : undefined;
-    onSave({ name: name.trim(), type, tagOptions: cleanedTags });
+    let finalWidth = width;
+    if (isEditing) {
+      const parsed = parseInt(widthInput, 10);
+      if (!Number.isNaN(parsed)) finalWidth = Math.min(maxWidth, Math.max(minWidth, parsed));
+    }
+    onSave({ name: name.trim(), type, tagOptions: cleanedTags, width: isEditing ? finalWidth : undefined });
   };
 
   return (
@@ -97,6 +132,43 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
             })}
           </View>
           {isEditing && <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('columnTypeLockedHint')}</Text>}
+
+          {isEditing && (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('columnWidthLabel')}</Text>
+              <View style={[styles.widthRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                <TouchableOpacity
+                  onPress={() => stepWidth(-1)}
+                  disabled={width <= minWidth}
+                  style={[styles.widthBtn, { borderColor: colors.border }, width <= minWidth && { opacity: 0.35 }]}
+                  hitSlop={8}
+                >
+                  <Ionicons name="remove" size={18} color={colors.text} />
+                </TouchableOpacity>
+                <View style={styles.widthInputGroup}>
+                  <TextInput
+                    value={widthInput}
+                    onChangeText={handleWidthInputChange}
+                    onBlur={commitWidthInput}
+                    onSubmitEditing={commitWidthInput}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    returnKeyType="done"
+                    style={[styles.widthInput, { color: colors.text, borderColor: colors.border }]}
+                  />
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>px</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => stepWidth(1)}
+                  disabled={width >= maxWidth}
+                  style={[styles.widthBtn, { borderColor: colors.border }, width >= maxWidth && { opacity: 0.35 }]}
+                  hitSlop={8}
+                >
+                  <Ionicons name="add" size={18} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           {type === 'tag' && (
             <>
@@ -146,6 +218,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   label: { fontSize: 12, fontWeight: '700', marginTop: 14, marginBottom: 8, letterSpacing: 0.5 },
   hint: { fontSize: 11, marginTop: 6 },
+  widthRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  widthBtn: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  widthInputGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  widthInput: { width: 56, height: 40, borderWidth: 1, borderRadius: 10, textAlign: 'center', fontSize: 15, fontWeight: '700' },
   input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },

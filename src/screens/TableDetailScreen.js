@@ -1,15 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
-// ScrollView and FlatList come from react-native-gesture-handler, not
-// 'react-native': the plain RN versions run their own native touch/scroll
-// handling entirely outside gesture-handler's arena, so a PanGestureHandler
-// nested inside them (like the column resize handle below, which shares
-// the same horizontal axis as the outer ScrollView) never actually
-// receives the touch — it's silently swallowed by the ScrollView before
-// gesture-handler sees it. The gesture-handler exports are drop-in
-// compatible (same props/ref API) but are registered in that arena, so
-// nested handlers can correctly claim priority over them.
-import { PanGestureHandler, State, ScrollView, FlatList } from 'react-native-gesture-handler';
+import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -56,81 +46,6 @@ function normalizeUrl(value) {
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
-/**
- * Small drag handle on a header cell's trailing edge that lets the person
- * resize that column freely. The live width lives in the parent (via
- * onChange on every frame, onCommit once the drag ends) rather than in
- * this component's own state, so dragging doesn't re-render the handle.
- *
- * Built on react-native-gesture-handler rather than the plain RN
- * PanResponder: this handle sits inside a horizontal ScrollView (same drag
- * axis) nested inside a vertical FlatList, and PanResponder's JS-only
- * responder negotiation does not reliably win that gesture arena on the
- * New Architecture — drags would just scroll the table instead of
- * resizing.
- *
- * Activation is gated by a brief hold (activateAfterLongPress) rather than
- * an immediate-movement threshold — the same mechanism this app's own row
- * reordering (react-native-draggable-flatlist) already relies on inside
- * this same nested ScrollView/FlatList. A plain scroll only ever
- * recognizes continuous, immediate movement, so by the time this handle's
- * hold threshold passes, the ScrollView has already ceded the touch; an
- * immediate-movement-based pan (activeOffsetX) was tried here first and,
- * being the same kind of gesture as the ScrollView's own, kept losing that
- * race instead.
- */
-function ColumnResizeHandle({ width, minWidth, maxWidth, isRTL, colors, onChange, onCommit }) {
-  const baseRef = useRef(width);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const onCommitRef = useRef(onCommit);
-  onCommitRef.current = onCommit;
-  const [isActive, setIsActive] = useState(false);
-
-  const handleGestureEvent = (evt) => {
-    const dx = evt.nativeEvent.translationX;
-    const delta = isRTL ? -dx : dx;
-    const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
-    onChangeRef.current(next);
-  };
-
-  const handleStateChange = (evt) => {
-    const { state, oldState, translationX } = evt.nativeEvent;
-    if (state === State.BEGAN) {
-      baseRef.current = width;
-      return;
-    }
-    // Fires once the hold threshold passes and the drag actually starts.
-    if (oldState === State.BEGAN && state === State.ACTIVE) {
-      setIsActive(true);
-      Haptics.selectionAsync();
-      return;
-    }
-    // Fires once the gesture finishes (successfully or otherwise) —
-    // oldState === ACTIVE is what distinguishes "was actually dragging"
-    // from a tap/cancel that never crossed the activation threshold.
-    if (oldState === State.ACTIVE && (state === State.END || state === State.CANCELLED || state === State.FAILED)) {
-      setIsActive(false);
-      const delta = isRTL ? -translationX : translationX;
-      const next = Math.min(maxWidth, Math.max(minWidth, baseRef.current + delta));
-      onCommitRef.current(next);
-    }
-  };
-
-  return (
-    <PanGestureHandler
-      onGestureEvent={handleGestureEvent}
-      onHandlerStateChange={handleStateChange}
-      activateAfterLongPress={150}
-      hitSlop={{ left: 12, right: 12 }}
-    >
-      <View collapsable={false} style={styles.resizeHandle}>
-        <View style={[styles.resizeHandleBar, { backgroundColor: isActive ? colors.primary : colors.border }, isActive && { width: 4 }]} />
-      </View>
-    </PanGestureHandler>
-  );
-}
-
 export default function TableDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
   const { t, language, isRTL } = useLanguage();
@@ -157,7 +72,6 @@ export default function TableDetailScreen({ route, navigation }) {
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderDraft, setReorderDraft] = useState([]);
-  const [liveWidths, setLiveWidths] = useState({}); // in-progress column resize preview, keyed by columnId
   const cellInputRef = useRef(null);
 
   // The two lists (frozen column + scrollable columns) scroll vertically in
@@ -178,8 +92,8 @@ export default function TableDetailScreen({ route, navigation }) {
 
   const getColWidth = useCallback((column) => {
     if (!column) return 120;
-    return liveWidths[column.id] ?? column.width ?? COLUMN_WIDTH[column.type] ?? 120;
-  }, [liveWidths]);
+    return column.width ?? COLUMN_WIDTH[column.type] ?? 120;
+  }, []);
 
   const sortColumn = columns.find((c) => c.id === sort.columnId);
   const sortedRows = useMemo(() => sortRows(table?.rows || [], sortColumn, sort.direction), [table?.rows, sortColumn, sort.direction]);
@@ -290,7 +204,9 @@ export default function TableDetailScreen({ route, navigation }) {
   const handleSaveColumn = (draft) => {
     if (isLocked) return;
     if (columnEditorTarget) {
-      updateColumn(table.id, columnEditorTarget.id, { name: draft.name, tagOptions: draft.tagOptions });
+      const patch = { name: draft.name, tagOptions: draft.tagOptions };
+      if (draft.width != null) patch.width = Math.round(draft.width);
+      updateColumn(table.id, columnEditorTarget.id, patch);
     } else {
       addColumn(table.id, makeColumn(draft.name, draft.type, draft.tagOptions));
     }
@@ -370,15 +286,6 @@ export default function TableDetailScreen({ route, navigation }) {
     if (isLocked) return;
     Haptics.selectionAsync();
     setRowMenuTarget(row);
-  };
-
-  const handleResizeCommit = (column, next) => {
-    setLiveWidths((prev) => {
-      const nextState = { ...prev };
-      delete nextState[column.id];
-      return nextState;
-    });
-    updateColumn(table.id, column.id, { width: Math.round(next) });
   };
 
   const groupPickerActions = [
@@ -520,15 +427,6 @@ export default function TableDetailScreen({ route, navigation }) {
           </Text>
           {isSorted && <Ionicons name={sort.direction === 'asc' ? 'chevron-up' : 'chevron-down'} size={11} color={colors.primary} />}
         </TouchableOpacity>
-        <ColumnResizeHandle
-          width={width}
-          minWidth={MIN_COL_WIDTH}
-          maxWidth={MAX_COL_WIDTH}
-          isRTL={isRTL}
-          colors={colors}
-          onChange={(w) => setLiveWidths((prev) => ({ ...prev, [column.id]: w }))}
-          onCommit={(w) => handleResizeCommit(column, w)}
-        />
       </View>
     );
   };
@@ -820,6 +718,9 @@ export default function TableDetailScreen({ route, navigation }) {
         onClose={() => setColumnEditorTarget(undefined)}
         onSave={handleSaveColumn}
         onDelete={columnEditorTarget ? () => confirmDeleteColumn(columnEditorTarget) : undefined}
+        currentWidth={columnEditorTarget ? getColWidth(columnEditorTarget) : undefined}
+        minWidth={MIN_COL_WIDTH}
+        maxWidth={MAX_COL_WIDTH}
       />
 
       <TableSettingsSheet
@@ -850,8 +751,6 @@ const styles = StyleSheet.create({
   headerCell: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderRightWidth: StyleSheet.hairlineWidth, flexShrink: 0 },
   headerNameBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1, minWidth: 0 },
   headerText: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
-  resizeHandle: { width: 20, height: '100%', alignItems: 'center', justifyContent: 'center' },
-  resizeHandleBar: { width: 3, height: '50%', borderRadius: 2 },
   addColumnBtn: { alignItems: 'center', justifyContent: 'center', borderRightWidth: StyleSheet.hairlineWidth },
   dataRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   groupHeader: { justifyContent: 'center', paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },
