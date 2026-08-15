@@ -28,6 +28,17 @@ async function getOrCreateBackupKey() {
   return keyHex;
 }
 
+/** Public entry point for backupPasswordRecovery.js — see noteEncryption.js's getOrCreateNoteKeyHex for the full rationale. */
+export async function getOrCreateJournalKeyHex() {
+  return getOrCreateBackupKey();
+}
+
+/** Restores the journal key from a recovery-key-based backup restore on a fresh install. */
+export async function restoreJournalKeyFromRecovery(keyHex) {
+  if (!keyHex) return;
+  await SecureStore.setItemAsync(KEY_STORE_KEY, keyHex);
+}
+
 async function encryptString(plainText, keyHex) {
   const ivBytes = await Crypto.getRandomBytesAsync(16);
   const ivHex = bytesToHex(ivBytes);

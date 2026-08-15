@@ -76,12 +76,18 @@ async function deriveKeysV2(password, saltHex) {
 /**
  * Wraps a backup payload (the object buildBackupPayload() returns) into a
  * password-encrypted envelope. The envelope's own top-level fields
- * (app/encrypted/version/exportedAt) stay in plain text — only the actual
- * data is encrypted — so a corrupted/wrong-password file can still be
- * recognized as "an A backup that needs a password" instead of looking
- * like garbage.
+ * (app/encrypted/version/exportedAt/recoveryBundle) stay in plain text —
+ * only the actual data is encrypted — so a corrupted/wrong-password file
+ * can still be recognized as "an A backup that needs a password" instead
+ * of looking like garbage, and so a fresh install with only this file and
+ * a recovery key (no local storage at all) can recover the password and
+ * the note/journal encryption keys straight from the file itself — see
+ * backupPasswordRecovery.js. recoveryBundle is optional: pass whatever
+ * getRecoveryBundle() returns (null if no recovery key has been set up),
+ * and it's embedded as-is, already wrapped/encrypted internally with the
+ * recovery key — this function never sees the raw recovery key.
  */
-export async function encryptPayloadWithPassword(payload, password) {
+export async function encryptPayloadWithPassword(payload, password, recoveryBundle = null) {
   if (!password) throw new Error('encryptPayloadWithPassword requires a non-empty password');
 
   const saltBytes = await Crypto.getRandomBytesAsync(16);
@@ -112,6 +118,7 @@ export async function encryptPayloadWithPassword(payload, password) {
     iv: ivHex,
     ciphertext: ciphertextBase64,
     tag: tagHex,
+    recoveryBundle: recoveryBundle || null,
   };
 }
 

@@ -12,7 +12,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useTabBar } from '../context/TabBarContext';
 import { useSpeedDial } from '../context/SpeedDialContext';
 import { buildBackupPayload } from './backup';
-import { getBackupPassword, getRecoveryEnvelope } from './backupPassword';
+import { getBackupPassword, getRecoveryBundle } from './backupPassword';
 import { encryptPayloadWithPassword } from './backupEncryption';
 import { shouldRunAutoBackupToday, uploadBackupToGithub, getGithubConfig } from './githubBackup';
 import { getSettingsSectionOrder } from './settingsSectionOrder';
@@ -142,8 +142,8 @@ export default function AutoGithubBackup() {
           // locked notes) gets encrypted before it ever leaves the device.
           const backupPassword = await getBackupPassword();
           if (backupPassword) {
-            const recoveryEnvelope = await getRecoveryEnvelope();
-            payload = await encryptPayloadWithPassword(payload, backupPassword, recoveryEnvelope);
+            const recoveryBundle = await getRecoveryBundle();
+            payload = await encryptPayloadWithPassword(payload, backupPassword, recoveryBundle);
           }
 
           await uploadBackupToGithub(payload);

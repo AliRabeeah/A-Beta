@@ -17,7 +17,7 @@ import { makeTagOptionId, nextTagColor } from '../../utils/tableUtils';
  * could strand existing cell data in a shape that no longer matches (a
  * number in a date column, etc).
  */
-export default function ColumnEditorSheet({ visible, column, onClose, onSave, onDelete, currentWidth, minWidth = 64, maxWidth = 320, widthStep = 10 }) {
+export default function ColumnEditorSheet({ visible, column, onClose, onSave, onDelete, currentWidth, minWidth = 32, maxWidth = 320, widthStep = 10 }) {
   const { colors } = useTheme();
   const { t, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();

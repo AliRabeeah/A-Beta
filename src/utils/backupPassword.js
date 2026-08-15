@@ -1,12 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
 import {
   generateRecoveryKey,
-  wrapBackupPassword,
-  unwrapBackupPassword,
-  saveRecoveryEnvelope,
-  getRecoveryEnvelope,
-  clearRecoveryEnvelope,
+  buildRecoveryBundle,
+  unwrapRecoveryBundle,
+  saveRecoveryBundle,
+  getRecoveryBundle,
+  clearRecoveryBundle,
 } from './backupPasswordRecovery';
+import { getOrCreateNoteKeyHex, restoreNoteKeyFromRecovery } from './noteEncryption';
+import { getOrCreateJournalKeyHex, restoreJournalKeyFromRecovery } from './journalEncryption';
 
 /**
  * The whole-backup password is itself a secret -> SecureStore, same as the
@@ -25,51 +27,77 @@ export async function hasBackupPassword() {
   return !!(await getBackupPassword());
 }
 
-export async function setBackupPassword(password) {
+async function setBackupPassword(password) {
   if (!password) throw new Error('setBackupPassword requires a non-empty password');
   await SecureStore.setItemAsync(PASSWORD_KEY, password);
 }
 
 export async function clearBackupPassword() {
   await SecureStore.deleteItemAsync(PASSWORD_KEY).catch(() => {});
-  await clearRecoveryEnvelope();
+  await clearRecoveryBundle();
 }
 
+export { getRecoveryBundle };
+
 /**
- * Sets the backup password AND (re)generates a recovery key for it, in one
- * step — every time the password is set or changed, a fresh recovery key
- * is issued (the old one, if any, stops working, matching how Signal
+ * Sets the backup password AND (re)generates a recovery key covering it —
+ * plus the on-device note/journal encryption keys, so a fresh
+ * install restoring with this recovery key gets locked notes and journal
+ * entries back too, not just the rest of the backup. Ensures those two
+ * keys exist (creating them if this device has never locked anything yet)
+ * so they're covered by the bundle even before the person locks their
+ * first note.
+ *
+ * Every time the password is set or changed, a fresh recovery key is
+ * issued (the old one, if any, stops working, matching how Signal
  * reissues its recovery key on a PIN change). Returns the plaintext
  * recovery key so the caller can show it to the person exactly once.
  */
 export async function setBackupPasswordWithRecovery(password) {
   await setBackupPassword(password);
   const recoveryKey = await generateRecoveryKey();
-  const envelope = await wrapBackupPassword(password, recoveryKey);
-  await saveRecoveryEnvelope(envelope);
+  const [noteKeyHex, journalKeyHex] = await Promise.all([getOrCreateNoteKeyHex(), getOrCreateJournalKeyHex()]);
+  const bundle = await buildRecoveryBundle({ password, noteKeyHex, journalKeyHex }, recoveryKey);
+  await saveRecoveryBundle(bundle);
   return recoveryKey;
 }
 
-export { getRecoveryEnvelope };
-
 /**
- * Recovers the backup password using a recovery key, against a wrapped
- * envelope — either the one stored locally (same-device recovery) or one
- * pulled from an actual backup file's plaintext header (recovery on a
- * fresh install, using only a GitHub/exported backup + the recovery key).
- * On success, also re-saves the password locally so future auto-backups
- * work again without re-entering anything. Returns the password, or null
- * if the recovery key is wrong.
+ * Re-issues a fresh recovery key for the CURRENT backup password, without
+ * changing the password itself — for "I lost my recovery key" in
+ * Settings. The old recovery key (if any) stops working, same as above.
  */
-export async function recoverBackupPassword(recoveryKey, envelope = null) {
-  const source = envelope || (await getRecoveryEnvelope());
-  if (!source) return null;
-  const password = unwrapBackupPassword(source, recoveryKey);
-  if (!password) return null;
-  await setBackupPassword(password);
-  // Re-anchor the local recovery envelope too, in case recovery happened
-  // from a backup file's embedded copy on a fresh install.
-  await saveRecoveryEnvelope(source);
-  return password;
+export async function regenerateRecoveryKey() {
+  const password = await getBackupPassword();
+  if (!password) throw new Error('regenerateRecoveryKey requires a backup password to already be set');
+  return setBackupPasswordWithRecovery(password);
 }
 
+/**
+ * Recovers everything a recovery key can unlock: the backup password
+ * itself, plus the note/journal encryption keys if the bundle has them.
+ * `bundleFromFile`, when provided, is the recoveryBundle embedded in an
+ * actual backup file being restored — this is what makes recovery work on
+ * a completely fresh install with no local SecureStore data at all;
+ * without it, only the locally-saved bundle (same-device recovery) is
+ * tried. Returns the recovered password on success (also re-saving it
+ * locally, so future auto-backups keep working without re-entering
+ * anything), or null if the recovery key is wrong or there's no bundle to
+ * try at all.
+ */
+export async function recoverFromRecoveryKey(recoveryKey, bundleFromFile = null) {
+  const bundle = bundleFromFile || (await getRecoveryBundle());
+  if (!bundle) return null;
+
+  const { password, noteKeyHex, journalKeyHex } = unwrapRecoveryBundle(bundle, recoveryKey);
+  if (!password) return null; // wrong recovery key, or a malformed/legacy bundle with nothing usable
+
+  await setBackupPassword(password);
+  await restoreNoteKeyFromRecovery(noteKeyHex);
+  await restoreJournalKeyFromRecovery(journalKeyHex);
+  // Re-anchor locally — important when bundleFromFile was used (fresh
+  // install), so this device now has its own local copy for next time.
+  await saveRecoveryBundle(bundle);
+
+  return password;
+}

@@ -16,11 +16,17 @@ import CryptoJS from 'crypto-js';
  *  - Each locked note is encrypted individually with AES-256-CBC and a
  *    fresh random IV per note (IV is not secret, it's stored alongside the
  *    ciphertext, which is standard practice).
- *  - Because the key never leaves the device, a backup can only be fully
- *    restored (locked notes included) on the SAME device install. On a
- *    different device/reinstall, locked notes come back still marked
- *    isLocked with empty content and decryptFailed: true instead of
- *    silently losing the lock flag or throwing — see decryptNotesFromBackup.
+ *  - Because the key never leaves the device on its own, a backup can
+ *    only be fully restored (locked notes included) on the SAME device
+ *    install by default. On a different device/reinstall without any
+ *    further setup, locked notes come back still marked isLocked with
+ *    empty content and decryptFailed: true instead of silently losing the
+ *    lock flag or throwing — see decryptNotesFromBackup.
+ *  - If the person has set up a backup-password recovery key (see
+ *    backupPasswordRecovery.js), this key is ALSO wrapped with that
+ *    recovery key and embedded in every backup file, so restoring with
+ *    the recovery key on a fresh install recovers locked notes too — see
+ *    getOrCreateNoteKeyHex / restoreNoteKeyFromRecovery.
  */
 
 const KEY_STORE_KEY = 'a_note_backup_key_v1';
@@ -40,6 +46,29 @@ async function getOrCreateBackupKey() {
     await SecureStore.setItemAsync(KEY_STORE_KEY, keyHex);
   }
   return keyHex;
+}
+
+/**
+ * Public entry point for backupPasswordRecovery.js: ensures the note key
+ * exists (creating it if this device has never locked a note yet) and
+ * returns it, so it can be wrapped into the recovery bundle. Because
+ * getOrCreateBackupKey always returns the SAME persistent key once
+ * created, wrapping it once at recovery-key-setup time covers every note
+ * locked before OR after that point — there's no need to re-wrap per note.
+ */
+export async function getOrCreateNoteKeyHex() {
+  return getOrCreateBackupKey();
+}
+
+/**
+ * Restores the note key from a recovered value (recovery-key-based backup
+ * restore on a fresh install) so decryptNotesFromBackup can find it in
+ * SecureStore exactly as if this had always been the device that created
+ * the locked notes in the first place.
+ */
+export async function restoreNoteKeyFromRecovery(keyHex) {
+  if (!keyHex) return;
+  await SecureStore.setItemAsync(KEY_STORE_KEY, keyHex);
 }
 
 async function encryptString(plainText, keyHex) {

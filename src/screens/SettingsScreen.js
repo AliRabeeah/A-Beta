@@ -55,7 +55,7 @@ import {
 import { buildBackupPayload, exportBackupToFile, importBackupFromFile } from '../utils/backup';
 import { decryptNotesFromBackup } from '../utils/noteEncryption';
 import { decryptJournalFromBackup } from '../utils/journalEncryption';
-import { getBackupPassword, hasBackupPassword, setBackupPassword, clearBackupPassword } from '../utils/backupPassword';
+import { getBackupPassword, hasBackupPassword, setBackupPasswordWithRecovery, clearBackupPassword, regenerateRecoveryKey, recoverFromRecoveryKey, getRecoveryBundle } from '../utils/backupPassword';
 import { encryptPayloadWithPassword, decryptPayloadWithPassword } from '../utils/backupEncryption';
 import { saveGithubConfig, getGithubConfig, uploadBackupToGithub, getLastBackupStatus, downloadLatestBackupFromGithub } from '../utils/githubBackup';
 import { SETTINGS_SECTION_ORDER_KEY, DEFAULT_SETTINGS_SECTION_ORDER, setSettingsSectionOrder } from '../utils/settingsSectionOrder';
@@ -143,10 +143,13 @@ export default function SettingsScreen({ navigation }) {
   // Whole-backup password (encrypts EVERYTHING in a backup, not just
   // locked notes) — see backupPassword.js / backupEncryption.js.
   const [backupPasswordSet, setBackupPasswordSet] = useState(false);
-  const [bpModalMode, setBpModalMode] = useState(null); // null | 'set' | 'import'
+  const [bpModalMode, setBpModalMode] = useState(null); // null | 'set' | 'import' | 'recoveryKeyShown' | 'recoverWithKey'
   const [bpDraft, setBpDraft] = useState('');
   const [bpConfirmDraft, setBpConfirmDraft] = useState('');
   const [pendingImportEnvelope, setPendingImportEnvelope] = useState(null);
+  const [shownRecoveryKey, setShownRecoveryKey] = useState('');
+  const [recoveryKeyDraft, setRecoveryKeyDraft] = useState('');
+  const [recoveryKeyError, setRecoveryKeyError] = useState(false);
 
 
   const [dayClosingReminderOn, setDayClosingReminderOn] = useState(false);
@@ -221,12 +224,56 @@ export default function SettingsScreen({ navigation }) {
       Alert.alert(t('errorLabel'), t('backupPasswordMismatch'));
       return;
     }
-    await setBackupPassword(bpDraft);
+    const recoveryKey = await setBackupPasswordWithRecovery(bpDraft);
     setBackupPasswordSet(true);
-    setBpModalMode(null);
     setBpDraft('');
     setBpConfirmDraft('');
-    Alert.alert(t('backupPasswordSavedTitle'), t('backupPasswordSavedBody'));
+    setShownRecoveryKey(recoveryKey);
+    setBpModalMode('recoveryKeyShown');
+  };
+
+  const handleRegenerateRecoveryKey = () => {
+    Alert.alert(t('regenerateRecoveryKeyConfirmTitle'), t('regenerateRecoveryKeyConfirmBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('regenerateRecoveryKeyConfirmAction'),
+        onPress: async () => {
+          const recoveryKey = await regenerateRecoveryKey();
+          setShownRecoveryKey(recoveryKey);
+          setBpModalMode('recoveryKeyShown');
+        },
+      },
+    ]);
+  };
+
+  const handleSubmitRecoveryKey = async () => {
+    setRecoveryKeyError(false);
+    const bundleFromFile = pendingImportEnvelope?.recoveryBundle || null;
+    const password = await recoverFromRecoveryKey(recoveryKeyDraft.trim(), bundleFromFile);
+    if (!password) {
+      setRecoveryKeyError(true);
+      return;
+    }
+    setBackupPasswordSet(true);
+    setRecoveryKeyDraft('');
+    if (pendingImportEnvelope) {
+      // Came from the import flow — now that the password is recovered,
+      // decrypt and continue exactly like a normal password-based import.
+      try {
+        const payload = await decryptPayloadWithPassword(pendingImportEnvelope, password);
+        setBpModalMode(null);
+        setPendingImportEnvelope(null);
+        setBusy('import');
+        confirmAndApplyImport(payload.data);
+      } catch (e) {
+        setRecoveryKeyError(true);
+      }
+    } else {
+      // Came from Settings directly ("I forgot my password") — the
+      // password and note/journal keys are restored; nothing left to do.
+      setBpModalMode(null);
+      Alert.alert(t('recoveryKeyRestoredTitle'), t('recoveryKeyRestoredBody'));
+    }
   };
 
   const handleRemoveBackupPassword = () => {
@@ -359,7 +406,10 @@ export default function SettingsScreen({ navigation }) {
       const layout = await gatherLayoutForBackup();
       let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
-      if (password) payload = await encryptPayloadWithPassword(payload, password);
+      if (password) {
+        const recoveryBundle = await getRecoveryBundle();
+        payload = await encryptPayloadWithPassword(payload, password, recoveryBundle);
+      }
       const result = await uploadBackupToGithub(payload);
       setGhLastStatus(await getLastBackupStatus());
       Alert.alert(result.ok ? t('githubBackupTestSuccess') : t('githubBackupTestFailed'), result.message);
@@ -498,7 +548,10 @@ export default function SettingsScreen({ navigation }) {
       const layout = await gatherLayoutForBackup();
       let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
-      if (password) payload = await encryptPayloadWithPassword(payload, password);
+      if (password) {
+        const recoveryBundle = await getRecoveryBundle();
+        payload = await encryptPayloadWithPassword(payload, password, recoveryBundle);
+      }
       await exportBackupToFile(payload);
     } catch (e) {
       Alert.alert(t('backupFailed'));
@@ -1282,6 +1335,9 @@ export default function SettingsScreen({ navigation }) {
                       </View>
                       {backupPasswordSet ? (
                         <View style={{ flexDirection: 'row', gap: 14 }}>
+                          <TouchableOpacity onPress={handleRegenerateRecoveryKey} hitSlop={8}>
+                            <Ionicons name="key-outline" size={19} color={colors.textSecondary} />
+                          </TouchableOpacity>
                           <TouchableOpacity onPress={() => setBpModalMode('set')} hitSlop={8}>
                             <Ionicons name="create-outline" size={19} color={colors.textSecondary} />
                           </TouchableOpacity>
@@ -1355,7 +1411,85 @@ export default function SettingsScreen({ navigation }) {
                             <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('backupPasswordSubmitAction')}</Text>
                           </TouchableOpacity>
                         </View>
+                        <TouchableOpacity
+                          onPress={() => { setBpDraft(''); setRecoveryKeyError(false); setBpModalMode('recoverWithKey'); }}
+                          style={{ marginTop: 14, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>{t('forgotPasswordUseRecoveryKey')}</Text>
+                        </TouchableOpacity>
                       </View>
+                    )}
+
+                    {bpModalMode === 'recoveryKeyShown' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <Ionicons name="key" size={18} color={colors.primary} />
+                          <Text style={[styles.sublabel, { color: colors.text, marginBottom: 0 }]}>{t('recoveryKeyShownTitle')}</Text>
+                        </View>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: 12 }}>
+                          {t('recoveryKeyShownBody')}
+                        </Text>
+                        <View style={{ backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 14 }}>
+                          <Text selectable style={{ color: colors.text, fontSize: 18, fontWeight: '700', letterSpacing: 1, textAlign: 'center' }}>
+                            {shownRecoveryKey}
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.danger, fontSize: 12, lineHeight: 17, marginTop: 10 }}>
+                          {t('recoveryKeyShownWarning')}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => { setBpModalMode(null); setShownRecoveryKey(''); }}
+                          style={[styles.pill, { alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary, marginTop: 14 }]}
+                        >
+                          <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('recoveryKeyShownConfirmAction')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {bpModalMode === 'recoverWithKey' && (
+                      <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, padding: 14, marginTop: 6, marginBottom: 6 }]}>
+                        <Text style={[styles.sublabel, { color: colors.text }]}>{t('recoverWithKeyTitle')}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 8 }}>
+                          {t('recoverWithKeyBody')}
+                        </Text>
+                        <TextInput
+                          value={recoveryKeyDraft}
+                          onChangeText={(v) => { setRecoveryKeyDraft(v); setRecoveryKeyError(false); }}
+                          placeholder={t('recoveryKeyInputPlaceholder')}
+                          placeholderTextColor={colors.textSecondary}
+                          autoCapitalize="characters"
+                          autoCorrect={false}
+                          autoFocus
+                          style={[styles.input, { color: colors.text, borderColor: recoveryKeyError ? colors.danger : colors.border, backgroundColor: colors.surface, marginTop: 4 }]}
+                        />
+                        {recoveryKeyError && (
+                          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 6 }}>{t('recoveryKeyIncorrect')}</Text>
+                        )}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setBpModalMode(pendingImportEnvelope ? 'import' : null);
+                              setRecoveryKeyDraft('');
+                              setRecoveryKeyError(false);
+                            }}
+                            style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }]}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{t('cancel')}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleSubmitRecoveryKey} style={[styles.pill, { flex: 1, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                            <Text style={{ color: colors.onPrimary, fontWeight: '700', fontSize: 13 }}>{t('recoveryKeySubmitAction')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {backupPasswordSet && bpModalMode === null && (
+                      <TouchableOpacity
+                        onPress={() => { setRecoveryKeyDraft(''); setRecoveryKeyError(false); setBpModalMode('recoverWithKey'); }}
+                        style={{ paddingVertical: 4 }}
+                      >
+                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{t('lostRecoveryKeyOrPasswordHint')}</Text>
+                      </TouchableOpacity>
                     )}
 
                     <TouchableOpacity onPress={handleExport} style={styles.row} disabled={!!busy}>

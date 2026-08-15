@@ -48,7 +48,6 @@ export function TaskProvider({ children }) {
       completions: {},
       checklist: task.checklist || [],
       reminders: task.reminders || [],
-      reminderIds,
       note: task.note || '',
       priority: task.priority || 'default',
       dueDate: task.dueDate || toKey(new Date()),

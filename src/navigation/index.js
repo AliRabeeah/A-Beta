@@ -22,6 +22,8 @@ import TodayScreen from '../screens/TodayScreen';
 import HabitsScreen from '../screens/HabitsScreen';
 import TasksScreen from '../screens/TasksScreen';
 import InsightsScreen from '../screens/InsightsScreen';
+import AgendaScreen from '../screens/AgendaScreen';
+import YearInPixelsScreen from '../screens/YearInPixelsScreen';
 import TimerScreen from '../screens/TimerScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AddEditHabitScreen from '../screens/AddEditHabitScreen';
@@ -152,6 +154,8 @@ export default function RootNavigator() {
       <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: '' }} />
       <Stack.Screen name="Archive" component={ArchiveScreen} options={{ title: '' }} />
       <Stack.Screen name="Insights" component={InsightsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Agenda" component={AgendaScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="YearInPixels" component={YearInPixelsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Timer" component={TimerScreen} options={{ headerShown: false }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: '' }} />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ title: '' }} />

@@ -23,7 +23,7 @@ import TableSettingsSheet from '../components/tables/TableSettingsSheet';
 // Default widths — just a starting point now that every column is
 // user-resizable via the drag handle on its header's trailing edge.
 const COLUMN_WIDTH = { text: 120, number: 84, currency: 104, date: 114, checkbox: 64, tag: 122, link: 150, rating: 112 };
-const MIN_COL_WIDTH = 64;
+const MIN_COL_WIDTH = 32; // below this, a checkbox icon (20px) plus the cell's own 8px padding on each side starts clipping
 const MAX_COL_WIDTH = 320;
 const ADD_COLUMN_WIDTH = 48;
 const STAR_COUNT = 5;

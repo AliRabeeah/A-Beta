@@ -50,7 +50,6 @@ export async function authenticateWithBiometrics() {
 export async function authenticateWithBiometricsCustom(options = {}) {
   try {
     const result = await LocalAuthentication.authenticateAsync({
-      disableDeviceFallback: false,
       reason: options.reason || 'Authenticate to access locked note',
       fallbackLabel: options.fallbackLabel || 'Use PIN',
       disableDeviceFallback: options.disableDeviceFallback || false,
