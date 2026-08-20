@@ -204,11 +204,11 @@ export default function TableDetailScreen({ route, navigation }) {
   const handleSaveColumn = (draft) => {
     if (isLocked) return;
     if (columnEditorTarget) {
-      const patch = { name: draft.name, tagOptions: draft.tagOptions };
+      const patch = { name: draft.name, tagOptions: draft.tagOptions, dateFormat: draft.dateFormat };
       if (draft.width != null) patch.width = Math.round(draft.width);
       updateColumn(table.id, columnEditorTarget.id, patch);
     } else {
-      addColumn(table.id, makeColumn(draft.name, draft.type, draft.tagOptions));
+      addColumn(table.id, makeColumn(draft.name, draft.type, draft.tagOptions, draft.dateFormat));
     }
     setColumnEditorTarget(undefined);
   };

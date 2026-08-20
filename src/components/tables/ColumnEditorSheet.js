@@ -19,13 +19,21 @@ import { makeTagOptionId, nextTagColor } from '../../utils/tableUtils';
  */
 export default function ColumnEditorSheet({ visible, column, onClose, onSave, onDelete, currentWidth, minWidth = 32, maxWidth = 320, widthStep = 10 }) {
   const { colors } = useTheme();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const insets = useSafeAreaInsets();
   const isEditing = !!column;
+  const locale = language === 'ar' ? 'ar-EG' : 'en-US';
+  const today = new Date();
+  const dateFormatPreview = (fmt) => (
+    fmt === 'short'
+      ? `${today.getDate()}/${today.getMonth() + 1}/${String(today.getFullYear()).slice(-2)}`
+      : today.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })
+  );
 
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [tagOptions, setTagOptions] = useState([]);
+  const [dateFormat, setDateFormat] = useState('long');
   const [width, setWidth] = useState(currentWidth || 120);
   const [widthInput, setWidthInput] = useState(String(Math.round(currentWidth || 120)));
 
@@ -34,6 +42,7 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
       setName(column?.name || '');
       setType(column?.type || 'text');
       setTagOptions(column?.tagOptions || []);
+      setDateFormat(column?.dateFormat || 'long');
       setWidth(currentWidth || 120);
       setWidthInput(String(Math.round(currentWidth || 120)));
     }
@@ -84,7 +93,7 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
       const parsed = parseInt(widthInput, 10);
       if (!Number.isNaN(parsed)) finalWidth = Math.min(maxWidth, Math.max(minWidth, parsed));
     }
-    onSave({ name: name.trim(), type, tagOptions: cleanedTags, width: isEditing ? finalWidth : undefined });
+    onSave({ name: name.trim(), type, tagOptions: cleanedTags, dateFormat: type === 'date' ? dateFormat : undefined, width: isEditing ? finalWidth : undefined });
   };
 
   return (
@@ -166,6 +175,31 @@ export default function ColumnEditorSheet({ visible, column, onClose, onSave, on
                 >
                   <Ionicons name="add" size={18} color={colors.text} />
                 </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {type === 'date' && (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{t('columnDateFormatLabel')}</Text>
+              <View style={[styles.typeGrid, isRTL && { flexDirection: 'row-reverse' }]}>
+                {['long', 'short'].map((fmt) => {
+                  const active = dateFormat === fmt;
+                  return (
+                    <TouchableOpacity
+                      key={fmt}
+                      onPress={() => { Haptics.selectionAsync(); setDateFormat(fmt); }}
+                      style={[
+                        styles.typeChip,
+                        { borderColor: colors.border, backgroundColor: active ? withAlpha(colors.primary, 0.16) : 'transparent' },
+                      ]}
+                    >
+                      <Text style={{ color: active ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+                        {dateFormatPreview(fmt)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </>
           )}

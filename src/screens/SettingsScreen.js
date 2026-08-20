@@ -26,6 +26,7 @@ import { useNotes } from '../context/NoteContext';
 import { usePlanning } from '../context/PlanningContext';
 import { useTables } from '../context/TableContext';
 import { useJournal } from '../context/JournalContext';
+import { useMood } from '../context/MoodContext';
 import { useTabBar, MIN_TABS, MAX_TABS } from '../context/TabBarContext';
 import { useSpeedDial, MIN_SHORTCUTS, MAX_SHORTCUTS } from '../context/SpeedDialContext';
 import { useAppLock, AUTO_LOCK_OPTIONS } from '../context/AppLockContext';
@@ -113,6 +114,7 @@ export default function SettingsScreen({ navigation }) {
   const { notes, replaceAllNotes } = useNotes();
   const { planningItems, replaceAllPlanningItems } = usePlanning();
   const { tables: tableItems, replaceAllTables } = useTables();
+  const { moods, replaceAllMoods } = useMood();
   const { entries: journalEntries, replaceAllEntries: replaceAllJournalEntries } = useJournal();
   const { tabs: activeTabIds, toggleTab, reorderTabs, replaceTabs, pool: tabPool } = useTabBar();
   const {
@@ -404,7 +406,7 @@ export default function SettingsScreen({ navigation }) {
     setGhTesting(true);
     try {
       const layout = await gatherLayoutForBackup();
-      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, moods, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
       if (password) {
         const recoveryBundle = await getRecoveryBundle();
@@ -546,7 +548,7 @@ export default function SettingsScreen({ navigation }) {
     setBusy('export');
     try {
       const layout = await gatherLayoutForBackup();
-      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
+      let payload = await buildBackupPayload({ habits, tasks, challenges, badges, favorites, notes, planningItems, tableItems, journalEntries, moods, wishlist, wishlistTags, accent, mode: preference, language, ...layout });
       const password = await getBackupPassword();
       if (password) {
         const recoveryBundle = await getRecoveryBundle();
@@ -578,6 +580,7 @@ export default function SettingsScreen({ navigation }) {
             if (data.planningItems) await replaceAllPlanningItems(data.planningItems);
             if (data.tableItems) await replaceAllTables(data.tableItems);
             if (data.journalEntries) await replaceAllJournalEntries(await decryptJournalFromBackup(data.journalEntries));
+            if (data.moods) await replaceAllMoods(data.moods);
             if (data.wishlist) await replaceAllWishlist(data.wishlist, data.wishlistTags);
             if (data.accent) await setAccent(data.accent);
             if (data.mode) await setMode(data.mode);

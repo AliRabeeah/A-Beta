@@ -40,9 +40,14 @@ export function MoodProvider({ children }) {
 
   const getMoodForDate = useCallback((date = new Date()) => moods[toKey(date)] || null, [moods]);
 
+  /** Replaces the whole mood log with an imported/restored set (used by backup restore). */
+  const replaceAllMoods = useCallback(async (importedMoods) => {
+    await persist(importedMoods || {});
+  }, [persist]);
+
   const value = useMemo(
-    () => ({ moods, loaded, setMoodForDate, getMoodForDate }),
-    [moods, loaded, setMoodForDate, getMoodForDate]
+    () => ({ moods, loaded, setMoodForDate, getMoodForDate, replaceAllMoods }),
+    [moods, loaded, setMoodForDate, getMoodForDate, replaceAllMoods]
   );
 
   return (

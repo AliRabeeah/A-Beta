@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTables } from '../context/TableContext';
 import { TABLE_TEMPLATES, TAG_COLOR_PALETTE } from '../constants/tableTemplates';
-import { makeColumn, makeTagOptionId } from '../utils/tableUtils';
+import { makeColumn, makeTagOptionId, buildTableFromCSVRows, pickAndParseCSVFile } from '../utils/tableUtils';
 import TableCard from '../components/TableCard';
 import ActionSheet from '../components/ActionSheet';
 
@@ -18,7 +18,9 @@ export default function TablesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   const [templatePickerVisible, setTemplatePickerVisible] = useState(false);
+  const [creationSheetVisible, setCreationSheetVisible] = useState(false);
   const [cardActionsTable, setCardActionsTable] = useState(null);
+  const [importingCSV, setImportingCSV] = useState(false);
 
   const sortedTables = useMemo(
     () => [...tables].sort((a, b) => {
@@ -45,6 +47,43 @@ export default function TablesScreen({ navigation }) {
     const newTable = await addTable({ title: t(template.nameKey), icon: template.icon, columns, rows: [] });
     navigation.navigate('TableDetail', { tableId: newTable.id, isNew: true });
   }, [addTable, navigation, t]);
+
+  const handleImportCSV = useCallback(async () => {
+    if (importingCSV) return;
+    setImportingCSV(true);
+    try {
+      const picked = await pickAndParseCSVFile();
+      if (!picked) { setImportingCSV(false); return; } // user cancelled
+      const built = buildTableFromCSVRows(picked.csvRows, (i) => `${t('tableColumnItem')} ${i + 1}`);
+      if (!built || built.columns.length === 0) {
+        Alert.alert(t('csvImportFailedTitle'), t('csvImportInvalidBody'));
+        setImportingCSV(false);
+        return;
+      }
+      Haptics.selectionAsync();
+      const newTable = await addTable({
+        title: picked.fileName || t('untitledTable'),
+        icon: '\ud83d\udcc4',
+        columns: built.columns,
+        rows: built.rows,
+      });
+      setImportingCSV(false);
+      navigation.navigate('TableDetail', { tableId: newTable.id, isNew: true });
+    } catch (e) {
+      setImportingCSV(false);
+      Alert.alert(t('csvImportFailedTitle'), e?.message === 'Empty CSV file' ? t('csvImportInvalidBody') : t('csvImportGenericError'));
+    }
+  }, [addTable, navigation, t, importingCSV]);
+
+  const openCreationMenu = useCallback(() => {
+    Haptics.selectionAsync();
+    setCreationSheetVisible(true);
+  }, []);
+
+  const creationActions = [
+    { icon: 'grid-outline', label: t('newTableFromTemplate'), onPress: () => setTemplatePickerVisible(true) },
+    { icon: 'document-attach-outline', label: t('importCSVTable'), onPress: handleImportCSV },
+  ];
 
   const handleDeleteTable = useCallback((table) => {
     Alert.alert(t('deleteTableConfirmTitle'), t('deleteTableConfirmBody'), [
@@ -81,7 +120,7 @@ export default function TablesScreen({ navigation }) {
           <Text style={styles.emptyEmoji}>{'\ud83d\udcca'}</Text>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('tablesEmptyTitle')}</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>{t('tablesEmptySubtitle')}</Text>
-          <TouchableOpacity onPress={() => setTemplatePickerVisible(true)} style={[styles.addFirstBtn, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity onPress={openCreationMenu} style={[styles.addFirstBtn, { backgroundColor: colors.primary }]}>
             <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>{t('addFirstTable')}</Text>
           </TouchableOpacity>
         </View>
@@ -102,13 +141,21 @@ export default function TablesScreen({ navigation }) {
 
       {!isEmpty && (
         <TouchableOpacity
-          onPress={() => setTemplatePickerVisible(true)}
+          onPress={openCreationMenu}
+          disabled={importingCSV}
           style={[styles.fab, { backgroundColor: colors.primary, bottom: insets.bottom + 24 }]}
           activeOpacity={0.85}
         >
-          <Ionicons name="add" size={28} color={colors.onPrimary} />
+          {importingCSV ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={28} color={colors.onPrimary} />}
         </TouchableOpacity>
       )}
+
+      <ActionSheet
+        visible={creationSheetVisible}
+        onClose={() => setCreationSheetVisible(false)}
+        title={t('newTableActionTitle')}
+        actions={creationActions}
+      />
 
       <Modal visible={templatePickerVisible} transparent animationType="slide" onRequestClose={() => setTemplatePickerVisible(false)}>
         <View style={styles.modalOverlay}>

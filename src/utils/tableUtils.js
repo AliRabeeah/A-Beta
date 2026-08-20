@@ -1,6 +1,7 @@
 import { TAG_COLOR_PALETTE } from '../constants/tableTemplates';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 let idSeed = 0;
 function makeId(prefix) {
@@ -24,12 +25,13 @@ export function emptyCellValue(type) {
   }
 }
 
-export function makeColumn(name, type, tagOptions = []) {
+export function makeColumn(name, type, tagOptions = [], dateFormat) {
   return {
     id: makeColumnId(),
     name,
     type,
     tagOptions: type === 'tag' ? tagOptions : undefined,
+    dateFormat: type === 'date' ? (dateFormat || 'long') : undefined,
   };
 }
 
@@ -79,7 +81,13 @@ export function formatCellDisplay(value, column, locale) {
       return String(value);
     case 'date': {
       const d = new Date(value + 'T00:00:00');
-      return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
+      if (Number.isNaN(d.getTime())) return '';
+      // 'short' -> unpadded D/M/YY (e.g. 1/9/26); default 'long' keeps the
+      // existing spelled-out format (e.g. Sep 1, 2026).
+      if (column.dateFormat === 'short') {
+        return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(-2)}`;
+      }
+      return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
     }
     case 'tag': {
       const opt = (column.tagOptions || []).find((o) => o.id === value);
@@ -177,4 +185,145 @@ export async function shareTableCSV(table, locale) {
     await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: table.title || 'Export Table' });
   }
   return path;
+}
+
+// --- CSV import --------------------------------------------------------
+
+/** Picks the more likely field separator by counting occurrences on a sample line. */
+function detectDelimiter(sampleLine) {
+  const counts = {
+    ',': (sampleLine.match(/,/g) || []).length,
+    ';': (sampleLine.match(/;/g) || []).length,
+    '\t': (sampleLine.match(/\t/g) || []).length,
+  };
+  return Object.keys(counts).reduce((best, d) => (counts[d] > counts[best] ? d : best), ',');
+}
+
+/**
+ * Parses raw CSV text into a 2D array of string cells. Handles quoted
+ * fields (with embedded commas/newlines/escaped quotes), auto-detects the
+ * delimiter (comma, semicolon, or tab), strips a leading UTF-8 BOM, and
+ * drops fully-blank lines.
+ */
+export function parseCSV(text) {
+  if (!text) return [];
+  let str = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (!str.trim()) return [];
+
+  const firstBreak = str.indexOf('\n');
+  const sample = firstBreak === -1 ? str : str.slice(0, firstBreak);
+  const delimiter = detectDelimiter(sample);
+
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (str[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === delimiter) {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += ch;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows.filter((r) => r.some((c) => c.trim() !== ''));
+}
+
+function looksNumeric(value) {
+  return /^-?\d+(\.\d+)?$/.test(value.trim());
+}
+
+/** 'number' if every non-empty value in the column parses as a plain number, else 'text'. */
+function inferColumnType(values) {
+  const nonEmpty = values.map((v) => (v ?? '').toString().trim()).filter((v) => v !== '');
+  if (nonEmpty.length === 0) return 'text';
+  return nonEmpty.every(looksNumeric) ? 'number' : 'text';
+}
+
+/**
+ * Turns parsed CSV rows (first row = header) into { columns, rows } using
+ * the exact same shapes (makeColumn/makeRowId, tag-free) as a table built
+ * by hand in the app, so the result is a fully normal, editable table.
+ * `columnNameFallback(index)` names columns whose header cell is blank.
+ */
+export function buildTableFromCSVRows(csvRows, columnNameFallback = (i) => `Column ${i + 1}`) {
+  if (!csvRows || csvRows.length === 0) return null;
+  const [headerRow, ...dataRows] = csvRows;
+  const columnCount = Math.max(headerRow.length, ...dataRows.map((r) => r.length), 1);
+
+  const columns = [];
+  const usedNames = new Set();
+  for (let i = 0; i < columnCount; i++) {
+    let name = (headerRow[i] || '').trim() || columnNameFallback(i);
+    let unique = name;
+    let n = 2;
+    while (usedNames.has(unique)) { unique = `${name} (${n})`; n += 1; }
+    usedNames.add(unique);
+    const type = inferColumnType(dataRows.map((r) => r[i] || ''));
+    columns.push(makeColumn(unique, type));
+  }
+
+  const rows = dataRows.map((r) => {
+    const cells = {};
+    columns.forEach((col, i) => {
+      const raw = (r[i] ?? '').trim();
+      if (raw === '') {
+        cells[col.id] = emptyCellValue(col.type);
+      } else if (col.type === 'number') {
+        const n = Number(raw);
+        cells[col.id] = Number.isNaN(n) ? raw : n;
+      } else {
+        cells[col.id] = raw;
+      }
+    });
+    return { id: makeRowId(), cells };
+  });
+
+  return { columns, rows };
+}
+
+/**
+ * Opens the native file picker for a .csv file, reads and parses it.
+ * Returns null if the user cancels, or { csvRows, fileName } (fileName
+ * with the extension stripped, for use as a default table title).
+ */
+export async function pickAndParseCSVFile() {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: ['text/csv', 'text/comma-separated-values', 'public.comma-separated-values-text', 'text/tab-separated-values', 'text/plain', '*/*'],
+    copyToCacheDirectory: true,
+  });
+
+  if (result.canceled) return null;
+
+  const asset = result.assets?.[0];
+  if (!asset?.uri) throw new Error('No file selected');
+
+  const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+  const csvRows = parseCSV(content);
+  if (csvRows.length === 0) throw new Error('Empty CSV file');
+
+  const fileName = (asset.name || '').replace(/\.[^/.]+$/, '');
+  return { csvRows, fileName };
 }

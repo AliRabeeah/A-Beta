@@ -11,7 +11,10 @@ const BACKUP_FILE_NAME = 'a-backup.json';
 // picks) the person had, not just their data. Old (v1) backup files are
 // still importable — the extra fields are simply absent/undefined on them,
 // and every restore step below is a no-op when its field is missing.
-export const BACKUP_VERSION = 2;
+// v2 -> v3: added moods (the daily mood + note log), which had its own
+// storage key and was being silently left out of every backup. Same
+// backward-compatible pattern: absent on older files, skipped on restore.
+export const BACKUP_VERSION = 3;
 
 export async function buildBackupPayload({
   habits,
@@ -23,6 +26,7 @@ export async function buildBackupPayload({
   planningItems,
   tableItems,
   journalEntries,
+  moods,
   wishlist,
   wishlistTags,
   accent,
@@ -57,6 +61,7 @@ export async function buildBackupPayload({
       planningItems: planningItems || [],
       tableItems: tableItems || [],
       journalEntries: safeJournal,
+      moods: moods || {},
       wishlist: wishlist || [],
       wishlistTags: wishlistTags || [],
       accent,
