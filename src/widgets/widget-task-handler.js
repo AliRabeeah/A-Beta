@@ -13,6 +13,7 @@ import {
   getWidgetSize,
   getWidgetAlign,
   getShowAuthor,
+  getWidgetShadowEnabled,
   getQuoteEmojiEnabled,
   getCurrentWidgetQuoteId,
   setCurrentWidgetQuoteId,
@@ -225,7 +226,7 @@ async function handleQuoteWidget(props) {
 
   if (quote) await setCurrentWidgetQuoteId(quote.id);
 
-  const [textColor, fontFamily, size, align, showAuthor, emojiEnabled, fitRatio, offsets] = await Promise.all([
+  const [textColor, fontFamily, size, align, showAuthor, emojiEnabled, fitRatio, offsets, shadowEnabled] = await Promise.all([
     getWidgetTextColor(),
     getWidgetFontFamily(),
     getWidgetSize(),
@@ -234,6 +235,7 @@ async function handleQuoteWidget(props) {
     getQuoteEmojiEnabled(),
     getWidgetFitRatio(),
     getWidgetOffsets(),
+    getWidgetShadowEnabled(),
   ]);
 
   props.renderWidget(
@@ -246,6 +248,7 @@ async function handleQuoteWidget(props) {
       fontFamily={fontFamily}
       size={size}
       align={align}
+      shadowEnabled={shadowEnabled}
       widgetWidthDp={props.widgetInfo?.width ?? null}
       widgetHeightDp={props.widgetInfo?.height ?? null}
       fitRatio={fitRatio}

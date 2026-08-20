@@ -11,6 +11,7 @@ const WIDGET_FIT_KEY = 'a_quote_widget_fit'; // 'roomy' | 'balanced' | 'snug'
 const WIDGET_SIZE_KEY = 'a_quote_widget_size'; // 'small' | 'medium' | 'large'
 const WIDGET_ALIGN_KEY = 'a_quote_widget_align'; // 'left' | 'center' | 'right'
 const SHOW_AUTHOR_KEY = 'a_quote_widget_show_author';
+const SHADOW_KEY = 'a_quote_widget_shadow_enabled';
 const RECENT_IDS_KEY = 'a_quote_recent_ids';
 const LIKED_IDS_KEY = 'a_quote_liked_ids';
 const LAST_SCHEDULED_DATE_KEY = 'a_quote_last_scheduled_date';
@@ -161,6 +162,24 @@ export async function getShowAuthor() {
 }
 export async function setShowAuthor(value) {
   await setBool(SHOW_AUTHOR_KEY, value);
+}
+
+// A soft, dark drop shadow behind the quote text — helps it stay legible
+// over busy/light wallpapers without needing a background card. Off by
+// default so existing widgets look exactly as they did before this option
+// existed.
+export const DEFAULT_WIDGET_SHADOW_ENABLED = false;
+export const WIDGET_TEXT_SHADOW = {
+  color: 'rgba(0, 0, 0, 0.65)',
+  radius: 4,
+  offset: { width: 0, height: 2 },
+};
+
+export async function getWidgetShadowEnabled() {
+  return getBool(SHADOW_KEY, DEFAULT_WIDGET_SHADOW_ENABLED);
+}
+export async function setWidgetShadowEnabled(value) {
+  await setBool(SHADOW_KEY, value);
 }
 
 export async function getRecentQuoteIds() {

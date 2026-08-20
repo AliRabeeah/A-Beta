@@ -24,6 +24,8 @@ import {
   getWidgetSize, setWidgetSize,
   getWidgetAlign, setWidgetAlign,
   getShowAuthor, setShowAuthor,
+  getWidgetShadowEnabled, setWidgetShadowEnabled,
+  WIDGET_TEXT_SHADOW,
   getLikedQuoteIds, toggleLikedQuoteId,
   getWidgetFitMode, setWidgetFitMode,
   getWidgetOffsets, setWidgetOffsets, resetWidgetOffsets,
@@ -151,6 +153,7 @@ export default function QuoteSettingsScreen() {
   const [fit, setFitState] = useState('balanced');
   const [align, setAlignState] = useState('center');
   const [showAuthor, setShowAuthorState] = useState(true);
+  const [shadowEnabled, setShadowEnabledState] = useState(false);
   const [rotationInterval, setRotationIntervalState] = useState(240);
   const [offsets, setOffsetsState] = useState(DEFAULT_WIDGET_OFFSETS);
   const offsetsRef = useRef(offsets);
@@ -229,6 +232,7 @@ export default function QuoteSettingsScreen() {
     getWidgetFitMode().then(setFitState);
     getWidgetAlign().then(setAlignState);
     getShowAuthor().then(setShowAuthorState);
+    getWidgetShadowEnabled().then(setShadowEnabledState);
     getWidgetRotationInterval().then(setRotationIntervalState);
     getWidgetOffsets().then(setOffsetsState);
     getLikedQuoteIds().then(setLikedIds);
@@ -363,6 +367,13 @@ export default function QuoteSettingsScreen() {
     refreshQuoteWidget();
   };
 
+  const handleToggleShadow = async () => {
+    const next = !shadowEnabled;
+    setShadowEnabledState(next);
+    await setWidgetShadowEnabled(next);
+    refreshQuoteWidget();
+  };
+
   const handleShuffle = () => loadPreview();
 
   const handleLikePreview = async () => {
@@ -385,6 +396,13 @@ export default function QuoteSettingsScreen() {
           style={{
             color, fontSize: size === 'small' ? 15 : size === 'large' ? 22 : 18,
             fontWeight: '700', fontFamily, textAlign: align,
+            ...(shadowEnabled
+              ? {
+                  textShadowColor: WIDGET_TEXT_SHADOW.color,
+                  textShadowRadius: WIDGET_TEXT_SHADOW.radius,
+                  textShadowOffset: WIDGET_TEXT_SHADOW.offset,
+                }
+              : null),
           }}
         >
           "{previewQuote?.text || ''}"
@@ -594,6 +612,13 @@ export default function QuoteSettingsScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
+
+        <TouchableOpacity onPress={handleToggleShadow} style={styles.row}>
+          <Text style={{ color: colors.text, fontSize: 15 }}>{t('quoteTextShadow')}</Text>
+          <Ionicons name={shadowEnabled ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={shadowEnabled ? colors.primary : colors.textSecondary} />
+        </TouchableOpacity>
 
         <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
 

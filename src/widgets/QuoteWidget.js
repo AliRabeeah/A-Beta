@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import { estimateQuoteFontSize } from '../utils/quotePicker';
-import { DEFAULT_WIDGET_OFFSETS } from '../utils/quoteSettings';
+import { DEFAULT_WIDGET_OFFSETS, WIDGET_TEXT_SHADOW } from '../utils/quoteSettings';
 
 // Ceiling/floor for each user-facing size preset. The *actual* font size
 // used is computed per-quote by estimateQuoteFontSize(), which shrinks the
@@ -40,6 +40,7 @@ export default function QuoteWidget({
   fontFamily = 'serif',
   size = 'medium',
   align = 'center',
+  shadowEnabled = false,
   widgetWidthDp = null,
   widgetHeightDp = null,
   fitRatio = 0.8,
@@ -119,6 +120,13 @@ export default function QuoteWidget({
             marginLeft: quoteOffset.x,
             marginTop: quoteOffset.y,
             textAlign,
+            ...(shadowEnabled
+              ? {
+                  textShadowColor: WIDGET_TEXT_SHADOW.color,
+                  textShadowRadius: WIDGET_TEXT_SHADOW.radius,
+                  textShadowOffset: WIDGET_TEXT_SHADOW.offset,
+                }
+              : null),
           }}
         />
 
